@@ -7,13 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { submitPrintJob, createPrintJob } from '@/lib/printnode';
+import { submitPrintJob, createPrintJob, fetchPrinters, PrintNodePrinter } from '@/lib/printnode';
 import { Shipment } from '@/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Scan() {
   const [uid, setUid] = useState('');
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [printers, setPrinters] = useState<PrintNodePrinter[]>([]);
+  const [selectedPrinterId, setSelectedPrinterId] = useState<string>('');
+  const [loadingPrinters, setLoadingPrinters] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -22,6 +26,52 @@ export default function Scan() {
     settings,
     addRecentScan 
   } = useAppStore();
+
+  // Load printer ID from cookie and fetch printers on mount
+  useEffect(() => {
+    const savedPrinterId = getCookie('selected_printer_id');
+    if (savedPrinterId) {
+      setSelectedPrinterId(savedPrinterId);
+    }
+
+    if (settings.printnode_api_key) {
+      loadPrinters();
+    }
+  }, [settings.printnode_api_key]);
+
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  };
+
+  const setCookie = (name: string, value: string, days: number = 365) => {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+  };
+
+  const loadPrinters = async () => {
+    if (!settings.printnode_api_key) return;
+    
+    setLoadingPrinters(true);
+    try {
+      const printerList = await fetchPrinters(settings.printnode_api_key);
+      setPrinters(printerList);
+    } catch (error: any) {
+      toast.error('Failed to load printers', {
+        description: error.message
+      });
+    } finally {
+      setLoadingPrinters(false);
+    }
+  };
+
+  const handlePrinterChange = (printerId: string) => {
+    setSelectedPrinterId(printerId);
+    setCookie('selected_printer_id', printerId);
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -78,9 +128,16 @@ export default function Scan() {
       return;
     }
 
-    if (!settings.printnode_api_key || !settings.printer_id) {
+    if (!settings.printnode_api_key) {
       toast.error('PrintNode not configured', {
-        description: 'Please configure PrintNode in Settings'
+        description: 'Please configure PrintNode API key in Settings'
+      });
+      return;
+    }
+
+    if (!selectedPrinterId) {
+      toast.error('No printer selected', {
+        description: 'Please select a printer'
       });
       return;
     }
@@ -89,7 +146,7 @@ export default function Scan() {
 
     try {
       const printJob = createPrintJob(
-        parseInt(settings.printer_id),
+        parseInt(selectedPrinterId),
         shipment.uid,
         shipment.label_url
       );
@@ -112,7 +169,7 @@ export default function Scan() {
             shipment_id: shipment.id,
             uid: shipment.uid,
             order_id: shipment.order_id,
-            printer_id: settings.printer_id,
+            printer_id: selectedPrinterId,
             printnode_job_id: jobId,
             label_url: shipment.label_url,
             status: 'queued'
@@ -141,7 +198,7 @@ export default function Scan() {
             shipment_id: shipment.id,
             uid: shipment.uid,
             order_id: shipment.order_id,
-            printer_id: settings.printer_id || '',
+            printer_id: selectedPrinterId || '',
             label_url: shipment.label_url,
             status: 'error',
             error: error.message
@@ -162,15 +219,38 @@ export default function Scan() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleScan} className="space-y-4">
-            <div className="space-y-2">
-              <Input
-                ref={inputRef}
-                value={uid}
-                onChange={(e) => setUid(e.target.value)}
-                placeholder="Scan or enter UID..."
-                className="text-2xl h-16 text-center font-mono"
-                autoFocus
-              />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Printer</label>
+                <Select
+                  value={selectedPrinterId}
+                  onValueChange={handlePrinterChange}
+                  disabled={loadingPrinters || printers.length === 0}
+                >
+                  <SelectTrigger className="h-12">
+                    <SelectValue placeholder={loadingPrinters ? "Loading printers..." : "Select a printer"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {printers.map((printer) => (
+                      <SelectItem key={printer.id} value={printer.id.toString()}>
+                        {printer.name} - {printer.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">UID</label>
+                <Input
+                  ref={inputRef}
+                  value={uid}
+                  onChange={(e) => setUid(e.target.value)}
+                  placeholder="Scan or enter UID..."
+                  className="text-2xl h-16 text-center font-mono"
+                  autoFocus
+                />
+              </div>
             </div>
             <Button type="submit" className="w-full h-12 text-lg">
               Lookup
