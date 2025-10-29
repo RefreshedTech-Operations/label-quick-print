@@ -159,6 +159,7 @@ export type Database = {
           default_printer_id: string | null
           fallback_uid_from_description: boolean | null
           id: string
+          printnode_api_key: string | null
           updated_at: string
           user_id: string
         }
@@ -169,6 +170,7 @@ export type Database = {
           default_printer_id?: string | null
           fallback_uid_from_description?: boolean | null
           id?: string
+          printnode_api_key?: string | null
           updated_at?: string
           user_id: string
         }
@@ -179,6 +181,7 @@ export type Database = {
           default_printer_id?: string | null
           fallback_uid_from_description?: boolean | null
           id?: string
+          printnode_api_key?: string | null
           updated_at?: string
           user_id?: string
         }
