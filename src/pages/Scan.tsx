@@ -125,6 +125,15 @@ export default function Scan() {
       return;
     }
 
+    if (shipment.printed) {
+      toast.error('Already printed', {
+        description: `This label was already printed${shipment.printed_at ? ` on ${new Date(shipment.printed_at).toLocaleString()}` : ''}`
+      });
+      addRecentScan(trimmedUid, 'already_printed');
+      setUid('');
+      return;
+    }
+
     if (settings.block_cancelled && shipment.cancelled && shipment.cancelled.toLowerCase() !== 'false') {
       toast.error('Order cancelled', {
         description: 'This order has been cancelled or failed'
