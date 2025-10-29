@@ -31,6 +31,7 @@ export interface Shipment {
   printed: boolean;
   printed_at?: string;
   printed_by_user_id?: string;
+  printed_by?: { email: string };
   show_date?: string;
   created_at: string;
 }

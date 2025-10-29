@@ -62,18 +62,44 @@ export default function Orders() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data, error } = await supabase
+    // First get shipments
+    const { data: shipmentsData, error: shipmentsError } = await supabase
       .from('shipments')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
-    if (error) {
+    if (shipmentsError) {
       toast.error('Failed to load shipments');
       return;
     }
 
-    setShipments(data || []);
+    // Then get all unique user IDs who printed labels
+    const printerIds = [...new Set(
+      shipmentsData
+        ?.filter(s => s.printed_by_user_id)
+        .map(s => s.printed_by_user_id) || []
+    )];
+
+    if (printerIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', printerIds);
+
+      // Map profiles to shipments
+      const profileMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+      const enrichedShipments = shipmentsData?.map(shipment => ({
+        ...shipment,
+        printed_by: shipment.printed_by_user_id 
+          ? profileMap.get(shipment.printed_by_user_id) 
+          : undefined
+      }));
+
+      setShipments(enrichedShipments || []);
+    } else {
+      setShipments(shipmentsData || []);
+    }
   };
 
   const handlePrint = async (shipment: Shipment) => {
@@ -295,7 +321,7 @@ export default function Orders() {
                   <TableCell className="max-w-[200px] truncate" title={shipment.address_full || ''}>{shipment.address_full || '-'}</TableCell>
                   <TableCell>{shipment.cancelled || '-'}</TableCell>
                   <TableCell>{shipment.printed ? format(new Date(shipment.printed_at!), 'MMM d, HH:mm') : '-'}</TableCell>
-                  <TableCell className="font-mono text-xs">{shipment.printed_by_user_id ? shipment.printed_by_user_id.slice(0, 8) : '-'}</TableCell>
+                  <TableCell className="text-xs">{shipment.printed_by?.email || '-'}</TableCell>
                   <TableCell>
                     {!shipment.manifest_url ? (
                       <Badge variant="destructive">
