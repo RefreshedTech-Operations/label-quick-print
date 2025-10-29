@@ -1,14 +1,48 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useAppStore } from '@/stores/useAppStore';
+import Layout from '@/components/Layout';
+import Scan from './Scan';
 
-const Index = () => {
+export default function Index() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const { setCurrentOrgId } = useAppStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      navigate('/auth');
+      return;
+    }
+
+    // Get user's organization
+    const { data: orgMembers } = await supabase
+      .from('org_members')
+      .select('org_id')
+      .eq('user_id', session.user.id)
+      .single();
+
+    if (orgMembers) {
+      setCurrentOrgId(orgMembers.org_id);
+    }
+
+    setLoading(false);
+  };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
+    <Layout>
+      <Scan />
+    </Layout>
   );
-};
-
-export default Index;
+}
