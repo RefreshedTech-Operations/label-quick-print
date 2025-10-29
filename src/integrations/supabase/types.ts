@@ -125,6 +125,7 @@ export type Database = {
           price: string | null
           printed: boolean | null
           printed_at: string | null
+          printed_by_user_id: string | null
           product_name: string | null
           quantity: number | null
           raw: Json | null
@@ -145,6 +146,7 @@ export type Database = {
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
+          printed_by_user_id?: string | null
           product_name?: string | null
           quantity?: number | null
           raw?: Json | null
@@ -165,6 +167,7 @@ export type Database = {
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
+          printed_by_user_id?: string | null
           product_name?: string | null
           quantity?: number | null
           raw?: Json | null

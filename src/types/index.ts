@@ -30,6 +30,7 @@ export interface Shipment {
   raw: any;
   printed: boolean;
   printed_at?: string;
+  printed_by_user_id?: string;
   show_date?: string;
   created_at: string;
 }

@@ -211,6 +211,12 @@ export default function Scan() {
     setPrinting(true);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
       const printJob = createPrintJob(
         parseInt(printerId),
         shipment.uid,
@@ -222,27 +228,32 @@ export default function Scan() {
       // Update shipment as printed
       await supabase
         .from('shipments')
-        .update({ printed: true, printed_at: new Date().toISOString() })
+        .update({ 
+          printed: true, 
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
+        })
         .eq('id', shipment.id);
 
       // Log print job
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('print_jobs')
-          .insert({
-            user_id: user.id,
-            shipment_id: shipment.id,
-            uid: shipment.uid,
-            order_id: shipment.order_id,
-            printer_id: printerId,
-            printnode_job_id: jobId,
-            label_url: shipment.manifest_url,
-            status: 'queued'
-          });
-      }
+      await supabase
+        .from('print_jobs')
+        .insert({
+          user_id: user.id,
+          shipment_id: shipment.id,
+          uid: shipment.uid,
+          order_id: shipment.order_id,
+          printer_id: printerId,
+          printnode_job_id: jobId,
+          label_url: shipment.manifest_url,
+          status: 'queued'
+        });
 
-      updateShipment(shipment.id, { printed: true, printed_at: new Date().toISOString() });
+      updateShipment(shipment.id, { 
+        printed: true, 
+        printed_at: new Date().toISOString(),
+        printed_by_user_id: user.id
+      });
       
       toast.success('Label printed!', {
         description: `Printed label for ${shipment.uid}`

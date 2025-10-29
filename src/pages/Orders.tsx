@@ -90,6 +90,12 @@ export default function Orders() {
     setPrinting(shipment.id);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
       const printJob = createPrintJob(
         parseInt(settings.default_printer_id),
         shipment.uid,
@@ -100,15 +106,19 @@ export default function Orders() {
 
       await supabase
         .from('shipments')
-        .update({ printed: true, printed_at: new Date().toISOString() })
+        .update({ 
+          printed: true, 
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
+        })
         .eq('id', shipment.id);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
         await supabase
           .from('print_jobs')
           .insert({
-            user_id: user.id,
+            user_id: currentUser.id,
             shipment_id: shipment.id,
             uid: shipment.uid,
             order_id: shipment.order_id,
@@ -119,7 +129,11 @@ export default function Orders() {
           });
       }
 
-      updateShipment(shipment.id, { printed: true, printed_at: new Date().toISOString() });
+      updateShipment(shipment.id, { 
+        printed: true, 
+        printed_at: new Date().toISOString(),
+        printed_by_user_id: user.id
+      });
       
       toast.success(`Printed label for ${shipment.uid}`);
     } catch (error: any) {
