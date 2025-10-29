@@ -269,6 +269,7 @@ export default function Orders() {
               <TableHead>Address</TableHead>
               <TableHead>Cancelled</TableHead>
               <TableHead>Printed</TableHead>
+              <TableHead>Printed By</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -276,7 +277,7 @@ export default function Orders() {
           <TableBody>
             {filteredShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -294,6 +295,7 @@ export default function Orders() {
                   <TableCell className="max-w-[200px] truncate" title={shipment.address_full || ''}>{shipment.address_full || '-'}</TableCell>
                   <TableCell>{shipment.cancelled || '-'}</TableCell>
                   <TableCell>{shipment.printed ? format(new Date(shipment.printed_at!), 'MMM d, HH:mm') : '-'}</TableCell>
+                  <TableCell className="font-mono text-xs">{shipment.printed_by_user_id ? shipment.printed_by_user_id.slice(0, 8) : '-'}</TableCell>
                   <TableCell>
                     {!shipment.manifest_url ? (
                       <Badge variant="destructive">
