@@ -1,35 +1,74 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { fetchPrinters, PrintNodePrinter } from '@/lib/printnode';
-import { Loader2 } from 'lucide-react';
+
+const PRINTNODE_API_KEY = import.meta.env.VITE_PRINTNODE_API_KEY;
 
 export default function Settings() {
   const { settings, updateSettings } = useAppStore();
-  const [apiKey, setApiKey] = useState(settings.printnode_api_key || '');
-  const [printers, setPrinters] = useState<PrintNodePrinter[]>([]);
+  const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
   const [loading, setLoading] = useState(false);
 
-  const handleLoadPrinters = async () => {
-    if (!apiKey) {
-      toast.error('Please enter PrintNode API key');
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to load settings:', error);
       return;
     }
 
+    if (data) {
+      updateSettings({
+        default_printer_id: data.default_printer_id,
+        auto_print: data.auto_print,
+        fallback_uid_from_description: data.fallback_uid_from_description,
+        block_cancelled: data.block_cancelled
+      });
+      setDefaultPrinterId(data.default_printer_id || '');
+    }
+  };
+
+  const handleSavePrinter = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     setLoading(true);
     try {
-      const fetchedPrinters = await fetchPrinters(apiKey);
-      setPrinters(fetchedPrinters);
-      updateSettings({ printnode_api_key: apiKey });
-      toast.success(`Loaded ${fetchedPrinters.length} printers`);
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          default_printer_id: defaultPrinterId,
+          auto_print: settings.auto_print,
+          fallback_uid_from_description: settings.fallback_uid_from_description,
+          block_cancelled: settings.block_cancelled
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+
+      updateSettings({ default_printer_id: defaultPrinterId });
+      toast.success('Settings saved');
     } catch (error: any) {
-      toast.error('Failed to load printers', {
+      toast.error('Failed to save settings', {
         description: error.message
       });
     } finally {
@@ -37,60 +76,59 @@ export default function Settings() {
     }
   };
 
-  const handleSavePrinter = (printerId: string) => {
-    updateSettings({ printer_id: printerId });
-    toast.success('Printer saved');
+  const handleUpdateSetting = async (key: keyof typeof settings, value: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          [key]: value,
+          ...settings
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+
+      updateSettings({ [key]: value });
+      toast.success('Setting updated');
+    } catch (error: any) {
+      toast.error('Failed to update setting', {
+        description: error.message
+      });
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="space-y-2">
         <h1 className="text-4xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Configure PrintNode and scanning options</p>
+        <p className="text-muted-foreground">Configure printer and scanning options</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>PrintNode Configuration</CardTitle>
-          <CardDescription>Set up your PrintNode API key and select a printer</CardDescription>
+          <CardTitle>Printer Configuration</CardTitle>
+          <CardDescription>Set your default PrintNode printer ID</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="api-key">PrintNode API Key</Label>
+            <Label htmlFor="printer-id">Default Printer ID</Label>
             <Input
-              id="api-key"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter your PrintNode API key"
+              id="printer-id"
+              type="number"
+              value={defaultPrinterId}
+              onChange={(e) => setDefaultPrinterId(e.target.value)}
+              placeholder="Enter PrintNode printer ID"
             />
           </div>
 
-          <Button onClick={handleLoadPrinters} disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Load Printers
+          <Button onClick={handleSavePrinter} disabled={loading}>
+            {loading ? 'Saving...' : 'Save Printer'}
           </Button>
-
-          {printers.length > 0 && (
-            <div className="space-y-2">
-              <Label htmlFor="printer">Select Printer</Label>
-              <Select
-                value={settings.printer_id}
-                onValueChange={handleSavePrinter}
-              >
-                <SelectTrigger id="printer">
-                  <SelectValue placeholder="Choose a printer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {printers.map((printer) => (
-                    <SelectItem key={printer.id} value={printer.id.toString()}>
-                      {printer.name} {printer.state === 'offline' && '(Offline)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -109,7 +147,7 @@ export default function Settings() {
             </div>
             <Switch
               checked={settings.auto_print}
-              onCheckedChange={(checked) => updateSettings({ auto_print: checked })}
+              onCheckedChange={(checked) => handleUpdateSetting('auto_print', checked)}
             />
           </div>
 
@@ -123,7 +161,7 @@ export default function Settings() {
             <Switch
               checked={settings.fallback_uid_from_description}
               onCheckedChange={(checked) =>
-                updateSettings({ fallback_uid_from_description: checked })
+                handleUpdateSetting('fallback_uid_from_description', checked)
               }
             />
           </div>
@@ -137,7 +175,7 @@ export default function Settings() {
             </div>
             <Switch
               checked={settings.block_cancelled}
-              onCheckedChange={(checked) => updateSettings({ block_cancelled: checked })}
+              onCheckedChange={(checked) => handleUpdateSetting('block_cancelled', checked)}
             />
           </div>
         </CardContent>
