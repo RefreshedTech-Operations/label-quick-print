@@ -23,7 +23,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
   shipmentMap: new Map(),
   settings: {
     auto_print: false,
-    fallback_uid_from_description: true,
     block_cancelled: true
   },
   columnMap: DEFAULT_COLUMN_MAP,

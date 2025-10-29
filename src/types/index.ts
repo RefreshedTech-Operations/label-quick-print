@@ -53,7 +53,6 @@ export interface PrintJob {
 export interface AppSettings {
   default_printer_id?: string;
   auto_print: boolean;
-  fallback_uid_from_description: boolean;
   block_cancelled: boolean;
 }
 

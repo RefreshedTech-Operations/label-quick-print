@@ -70,7 +70,6 @@ export default function Scan() {
       updateSettings({
         default_printer_id: data.default_printer_id,
         auto_print: data.auto_print,
-        fallback_uid_from_description: data.fallback_uid_from_description,
         block_cancelled: data.block_cancelled
       });
       

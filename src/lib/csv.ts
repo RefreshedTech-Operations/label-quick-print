@@ -3,17 +3,10 @@ import { ColumnMap } from '@/types';
 
 export function extractUid(
   row: any,
-  map: ColumnMap,
-  fallbackFromDescription: boolean
+  map: ColumnMap
 ): string | null {
   const sku = (row[map.uid] ?? '').toString().trim();
   if (sku) return sku.toUpperCase();
-  
-  if (fallbackFromDescription && map.product_description) {
-    const desc = (row[map.product_description] ?? '').toString();
-    const m = desc.match(/^\s*([^\s,;]+)/);
-    if (m) return m[1].toUpperCase();
-  }
   
   return null;
 }
@@ -33,8 +26,8 @@ export function parseCSV(file: File): Promise<any[]> {
   });
 }
 
-export function normalizeShipmentData(row: any, map: ColumnMap, fallbackUid: boolean) {
-  const uid = extractUid(row, map, fallbackUid);
+export function normalizeShipmentData(row: any, map: ColumnMap) {
+  const uid = extractUid(row, map);
   
   return {
     uid: uid || '',

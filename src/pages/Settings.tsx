@@ -57,7 +57,6 @@ export default function Settings() {
       updateSettings({
         default_printer_id: data.default_printer_id,
         auto_print: data.auto_print,
-        fallback_uid_from_description: data.fallback_uid_from_description,
         block_cancelled: data.block_cancelled
       });
       setDefaultPrinterId(data.default_printer_id || '');
@@ -99,7 +98,6 @@ export default function Settings() {
           user_id: user.id,
           default_printer_id: defaultPrinterId,
           auto_print: settings.auto_print,
-          fallback_uid_from_description: settings.fallback_uid_from_description,
           block_cancelled: settings.block_cancelled
         }, {
           onConflict: 'user_id'
@@ -132,7 +130,6 @@ export default function Settings() {
           [key]: value,
           default_printer_id: defaultPrinterId,
           auto_print: settings.auto_print,
-          fallback_uid_from_description: settings.fallback_uid_from_description,
           block_cancelled: settings.block_cancelled
         }, {
           onConflict: 'user_id'
@@ -206,21 +203,6 @@ export default function Settings() {
             <Switch
               checked={settings.auto_print}
               onCheckedChange={(checked) => handleUpdateSetting('auto_print', checked)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>UID fallback from product description</Label>
-              <p className="text-sm text-muted-foreground">
-                Extract UID from product description if SKU is empty
-              </p>
-            </div>
-            <Switch
-              checked={settings.fallback_uid_from_description}
-              onCheckedChange={(checked) =>
-                handleUpdateSetting('fallback_uid_from_description', checked)
-              }
             />
           </div>
 

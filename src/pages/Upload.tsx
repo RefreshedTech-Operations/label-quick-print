@@ -62,7 +62,7 @@ export default function Upload() {
       const data = await parseCSV(file);
       
       const shipments = data
-        .map(row => normalizeShipmentData(row, columnMap, settings.fallback_uid_from_description))
+        .map(row => normalizeShipmentData(row, columnMap))
         .filter(s => s.uid)
         .filter(s => !s.cancelled || s.cancelled.trim() === '');
 
@@ -191,7 +191,7 @@ export default function Upload() {
                   </thead>
                   <tbody>
                     {preview.map((row, i) => {
-                      const normalized = normalizeShipmentData(row, columnMap, settings.fallback_uid_from_description);
+                      const normalized = normalizeShipmentData(row, columnMap);
                       return (
                         <tr key={i}>
                           <td className="border p-2 font-mono">{normalized.uid}</td>
