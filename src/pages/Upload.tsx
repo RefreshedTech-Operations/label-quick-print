@@ -45,6 +45,11 @@ export default function Upload() {
   const handleUpload = async () => {
     if (!file) return;
 
+    if (!showDate) {
+      toast.error('Please select a show date');
+      return;
+    }
+
     setUploading(true);
 
     try {
@@ -124,7 +129,9 @@ export default function Upload() {
         <CardContent className="space-y-4">
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Show Date</label>
+              <label className="text-sm font-medium mb-2 block">
+                Show Date <span className="text-destructive">*</span>
+              </label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -159,7 +166,7 @@ export default function Upload() {
               />
               <Button
                 onClick={handleUpload}
-                disabled={!file || uploading}
+                disabled={!file || !showDate || uploading}
                 size="lg"
               >
                 <UploadIcon className="h-5 w-5 mr-2" />
