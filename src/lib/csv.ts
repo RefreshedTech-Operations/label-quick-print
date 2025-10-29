@@ -5,8 +5,18 @@ export function extractUid(
   row: any,
   map: ColumnMap
 ): string | null {
+  // First try SKU column
   const sku = (row[map.uid] ?? '').toString().trim();
   if (sku) return sku.toUpperCase();
+  
+  // Fallback: search product description for UID pattern
+  if (map.product_description) {
+    const desc = (row[map.product_description] ?? '').toString();
+    // Look for alphanumeric patterns (common UID format)
+    // Matches sequences like: ABC123, A1B2C3, etc.
+    const match = desc.match(/\b([A-Z0-9]{4,})\b/i);
+    if (match) return match[1].toUpperCase();
+  }
   
   return null;
 }
