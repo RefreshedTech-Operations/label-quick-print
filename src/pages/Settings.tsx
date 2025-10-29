@@ -24,7 +24,8 @@ export default function Settings() {
     const { data, error } = await supabase
       .from('app_config')
       .select('*')
-      .single();
+      .eq('key', 'printnode_api_key')
+      .maybeSingle();
 
     if (error) {
       console.error('Failed to load app config:', error);
@@ -32,7 +33,7 @@ export default function Settings() {
     }
 
     if (data) {
-      setPrintnodeApiKey(data.printnode_api_key || '');
+      setPrintnodeApiKey(data.value || '');
       setAppConfigId(data.id);
     }
   };
@@ -73,8 +74,20 @@ export default function Settings() {
       if (appConfigId) {
         const { error: configError } = await supabase
           .from('app_config')
-          .update({ printnode_api_key: printnodeApiKey })
+          .update({ value: printnodeApiKey })
           .eq('id', appConfigId);
+
+        if (configError) throw configError;
+      } else {
+        // Insert if doesn't exist
+        const { error: configError } = await supabase
+          .from('app_config')
+          .upsert({ 
+            key: 'printnode_api_key', 
+            value: printnodeApiKey 
+          }, {
+            onConflict: 'key'
+          });
 
         if (configError) throw configError;
       }

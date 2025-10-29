@@ -18,20 +18,23 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          printnode_api_key: string | null
+          key: string
           updated_at: string
+          value: string | null
         }
         Insert: {
           created_at?: string
           id?: string
-          printnode_api_key?: string | null
+          key: string
           updated_at?: string
+          value?: string | null
         }
         Update: {
           created_at?: string
           id?: string
-          printnode_api_key?: string | null
+          key?: string
           updated_at?: string
+          value?: string | null
         }
         Relationships: []
       }

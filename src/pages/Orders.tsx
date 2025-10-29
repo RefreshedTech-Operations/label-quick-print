@@ -40,16 +40,17 @@ export default function Orders() {
   const loadAppConfig = async () => {
     const { data, error } = await supabase
       .from('app_config')
-      .select('printnode_api_key')
-      .single();
+      .select('value')
+      .eq('key', 'printnode_api_key')
+      .maybeSingle();
 
     if (error) {
       console.error('Failed to load app config:', error);
       return;
     }
 
-    if (data?.printnode_api_key) {
-      setPrintnodeApiKey(data.printnode_api_key);
+    if (data?.value) {
+      setPrintnodeApiKey(data.value);
     }
   };
 
