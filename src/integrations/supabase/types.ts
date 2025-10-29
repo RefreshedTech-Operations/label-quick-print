@@ -104,6 +104,7 @@ export type Database = {
           product_name: string | null
           quantity: number | null
           raw: Json | null
+          show_date: string | null
           tracking: string | null
           uid: string | null
           user_id: string | null
@@ -123,6 +124,7 @@ export type Database = {
           product_name?: string | null
           quantity?: number | null
           raw?: Json | null
+          show_date?: string | null
           tracking?: string | null
           uid?: string | null
           user_id?: string | null
@@ -142,6 +144,7 @@ export type Database = {
           product_name?: string | null
           quantity?: number | null
           raw?: Json | null
+          show_date?: string | null
           tracking?: string | null
           uid?: string | null
           user_id?: string | null

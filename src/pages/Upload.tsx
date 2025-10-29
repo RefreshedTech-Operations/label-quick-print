@@ -6,13 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Upload as UploadIcon, FileSpreadsheet } from 'lucide-react';
+import { Upload as UploadIcon, FileSpreadsheet, CalendarIcon } from 'lucide-react';
 import { parseCSV, normalizeShipmentData } from '@/lib/csv';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 export default function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<any[]>([]);
+  const [showDate, setShowDate] = useState<Date>();
   
   const { columnMap, setShipments, settings } = useAppStore();
   const navigate = useNavigate();
@@ -70,7 +75,8 @@ export default function Upload() {
       // Insert shipments into database
       const shipmentsWithUser = uniqueShipments.map(s => ({
         ...s,
-        user_id: user.id
+        user_id: user.id,
+        show_date: showDate ? format(showDate, 'yyyy-MM-dd') : null
       }));
 
       const { data: insertedData, error } = await supabase
@@ -116,21 +122,50 @@ export default function Upload() {
           <CardDescription>Choose a Whatnot shipment export CSV file</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            <Input
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="flex-1"
-            />
-            <Button
-              onClick={handleUpload}
-              disabled={!file || uploading}
-              size="lg"
-            >
-              <UploadIcon className="h-5 w-5 mr-2" />
-              {uploading ? 'Uploading...' : 'Upload'}
-            </Button>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Show Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !showDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {showDate ? format(showDate, "PPP") : <span>Select show date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={showDate}
+                    onSelect={setShowDate}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <Input
+                type="file"
+                accept=".csv"
+                onChange={handleFileChange}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleUpload}
+                disabled={!file || uploading}
+                size="lg"
+              >
+                <UploadIcon className="h-5 w-5 mr-2" />
+                {uploading ? 'Uploading...' : 'Upload'}
+              </Button>
+            </div>
           </div>
 
           {preview.length > 0 && (
