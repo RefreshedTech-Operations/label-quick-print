@@ -14,7 +14,7 @@ export default function Upload() {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<any[]>([]);
   
-  const { columnMap, currentOrgId, setShipments, settings } = useAppStore();
+  const { columnMap, setShipments, settings } = useAppStore();
   const navigate = useNavigate();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,14 +39,16 @@ export default function Upload() {
 
   const handleUpload = async () => {
     if (!file) return;
-    if (!currentOrgId) {
-      toast.error('No organization selected');
-      return;
-    }
 
     setUploading(true);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
       const data = await parseCSV(file);
       
       const shipments = data
@@ -54,15 +56,15 @@ export default function Upload() {
         .filter(s => s.uid);
 
       // Insert shipments into database
-      const shipmentsWithOrg = shipments.map(s => ({
+      const shipmentsWithUser = shipments.map(s => ({
         ...s,
-        org_id: currentOrgId
+        user_id: user.id
       }));
 
       const { data: insertedData, error } = await supabase
         .from('shipments')
-        .upsert(shipmentsWithOrg, { 
-          onConflict: 'org_id,uid',
+        .upsert(shipmentsWithUser, { 
+          onConflict: 'user_id,uid',
           ignoreDuplicates: false 
         })
         .select();

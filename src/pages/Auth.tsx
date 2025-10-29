@@ -14,14 +14,13 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [orgName, setOrgName] = useState('');
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -29,30 +28,10 @@ export default function Auth() {
         }
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
 
-      if (authData.user) {
-        // Create organization
-        const { data: orgData, error: orgError } = await supabase
-          .from('orgs')
-          .insert({ name: orgName || 'My Organization' })
-          .select()
-          .single();
-
-        if (orgError) throw orgError;
-
-        // Add user to organization
-        if (orgData) {
-          const { error: memberError } = await supabase
-            .from('org_members')
-            .insert({ org_id: orgData.id, user_id: authData.user.id, role: 'admin' });
-
-          if (memberError) throw memberError;
-        }
-
-        toast.success('Account created successfully!');
-        navigate('/');
-      }
+      toast.success('Account created successfully!');
+      navigate('/');
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign up');
     } finally {
@@ -142,17 +121,6 @@ export default function Auth() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-org">Organization Name</Label>
-                    <Input
-                      id="signup-org"
-                      type="text"
-                      placeholder="Your Company"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      required
-                    />
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input

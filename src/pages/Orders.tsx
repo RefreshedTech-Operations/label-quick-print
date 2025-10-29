@@ -29,19 +29,20 @@ export default function Orders() {
   const [search, setSearch] = useState('');
   const [printing, setPrinting] = useState<string | null>(null);
   
-  const { shipments, currentOrgId, updateShipment, settings, setShipments } = useAppStore();
+  const { shipments, updateShipment, settings, setShipments } = useAppStore();
 
   useEffect(() => {
     loadShipments();
-  }, [currentOrgId]);
+  }, []);
 
   const loadShipments = async () => {
-    if (!currentOrgId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
     const { data, error } = await supabase
       .from('shipments')
       .select('*')
-      .eq('org_id', currentOrgId)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -79,18 +80,21 @@ export default function Orders() {
         .update({ printed: true, printed_at: new Date().toISOString() })
         .eq('id', shipment.id);
 
-      await supabase
-        .from('print_jobs')
-        .insert({
-          org_id: currentOrgId,
-          shipment_id: shipment.id,
-          uid: shipment.uid,
-          order_id: shipment.order_id,
-          printer_id: settings.printer_id,
-          printnode_job_id: jobId,
-          label_url: shipment.label_url,
-          status: 'queued'
-        });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: settings.printer_id,
+            printnode_job_id: jobId,
+            label_url: shipment.label_url,
+            status: 'queued'
+          });
+      }
 
       updateShipment(shipment.id, { printed: true, printed_at: new Date().toISOString() });
       

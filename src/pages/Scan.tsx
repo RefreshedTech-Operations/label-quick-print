@@ -19,8 +19,7 @@ export default function Scan() {
   const { 
     findShipmentByUid, 
     updateShipment, 
-    settings, 
-    currentOrgId,
+    settings,
     addRecentScan 
   } = useAppStore();
 
@@ -104,18 +103,21 @@ export default function Scan() {
         .eq('id', shipment.id);
 
       // Log print job
-      await supabase
-        .from('print_jobs')
-        .insert({
-          org_id: currentOrgId,
-          shipment_id: shipment.id,
-          uid: shipment.uid,
-          order_id: shipment.order_id,
-          printer_id: settings.printer_id,
-          printnode_job_id: jobId,
-          label_url: shipment.label_url,
-          status: 'queued'
-        });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: settings.printer_id,
+            printnode_job_id: jobId,
+            label_url: shipment.label_url,
+            status: 'queued'
+          });
+      }
 
       updateShipment(shipment.id, { printed: true, printed_at: new Date().toISOString() });
       
@@ -130,18 +132,21 @@ export default function Scan() {
       });
 
       // Log failed print job
-      await supabase
-        .from('print_jobs')
-        .insert({
-          org_id: currentOrgId,
-          shipment_id: shipment.id,
-          uid: shipment.uid,
-          order_id: shipment.order_id,
-          printer_id: settings.printer_id || '',
-          label_url: shipment.label_url,
-          status: 'error',
-          error: error.message
-        });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: settings.printer_id || '',
+            label_url: shipment.label_url,
+            status: 'error',
+            error: error.message
+          });
+      }
     } finally {
       setPrinting(false);
     }

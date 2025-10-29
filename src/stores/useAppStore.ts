@@ -2,14 +2,12 @@ import { create } from 'zustand';
 import { Shipment, AppSettings, ColumnMap, DEFAULT_COLUMN_MAP } from '@/types';
 
 interface AppState {
-  currentOrgId: string | null;
   shipments: Shipment[];
   shipmentMap: Map<string, string>;
   settings: AppSettings;
   columnMap: ColumnMap;
   recentScans: Array<{ uid: string; status: string; timestamp: string }>;
   
-  setCurrentOrgId: (orgId: string) => void;
   setShipments: (shipments: Shipment[]) => void;
   addShipment: (shipment: Shipment) => void;
   updateShipment: (id: string, updates: Partial<Shipment>) => void;
@@ -21,20 +19,17 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>()((set, get) => ({
-      currentOrgId: null,
-      shipments: [],
-      shipmentMap: new Map(),
-      settings: {
-        auto_print: false,
-        fallback_uid_from_description: true,
-        block_cancelled: true
-      },
-      columnMap: DEFAULT_COLUMN_MAP,
-      recentScans: [],
+  shipments: [],
+  shipmentMap: new Map(),
+  settings: {
+    auto_print: false,
+    fallback_uid_from_description: true,
+    block_cancelled: true
+  },
+  columnMap: DEFAULT_COLUMN_MAP,
+  recentScans: [],
 
-      setCurrentOrgId: (orgId) => set({ currentOrgId: orgId }),
-
-      setShipments: (shipments) => {
+  setShipments: (shipments) => {
         const shipmentMap = new Map<string, string>();
         shipments.forEach(s => {
           if (s.uid) {

@@ -20,73 +20,21 @@ export type Database = {
           id: string
           mapping: Json
           name: string
-          org_id: string | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           mapping: Json
           name: string
-          org_id?: string | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           mapping?: Json
           name?: string
-          org_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "column_mappings_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      org_members: {
-        Row: {
-          org_id: string
-          role: string | null
-          user_id: string
-        }
-        Insert: {
-          org_id: string
-          role?: string | null
-          user_id: string
-        }
-        Update: {
-          org_id?: string
-          role?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_members_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      orgs: {
-        Row: {
-          created_at: string | null
-          id: string
-          name: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          name?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -97,12 +45,12 @@ export type Database = {
           id: string
           label_url: string | null
           order_id: string | null
-          org_id: string | null
           printer_id: string | null
           printnode_job_id: number | null
           shipment_id: string | null
           status: string | null
           uid: string | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -110,12 +58,12 @@ export type Database = {
           id?: string
           label_url?: string | null
           order_id?: string | null
-          org_id?: string | null
           printer_id?: string | null
           printnode_job_id?: number | null
           shipment_id?: string | null
           status?: string | null
           uid?: string | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -123,21 +71,14 @@ export type Database = {
           id?: string
           label_url?: string | null
           order_id?: string | null
-          org_id?: string | null
           printer_id?: string | null
           printnode_job_id?: number | null
           shipment_id?: string | null
           status?: string | null
           uid?: string | null
+          user_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "print_jobs_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "print_jobs_shipment_id_fkey"
             columns: ["shipment_id"]
@@ -157,7 +98,6 @@ export type Database = {
           label_url: string | null
           manifest_url: string | null
           order_id: string | null
-          org_id: string | null
           price: string | null
           printed: boolean | null
           printed_at: string | null
@@ -166,6 +106,7 @@ export type Database = {
           raw: Json | null
           tracking: string | null
           uid: string | null
+          user_id: string | null
         }
         Insert: {
           address_full?: string | null
@@ -176,7 +117,6 @@ export type Database = {
           label_url?: string | null
           manifest_url?: string | null
           order_id?: string | null
-          org_id?: string | null
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
@@ -185,6 +125,7 @@ export type Database = {
           raw?: Json | null
           tracking?: string | null
           uid?: string | null
+          user_id?: string | null
         }
         Update: {
           address_full?: string | null
@@ -195,7 +136,6 @@ export type Database = {
           label_url?: string | null
           manifest_url?: string | null
           order_id?: string | null
-          org_id?: string | null
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
@@ -204,16 +144,9 @@ export type Database = {
           raw?: Json | null
           tracking?: string | null
           uid?: string | null
+          user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "shipments_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {

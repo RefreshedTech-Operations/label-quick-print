@@ -15,7 +15,7 @@ export interface ColumnMap {
 
 export interface Shipment {
   id: string;
-  org_id: string;
+  user_id: string;
   order_id: string;
   uid: string;
   buyer: string;
@@ -35,7 +35,7 @@ export interface Shipment {
 
 export interface PrintJob {
   id: string;
-  org_id: string;
+  user_id: string;
   shipment_id: string;
   uid: string;
   order_id: string;
@@ -44,12 +44,6 @@ export interface PrintJob {
   label_url: string;
   status: 'queued' | 'done' | 'error';
   error?: string;
-  created_at: string;
-}
-
-export interface Organization {
-  id: string;
-  name: string;
   created_at: string;
 }
 
