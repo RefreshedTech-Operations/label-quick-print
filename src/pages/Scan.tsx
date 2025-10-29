@@ -10,6 +10,9 @@ import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
 
+// Get PrintNode API key from environment variable
+const PRINTNODE_API_KEY = import.meta.env.VITE_PRINTNODE_API_KEY || '';
+
 export default function Scan() {
   const [uid, setUid] = useState('');
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
@@ -109,9 +112,9 @@ export default function Scan() {
       return;
     }
 
-    if (!settings.printnode_api_key) {
+    if (!PRINTNODE_API_KEY) {
       toast.error('PrintNode not configured', {
-        description: 'Please configure PrintNode API key in Settings'
+        description: 'PrintNode API key not found. Please contact administrator.'
       });
       return;
     }
@@ -132,7 +135,7 @@ export default function Scan() {
         shipment.label_url
       );
 
-      const jobId = await submitPrintJob(settings.printnode_api_key, printJob);
+      const jobId = await submitPrintJob(PRINTNODE_API_KEY, printJob);
 
       // Update shipment as printed
       await supabase

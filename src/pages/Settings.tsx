@@ -10,7 +10,6 @@ import { toast } from 'sonner';
 
 export default function Settings() {
   const { settings, updateSettings } = useAppStore();
-  const [printnodeApiKey, setPrintnodeApiKey] = useState(settings.printnode_api_key || '');
   const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
   const [loading, setLoading] = useState(false);
 
@@ -35,13 +34,11 @@ export default function Settings() {
 
     if (data) {
       updateSettings({
-        printnode_api_key: data.printnode_api_key,
         default_printer_id: data.default_printer_id,
         auto_print: data.auto_print,
         fallback_uid_from_description: data.fallback_uid_from_description,
         block_cancelled: data.block_cancelled
       });
-      setPrintnodeApiKey(data.printnode_api_key || '');
       setDefaultPrinterId(data.default_printer_id || '');
     }
   };
@@ -56,7 +53,6 @@ export default function Settings() {
         .from('user_settings')
         .upsert({
           user_id: user.id,
-          printnode_api_key: printnodeApiKey,
           default_printer_id: defaultPrinterId,
           auto_print: settings.auto_print,
           fallback_uid_from_description: settings.fallback_uid_from_description,
@@ -68,7 +64,6 @@ export default function Settings() {
       if (error) throw error;
 
       updateSettings({ 
-        printnode_api_key: printnodeApiKey,
         default_printer_id: defaultPrinterId 
       });
       toast.success('Settings saved');
@@ -91,9 +86,10 @@ export default function Settings() {
         .upsert({
           user_id: user.id,
           [key]: value,
-          printnode_api_key: printnodeApiKey,
           default_printer_id: defaultPrinterId,
-          ...settings
+          auto_print: settings.auto_print,
+          fallback_uid_from_description: settings.fallback_uid_from_description,
+          block_cancelled: settings.block_cancelled
         }, {
           onConflict: 'user_id'
         });
@@ -118,21 +114,10 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
-          <CardTitle>PrintNode Configuration</CardTitle>
-          <CardDescription>Configure your PrintNode API key and default printer</CardDescription>
+          <CardTitle>Printer Configuration</CardTitle>
+          <CardDescription>Set your default PrintNode printer ID</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="api-key">PrintNode API Key</Label>
-            <Input
-              id="api-key"
-              type="password"
-              value={printnodeApiKey}
-              onChange={(e) => setPrintnodeApiKey(e.target.value)}
-              placeholder="Enter PrintNode API key"
-            />
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="printer-id">Default Printer ID</Label>
             <Input
