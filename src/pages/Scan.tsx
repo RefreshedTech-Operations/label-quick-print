@@ -57,6 +57,8 @@ export default function Scan() {
       .from('shipments')
       .select('*')
       .eq('user_id', user.id)
+      .eq('printed', false)
+      .not('manifest_url', 'is', null)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -64,7 +66,12 @@ export default function Scan() {
       return;
     }
 
-    setShipments(data || []);
+    // Filter out cancelled shipments if block_cancelled is enabled
+    const filteredData = (data || []).filter(s => 
+      !settings.block_cancelled || !s.cancelled || s.cancelled.toLowerCase() === 'false'
+    );
+
+    setShipments(filteredData);
   };
 
   // Load printer ID from cookie on mount

@@ -19,16 +19,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon } from 'lucide-react';
 import { Shipment } from '@/types';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
+import { format } from 'date-fns';
 
 export default function Orders() {
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions'>('all');
   const [search, setSearch] = useState('');
   const [printing, setPrinting] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
+  const [showDateFilter, setShowDateFilter] = useState<Date | undefined>(undefined);
   
   const { shipments, updateShipment, settings, setShipments } = useAppStore();
 
@@ -138,6 +142,19 @@ export default function Orders() {
       }
     }
 
+    // Show date filter
+    if (showDateFilter && s.show_date) {
+      const shipmentDate = new Date(s.show_date);
+      const filterDate = new Date(showDateFilter);
+      if (
+        shipmentDate.getFullYear() !== filterDate.getFullYear() ||
+        shipmentDate.getMonth() !== filterDate.getMonth() ||
+        shipmentDate.getDate() !== filterDate.getDate()
+      ) {
+        return false;
+      }
+    }
+
     // Status filter
     if (filter === 'printed' && !s.printed) return false;
     if (filter === 'unprinted' && s.printed) return false;
@@ -150,10 +167,10 @@ export default function Orders() {
   });
 
   const stats = {
-    total: shipments.length,
-    printed: shipments.filter(s => s.printed).length,
-    unprinted: shipments.filter(s => !s.printed).length,
-    exceptions: shipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length
+    total: filteredShipments.length,
+    printed: filteredShipments.filter(s => s.printed).length,
+    unprinted: filteredShipments.filter(s => !s.printed).length,
+    exceptions: filteredShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length
   };
 
   return (
@@ -183,6 +200,33 @@ export default function Orders() {
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1"
         />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-[240px] justify-start">
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {showDateFilter ? format(showDateFilter, "PPP") : "Filter by Show Date"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={showDateFilter}
+              onSelect={setShowDateFilter}
+              initialFocus
+            />
+            {showDateFilter && (
+              <div className="p-3 border-t">
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={() => setShowDateFilter(undefined)}
+                >
+                  Clear Filter
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
         <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
@@ -204,6 +248,13 @@ export default function Orders() {
               <TableHead>Order ID</TableHead>
               <TableHead>Buyer</TableHead>
               <TableHead>Product</TableHead>
+              <TableHead>Show Date</TableHead>
+              <TableHead>Price</TableHead>
+              <TableHead>Quantity</TableHead>
+              <TableHead>Tracking</TableHead>
+              <TableHead>Address</TableHead>
+              <TableHead>Cancelled</TableHead>
+              <TableHead>Printed</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -211,7 +262,7 @@ export default function Orders() {
           <TableBody>
             {filteredShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -222,6 +273,13 @@ export default function Orders() {
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
                   <TableCell>{shipment.buyer}</TableCell>
                   <TableCell>{shipment.product_name}</TableCell>
+                  <TableCell>{shipment.show_date ? format(new Date(shipment.show_date), 'MMM d, yyyy') : '-'}</TableCell>
+                  <TableCell>{shipment.price || '-'}</TableCell>
+                  <TableCell>{shipment.quantity || '-'}</TableCell>
+                  <TableCell className="font-mono text-xs">{shipment.tracking || '-'}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={shipment.address_full || ''}>{shipment.address_full || '-'}</TableCell>
+                  <TableCell>{shipment.cancelled || '-'}</TableCell>
+                  <TableCell>{shipment.printed ? format(new Date(shipment.printed_at!), 'MMM d, HH:mm') : '-'}</TableCell>
                   <TableCell>
                     {!shipment.manifest_url ? (
                       <Badge variant="destructive">
