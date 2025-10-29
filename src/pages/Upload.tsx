@@ -53,7 +53,8 @@ export default function Upload() {
       
       const shipments = data
         .map(row => normalizeShipmentData(row, columnMap, settings.fallback_uid_from_description))
-        .filter(s => s.uid);
+        .filter(s => s.uid)
+        .filter(s => !s.cancelled || s.cancelled.trim() === '');
 
       // Deduplicate by UID (keep last occurrence)
       const uidMap = new Map<string, any>();
