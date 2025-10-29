@@ -151,6 +151,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_settings: {
+        Row: {
+          auto_print: boolean | null
+          block_cancelled: boolean | null
+          created_at: string
+          default_printer_id: string | null
+          fallback_uid_from_description: boolean | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_print?: boolean | null
+          block_cancelled?: boolean | null
+          created_at?: string
+          default_printer_id?: string | null
+          fallback_uid_from_description?: boolean | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_print?: boolean | null
+          block_cancelled?: boolean | null
+          created_at?: string
+          default_printer_id?: string | null
+          fallback_uid_from_description?: boolean | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
