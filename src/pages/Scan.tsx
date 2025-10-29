@@ -127,11 +127,11 @@ export default function Scan() {
       return;
     }
 
-    if (!shipment.label_url) {
-      toast.error('Missing label URL', {
-        description: 'This shipment does not have a label URL'
+    if (!shipment.manifest_url) {
+      toast.error('Missing manifest URL', {
+        description: 'This shipment does not have a manifest URL'
       });
-      addRecentScan(trimmedUid, 'missing_label');
+      addRecentScan(trimmedUid, 'missing_manifest');
       setSelectedShipment(shipment);
       setUid('');
       return;
@@ -147,8 +147,8 @@ export default function Scan() {
   };
 
   const handlePrint = async (shipment: Shipment) => {
-    if (!shipment.label_url) {
-      toast.error('Cannot print: Missing label URL');
+    if (!shipment.manifest_url) {
+      toast.error('Cannot print: Missing manifest URL');
       return;
     }
 
@@ -172,7 +172,7 @@ export default function Scan() {
       const printJob = createPrintJob(
         parseInt(printerId),
         shipment.uid,
-        shipment.label_url
+        shipment.manifest_url
       );
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
@@ -195,7 +195,7 @@ export default function Scan() {
             order_id: shipment.order_id,
             printer_id: printerId,
             printnode_job_id: jobId,
-            label_url: shipment.label_url,
+            label_url: shipment.manifest_url,
             status: 'queued'
           });
       }
@@ -223,7 +223,7 @@ export default function Scan() {
             uid: shipment.uid,
             order_id: shipment.order_id,
             printer_id: printerId || '',
-            label_url: shipment.label_url,
+            label_url: shipment.manifest_url,
             status: 'error',
             error: error.message
           });
@@ -279,15 +279,15 @@ export default function Scan() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Shipment Found</span>
-              {selectedShipment.label_url ? (
+              {selectedShipment.manifest_url ? (
                 <Badge className="bg-success text-success-foreground">
                   <CheckCircle className="h-4 w-4 mr-1" />
-                  Label Ready
+                  Manifest Ready
                 </Badge>
               ) : (
                 <Badge variant="destructive">
                   <XCircle className="h-4 w-4 mr-1" />
-                  Missing Label URL
+                  Missing Manifest URL
                 </Badge>
               )}
             </CardTitle>
@@ -322,7 +322,7 @@ export default function Scan() {
               )}
             </div>
 
-            {selectedShipment.label_url && (
+            {selectedShipment.manifest_url && (
               <Button
                 onClick={() => handlePrint(selectedShipment)}
                 disabled={printing}

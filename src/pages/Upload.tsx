@@ -96,9 +96,9 @@ export default function Upload() {
 
       setShipments(insertedData || []);
 
-      const printable = uniqueShipments.filter(s => s.label_url && (!settings.block_cancelled || !s.cancelled)).length;
+      const printable = uniqueShipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
       const printed = insertedData?.filter(s => s.printed).length || 0;
-      const exceptions = uniqueShipments.filter(s => !s.label_url || (settings.block_cancelled && s.cancelled)).length;
+      const exceptions = uniqueShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
       toast.success('Upload complete!', {
         description: `Total: ${uniqueShipments.length} | Printable: ${printable} | Printed: ${printed} | Exceptions: ${exceptions}`
@@ -186,7 +186,7 @@ export default function Upload() {
                       <th className="border p-2">Order ID</th>
                       <th className="border p-2">Buyer</th>
                       <th className="border p-2">Product</th>
-                      <th className="border p-2">Label URL</th>
+                      <th className="border p-2">Manifest URL</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -199,7 +199,7 @@ export default function Upload() {
                           <td className="border p-2">{normalized.buyer}</td>
                           <td className="border p-2">{normalized.product_name}</td>
                           <td className="border p-2">
-                            {normalized.label_url ? '✓' : '✗'}
+                            {normalized.manifest_url ? '✓' : '✗'}
                           </td>
                         </tr>
                       );

@@ -73,8 +73,8 @@ export default function Orders() {
   };
 
   const handlePrint = async (shipment: Shipment) => {
-    if (!shipment.label_url) {
-      toast.error('Cannot print: Missing label URL');
+    if (!shipment.manifest_url) {
+      toast.error('Cannot print: Missing manifest URL');
       return;
     }
 
@@ -89,7 +89,7 @@ export default function Orders() {
       const printJob = createPrintJob(
         parseInt(settings.default_printer_id),
         shipment.uid,
-        shipment.label_url
+        shipment.manifest_url
       );
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
@@ -110,7 +110,7 @@ export default function Orders() {
             order_id: shipment.order_id,
             printer_id: settings.default_printer_id,
             printnode_job_id: jobId,
-            label_url: shipment.label_url,
+            label_url: shipment.manifest_url,
             status: 'queued'
           });
       }
@@ -142,7 +142,7 @@ export default function Orders() {
     if (filter === 'printed' && !s.printed) return false;
     if (filter === 'unprinted' && s.printed) return false;
     if (filter === 'exceptions') {
-      const hasException = !s.label_url || (settings.block_cancelled && s.cancelled);
+      const hasException = !s.manifest_url || (settings.block_cancelled && s.cancelled);
       if (!hasException) return false;
     }
 
@@ -153,7 +153,7 @@ export default function Orders() {
     total: shipments.length,
     printed: shipments.filter(s => s.printed).length,
     unprinted: shipments.filter(s => !s.printed).length,
-    exceptions: shipments.filter(s => !s.label_url || (settings.block_cancelled && s.cancelled)).length
+    exceptions: shipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length
   };
 
   return (
@@ -223,10 +223,10 @@ export default function Orders() {
                   <TableCell>{shipment.buyer}</TableCell>
                   <TableCell>{shipment.product_name}</TableCell>
                   <TableCell>
-                    {!shipment.label_url ? (
+                    {!shipment.manifest_url ? (
                       <Badge variant="destructive">
                         <XCircle className="h-3 w-3 mr-1" />
-                        No Label
+                        No Manifest
                       </Badge>
                     ) : settings.block_cancelled && shipment.cancelled ? (
                       <Badge variant="destructive">
@@ -246,7 +246,7 @@ export default function Orders() {
                     <Button
                       size="sm"
                       onClick={() => handlePrint(shipment)}
-                      disabled={!shipment.label_url || printing === shipment.id}
+                      disabled={!shipment.manifest_url || printing === shipment.id}
                     >
                       <Printer className="h-4 w-4 mr-1" />
                       {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
