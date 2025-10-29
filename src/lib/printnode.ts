@@ -70,8 +70,7 @@ export function createPrintJob(
     source: 'whatnot-labels',
     options: {
       fit_to_page: true,
-      paper: '4x6',
-      rotate: 'auto'
+      paper: '4x6'
     }
   };
 }
