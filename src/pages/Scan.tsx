@@ -24,8 +24,32 @@ export default function Scan() {
     findShipmentByUid, 
     updateShipment, 
     settings,
-    addRecentScan 
+    addRecentScan,
+    setShipments 
   } = useAppStore();
+
+  // Load shipments from database on mount
+  useEffect(() => {
+    loadShipments();
+  }, []);
+
+  const loadShipments = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('shipments')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to load shipments:', error);
+      return;
+    }
+
+    setShipments(data || []);
+  };
 
   // Load printer ID from cookie on mount
   useEffect(() => {
