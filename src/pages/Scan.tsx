@@ -23,13 +23,15 @@ export default function Scan() {
     updateShipment, 
     settings,
     addRecentScan,
-    setShipments 
+    setShipments,
+    updateSettings
   } = useAppStore();
 
   // Load shipments and API key from database on mount
   useEffect(() => {
     loadShipments();
     loadAppConfig();
+    loadUserSettings();
   }, []);
 
   const loadAppConfig = async () => {
@@ -46,6 +48,37 @@ export default function Scan() {
 
     if (data?.value) {
       setPrintnodeApiKey(data.value);
+    }
+  };
+
+  const loadUserSettings = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to load user settings:', error);
+      return;
+    }
+
+    if (data) {
+      updateSettings({
+        default_printer_id: data.default_printer_id,
+        auto_print: data.auto_print,
+        fallback_uid_from_description: data.fallback_uid_from_description,
+        block_cancelled: data.block_cancelled
+      });
+      
+      // Set printer ID from settings
+      if (data.default_printer_id) {
+        const savedPrinterId = getCookie('selected_printer_id');
+        setPrinterId(savedPrinterId || data.default_printer_id);
+      }
     }
   };
 
