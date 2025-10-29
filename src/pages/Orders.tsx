@@ -24,19 +24,34 @@ import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Shipment } from '@/types';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 
-// Get PrintNode API key from environment variable
-const PRINTNODE_API_KEY = import.meta.env.VITE_PRINTNODE_API_KEY || '';
-
 export default function Orders() {
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions'>('all');
   const [search, setSearch] = useState('');
   const [printing, setPrinting] = useState<string | null>(null);
+  const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   
   const { shipments, updateShipment, settings, setShipments } = useAppStore();
 
   useEffect(() => {
     loadShipments();
+    loadAppConfig();
   }, []);
+
+  const loadAppConfig = async () => {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('printnode_api_key')
+      .single();
+
+    if (error) {
+      console.error('Failed to load app config:', error);
+      return;
+    }
+
+    if (data?.printnode_api_key) {
+      setPrintnodeApiKey(data.printnode_api_key);
+    }
+  };
 
   const loadShipments = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -62,7 +77,7 @@ export default function Orders() {
       return;
     }
 
-    if (!PRINTNODE_API_KEY || !settings.default_printer_id) {
+    if (!printnodeApiKey || !settings.default_printer_id) {
       toast.error('PrintNode not configured');
       return;
     }
@@ -76,7 +91,7 @@ export default function Orders() {
         shipment.label_url
       );
 
-      const jobId = await submitPrintJob(PRINTNODE_API_KEY, printJob);
+      const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
       await supabase
         .from('shipments')

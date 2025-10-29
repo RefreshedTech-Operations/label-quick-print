@@ -10,12 +10,32 @@ import { toast } from 'sonner';
 
 export default function Settings() {
   const { settings, updateSettings } = useAppStore();
+  const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
   const [loading, setLoading] = useState(false);
+  const [appConfigId, setAppConfigId] = useState<string>('');
 
   useEffect(() => {
     loadSettings();
+    loadAppConfig();
   }, []);
+
+  const loadAppConfig = async () => {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Failed to load app config:', error);
+      return;
+    }
+
+    if (data) {
+      setPrintnodeApiKey(data.printnode_api_key || '');
+      setAppConfigId(data.id);
+    }
+  };
 
   const loadSettings = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -49,7 +69,18 @@ export default function Settings() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Save app config (PrintNode API key)
+      if (appConfigId) {
+        const { error: configError } = await supabase
+          .from('app_config')
+          .update({ printnode_api_key: printnodeApiKey })
+          .eq('id', appConfigId);
+
+        if (configError) throw configError;
+      }
+
+      // Save user settings (printer ID)
+      const { error: settingsError } = await supabase
         .from('user_settings')
         .upsert({
           user_id: user.id,
@@ -61,7 +92,7 @@ export default function Settings() {
           onConflict: 'user_id'
         });
 
-      if (error) throw error;
+      if (settingsError) throw settingsError;
 
       updateSettings({ 
         default_printer_id: defaultPrinterId 
@@ -114,10 +145,21 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Printer Configuration</CardTitle>
-          <CardDescription>Set your default PrintNode printer ID</CardDescription>
+          <CardTitle>PrintNode Configuration</CardTitle>
+          <CardDescription>Configure PrintNode API key (shared across all users) and your default printer</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="api-key">PrintNode API Key (App-wide)</Label>
+            <Input
+              id="api-key"
+              type="password"
+              value={printnodeApiKey}
+              onChange={(e) => setPrintnodeApiKey(e.target.value)}
+              placeholder="Enter PrintNode API key"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="printer-id">Default Printer ID</Label>
             <Input

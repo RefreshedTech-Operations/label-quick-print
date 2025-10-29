@@ -10,14 +10,12 @@ import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
 
-// Get PrintNode API key from environment variable
-const PRINTNODE_API_KEY = import.meta.env.VITE_PRINTNODE_API_KEY || '';
-
 export default function Scan() {
   const [uid, setUid] = useState('');
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [printing, setPrinting] = useState(false);
   const [printerId, setPrinterId] = useState<string>('');
+  const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -28,10 +26,27 @@ export default function Scan() {
     setShipments 
   } = useAppStore();
 
-  // Load shipments from database on mount
+  // Load shipments and API key from database on mount
   useEffect(() => {
     loadShipments();
+    loadAppConfig();
   }, []);
+
+  const loadAppConfig = async () => {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('printnode_api_key')
+      .single();
+
+    if (error) {
+      console.error('Failed to load app config:', error);
+      return;
+    }
+
+    if (data?.printnode_api_key) {
+      setPrintnodeApiKey(data.printnode_api_key);
+    }
+  };
 
   const loadShipments = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -136,9 +151,9 @@ export default function Scan() {
       return;
     }
 
-    if (!PRINTNODE_API_KEY) {
+    if (!printnodeApiKey) {
       toast.error('PrintNode not configured', {
-        description: 'PrintNode API key not found. Please contact administrator.'
+        description: 'Please configure PrintNode API key in Settings'
       });
       return;
     }
@@ -159,7 +174,7 @@ export default function Scan() {
         shipment.label_url
       );
 
-      const jobId = await submitPrintJob(PRINTNODE_API_KEY, printJob);
+      const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
       // Update shipment as printed
       await supabase
