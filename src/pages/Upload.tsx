@@ -66,19 +66,8 @@ export default function Upload() {
         .filter(s => s.uid)
         .filter(s => !s.cancelled || s.cancelled.trim() === '');
 
-      // Deduplicate by UID (keep last occurrence)
-      const uidMap = new Map<string, any>();
-      shipments.forEach(s => {
-        uidMap.set(s.uid.toUpperCase(), s);
-      });
-      const uniqueShipments = Array.from(uidMap.values());
-
-      if (uniqueShipments.length < shipments.length) {
-        toast.info(`Removed ${shipments.length - uniqueShipments.length} duplicate UIDs`);
-      }
-
       // Insert shipments into database
-      const shipmentsWithUser = uniqueShipments.map(s => ({
+      const shipmentsWithUser = shipments.map(s => ({
         ...s,
         user_id: user.id,
         show_date: showDate ? format(showDate, 'yyyy-MM-dd') : null
@@ -96,12 +85,12 @@ export default function Upload() {
 
       setShipments(insertedData || []);
 
-      const printable = uniqueShipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
+      const printable = shipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
       const printed = insertedData?.filter(s => s.printed).length || 0;
-      const exceptions = uniqueShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
+      const exceptions = shipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
       toast.success('Upload complete!', {
-        description: `Total: ${uniqueShipments.length} | Printable: ${printable} | Printed: ${printed} | Exceptions: ${exceptions}`
+        description: `Total: ${shipments.length} | Printable: ${printable} | Printed: ${printed} | Exceptions: ${exceptions}`
       });
 
       navigate('/orders');
