@@ -341,6 +341,7 @@ export default function Orders() {
               <TableHead>Order ID</TableHead>
               <TableHead>Buyer</TableHead>
               <TableHead>Product</TableHead>
+              <TableHead>Bundle</TableHead>
               <TableHead>Show Date</TableHead>
               <TableHead>Price</TableHead>
               <TableHead>Quantity</TableHead>
@@ -356,7 +357,7 @@ export default function Orders() {
           <TableBody>
             {paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={15} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -367,6 +368,13 @@ export default function Orders() {
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
                   <TableCell>{shipment.buyer}</TableCell>
                   <TableCell>{shipment.product_name}</TableCell>
+                  <TableCell className="text-center">
+                    {shipment.bundle ? (
+                      <Badge variant="secondary" className="text-xs">Bundle</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>{shipment.show_date ? format(new Date(shipment.show_date), 'MMM d, yyyy') : '-'}</TableCell>
                   <TableCell>{shipment.price || '-'}</TableCell>
                   <TableCell>{shipment.quantity || '-'}</TableCell>
