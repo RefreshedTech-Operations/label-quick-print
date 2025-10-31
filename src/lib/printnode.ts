@@ -10,7 +10,7 @@ export interface PrintNodePrinter {
 export interface PrintNodeJob {
   printerId: number;
   title: string;
-  contentType: 'pdf_uri' | 'html';
+  contentType: 'pdf_uri' | 'pdf_base64';
   content: string;
   source: string;
   options?: {
@@ -80,69 +80,49 @@ export function createGroupIdPrintJob(
   groupId: string,
   uid: string
 ): PrintNodeJob {
-  const html = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          @page {
-            size: 4in 6in;
-            margin: 0;
-          }
-          body {
-            width: 4in;
-            height: 6in;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-family: Arial, sans-serif;
-            background: white;
-          }
-          .group-id-label {
-            text-align: center;
-            padding: 20px;
-          }
-          .title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 30px;
-            color: #333;
-          }
-          .group-id {
-            font-size: 16px;
-            font-weight: bold;
-            word-wrap: break-word;
-            max-width: 3.5in;
-            margin-bottom: 20px;
-            color: #000;
-            font-family: 'Courier New', monospace;
-          }
-          .uid {
-            font-size: 14px;
-            color: #666;
-            margin-top: 20px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="group-id-label">
-          <div class="title">BUNDLE GROUP ID</div>
-          <div class="group-id">${groupId}</div>
-          <div class="uid">UID: ${uid}</div>
-        </div>
-      </body>
-    </html>
-  `;
+  // Dynamically import jsPDF
+  const { jsPDF } = require('jspdf');
+  
+  // Create PDF (4x6 inches = 101.6mm x 152.4mm)
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [101.6, 152.4]
+  });
+  
+  // Set font sizes and styles
+  doc.setFontSize(20);
+  doc.setFont(undefined, 'bold');
+  
+  // Title
+  doc.text('BUNDLE GROUP ID', 50.8, 30, { align: 'center' });
+  
+  // Group ID
+  doc.setFontSize(14);
+  doc.setFont('courier', 'bold');
+  
+  // Split long group ID into multiple lines if needed
+  const maxWidth = 90;
+  const lines = doc.splitTextToSize(groupId, maxWidth);
+  const startY = 60;
+  lines.forEach((line: string, index: number) => {
+    doc.text(line, 50.8, startY + (index * 8), { align: 'center' });
+  });
+  
+  // UID
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(102, 102, 102);
+  doc.text(`UID: ${uid}`, 50.8, 120, { align: 'center' });
+  
+  // Get PDF as base64 string (remove data URI prefix)
+  const pdfBase64 = doc.output('datauristring').split(',')[1];
   
   return {
     printerId,
     title: `Bundle Group ID - ${uid}`,
-    contentType: 'html',
-    content: html,
+    contentType: 'pdf_base64',
+    content: pdfBase64,
     source: 'whatnot-labels',
     options: {
       paper: '4x6'
