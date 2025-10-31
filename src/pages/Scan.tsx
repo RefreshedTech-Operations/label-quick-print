@@ -341,13 +341,16 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Update shipment with group ID printed status
+      // Update shipment with group ID printed status and mark as printed
       await supabase
         .from('shipments')
         .update({ 
           group_id_printed: true, 
           group_id_printed_at: new Date().toISOString(),
-          group_id_printed_by_user_id: user.id
+          group_id_printed_by_user_id: user.id,
+          printed: true,
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
         })
         .eq('id', shipment.id);
 
@@ -368,7 +371,10 @@ export default function Scan() {
       updateShipment(shipment.id, { 
         group_id_printed: true, 
         group_id_printed_at: new Date().toISOString(),
-        group_id_printed_by_user_id: user.id
+        group_id_printed_by_user_id: user.id,
+        printed: true,
+        printed_at: new Date().toISOString(),
+        printed_by_user_id: user.id
       });
       
       toast.success('Group ID label printed!', {
