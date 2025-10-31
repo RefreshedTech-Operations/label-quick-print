@@ -43,7 +43,7 @@ export default function Orders() {
   const [showDateFilter, setShowDateFilter] = useState<Date | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const itemsPerPage = 50;
+  const itemsPerPage = 1000;
   
   const { shipments, updateShipment, settings, setShipments } = useAppStore();
 
