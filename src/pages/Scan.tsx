@@ -189,21 +189,43 @@ export default function Scan() {
   };
 
   const handlePrint = async (shipment: Shipment) => {
-    // For bundle items, print group ID instead of manifest
+    // For bundle items, check if this is the last item in the group
     if (shipment.bundle) {
       if (!shipment.order_group_id) {
         toast.error('Cannot print: Missing group ID');
         return;
       }
       
-      if (shipment.group_id_printed) {
-        toast.error('Group ID already printed', {
-          description: `This bundle's group ID was already printed${shipment.group_id_printed_at ? ` on ${new Date(shipment.group_id_printed_at).toLocaleString()}` : ''}`
-        });
+      // Query all shipments in the same group
+      const { data: groupShipments, error } = await supabase
+        .from('shipments')
+        .select('id, printed')
+        .eq('order_group_id', shipment.order_group_id);
+
+      if (error) {
+        console.error('Failed to check group status:', error);
+        toast.error('Failed to check group status');
         return;
       }
-      
-      return handlePrintGroupId(shipment);
+
+      // Count unprinted items (including this one)
+      const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
+
+      // If this is the last unprinted item, print manifest instead
+      if (unprintedCount === 1) {
+        toast.info('Last item in group - printing manifest');
+        // Fall through to manifest printing logic below
+      } else {
+        // Not the last item, print group ID
+        if (shipment.group_id_printed) {
+          toast.error('Group ID already printed', {
+            description: `This bundle's group ID was already printed${shipment.group_id_printed_at ? ` on ${new Date(shipment.group_id_printed_at).toLocaleString()}` : ''}`
+          });
+          return;
+        }
+        
+        return handlePrintGroupId(shipment);
+      }
     }
 
     // Regular manifest printing for non-bundle items
