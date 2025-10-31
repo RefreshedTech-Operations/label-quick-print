@@ -596,44 +596,87 @@ export default function Scan() {
             <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>UID</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Buyer</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groupItems.map((item) => (
-                  <TableRow 
-                    key={item.id}
-                    className={
-                      item.id === selectedShipment.id 
-                        ? "bg-primary/20 font-semibold" 
-                        : item.printed 
-                          ? "bg-success/10" 
-                          : ""
-                    }
-                  >
-                    <TableCell className="font-mono">{item.uid}</TableCell>
-                    <TableCell>{item.product_name}</TableCell>
-                    <TableCell>{item.buyer}</TableCell>
-                    <TableCell className="text-center">
-                      {item.printed ? (
-                        <Badge className="bg-success text-success-foreground">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Printed
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">Pending</Badge>
-                      )}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>UID</TableHead>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Buyer</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Tracking</TableHead>
+                    <TableHead className="text-center">Manifest</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {groupItems.map((item) => {
+                    const unprintedInGroup = groupItems.filter(s => !s.printed).length;
+                    const isItemLastInGroup = unprintedInGroup === 1 && !item.printed;
+                    
+                    return (
+                      <TableRow 
+                        key={item.id}
+                        className={
+                          item.id === selectedShipment.id 
+                            ? "bg-primary/20 font-semibold" 
+                            : item.printed 
+                              ? "bg-success/10" 
+                              : ""
+                        }
+                      >
+                        <TableCell className="font-mono text-xs">{item.uid}</TableCell>
+                        <TableCell className="font-mono text-xs">{item.order_id}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{item.product_name}</TableCell>
+                        <TableCell>{item.buyer}</TableCell>
+                        <TableCell className="max-w-[250px] truncate" title={item.address_full}>
+                          {item.address_full}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{item.tracking || '-'}</TableCell>
+                        <TableCell className="text-center">
+                          {item.manifest_url ? (
+                            <Badge variant="outline" className="bg-success/10">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Ready
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-destructive/10">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Missing
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {item.printed ? (
+                            <Badge className="bg-success text-success-foreground">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Printed
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">Pending</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {!item.printed && (item.manifest_url || item.bundle) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePrint(item)}
+                              disabled={printing || (item.group_id_printed && !isItemLastInGroup)}
+                            >
+                              <Printer className="h-4 w-4 mr-1" />
+                              {isItemLastInGroup ? 'Manifest' : item.group_id_printed ? 'Printed' : 'Group ID'}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
