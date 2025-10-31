@@ -63,7 +63,6 @@ export default function Upload() {
       
       const shipments = data
         .map(row => normalizeShipmentData(row, columnMap))
-        .filter(s => s.uid)
         .filter(s => !s.cancelled || s.cancelled.trim() === '');
 
       // Insert shipments into database
