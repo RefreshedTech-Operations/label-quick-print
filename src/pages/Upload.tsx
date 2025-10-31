@@ -66,8 +66,15 @@ export default function Upload() {
         .filter(s => s.uid)
         .filter(s => !s.cancelled || s.cancelled.trim() === '');
 
+      // Deduplicate by UID - keep the last occurrence
+      const uniqueShipmentsMap = new Map<string, any>();
+      shipments.forEach(shipment => {
+        uniqueShipmentsMap.set(shipment.uid, shipment);
+      });
+      const uniqueShipments = Array.from(uniqueShipmentsMap.values());
+
       // Insert shipments into database
-      const shipmentsWithUser = shipments.map(s => ({
+      const shipmentsWithUser = uniqueShipments.map(s => ({
         ...s,
         user_id: user.id,
         show_date: showDate ? format(showDate, 'yyyy-MM-dd') : null
@@ -85,12 +92,12 @@ export default function Upload() {
 
       setShipments(insertedData || []);
 
-      const printable = shipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
+      const printable = uniqueShipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
       const printed = insertedData?.filter(s => s.printed).length || 0;
-      const exceptions = shipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
+      const exceptions = uniqueShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
       toast.success('Upload complete!', {
-        description: `Total: ${shipments.length} | Printable: ${printable} | Printed: ${printed} | Exceptions: ${exceptions}`
+        description: `Total: ${uniqueShipments.length} | Printable: ${printable} | Printed: ${printed} | Exceptions: ${exceptions}`
       });
 
       navigate('/orders');
