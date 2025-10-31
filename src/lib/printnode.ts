@@ -1,3 +1,5 @@
+import { jsPDF } from 'jspdf';
+
 const PRINTNODE_API_URL = 'https://api.printnode.com';
 
 export interface PrintNodePrinter {
@@ -80,9 +82,6 @@ export function createGroupIdPrintJob(
   groupId: string,
   uid: string
 ): PrintNodeJob {
-  // Dynamically import jsPDF
-  const { jsPDF } = require('jspdf');
-  
   // Create PDF (4x6 inches = 101.6mm x 152.4mm)
   const doc = new jsPDF({
     orientation: 'portrait',
