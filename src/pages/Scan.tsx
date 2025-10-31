@@ -17,6 +17,7 @@ export default function Scan() {
   const [printerId, setPrinterId] = useState<string>('');
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [isLastInGroup, setIsLastInGroup] = useState(false);
+  const [totalGroupItems, setTotalGroupItems] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -182,18 +183,21 @@ export default function Scan() {
 
     // Check if this is the last item in a bundle group
     let lastInGroup = false;
+    let groupTotal = 0;
     if (shipment.bundle && shipment.order_group_id) {
       const { data: groupShipments } = await supabase
         .from('shipments')
         .select('id, printed')
         .eq('order_group_id', shipment.order_group_id);
       
+      groupTotal = groupShipments?.length || 0;
       const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
       lastInGroup = unprintedCount === 1;
     }
 
     setSelectedShipment(shipment);
     setIsLastInGroup(lastInGroup);
+    setTotalGroupItems(groupTotal);
     addRecentScan(trimmedUid, 'found');
     setUid('');
 
@@ -489,12 +493,23 @@ export default function Scan() {
         <Card className={selectedShipment.bundle ? "border-4 border-primary bg-primary/10" : "border-2 border-primary"}>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span>Shipment Found</span>
                 {selectedShipment.bundle && (
-                  <Badge variant="secondary" className="text-sm">
-                    Bundle Item
-                  </Badge>
+                  <>
+                    <Badge variant="secondary" className="text-sm">
+                      Bundle Item
+                    </Badge>
+                    <Badge variant="outline" className="text-sm">
+                      {totalGroupItems} items in group
+                    </Badge>
+                    {isLastInGroup && (
+                      <Badge className="bg-warning text-warning-foreground text-sm">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Last in Group
+                      </Badge>
+                    )}
+                  </>
                 )}
               </div>
               {selectedShipment.manifest_url ? (
