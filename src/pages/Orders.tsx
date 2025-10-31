@@ -36,7 +36,7 @@ import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { format } from 'date-fns';
 
 export default function Orders() {
-  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions'>('all');
+  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
   const [search, setSearch] = useState('');
   const [printing, setPrinting] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
@@ -212,7 +212,8 @@ export default function Orders() {
       if (
         !s.uid.toLowerCase().includes(searchLower) &&
         !s.order_id?.toLowerCase().includes(searchLower) &&
-        !s.buyer?.toLowerCase().includes(searchLower)
+        !s.buyer?.toLowerCase().includes(searchLower) &&
+        !s.order_group_id?.toLowerCase().includes(searchLower)
       ) {
         return false;
       }
@@ -234,6 +235,7 @@ export default function Orders() {
     // Status filter
     if (filter === 'printed' && !s.printed) return false;
     if (filter === 'unprinted' && s.printed) return false;
+    if (filter === 'bundled' && !s.bundle) return false;
     if (filter === 'exceptions') {
       const hasException = !s.manifest_url || (settings.block_cancelled && s.cancelled);
       if (!hasException) return false;
@@ -288,7 +290,7 @@ export default function Orders() {
 
       <div className="flex gap-4">
         <Input
-          placeholder="Search by UID, Order ID, or Buyer..."
+          placeholder="Search by UID, Order ID, Buyer, or Group ID..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1"
@@ -328,6 +330,7 @@ export default function Orders() {
             <SelectItem value="all">All Orders</SelectItem>
             <SelectItem value="printed">Printed</SelectItem>
             <SelectItem value="unprinted">Unprinted</SelectItem>
+            <SelectItem value="bundled">Bundled Items</SelectItem>
             <SelectItem value="exceptions">Exceptions</SelectItem>
           </SelectContent>
         </Select>
@@ -339,6 +342,7 @@ export default function Orders() {
             <TableRow>
               <TableHead>UID</TableHead>
               <TableHead>Order ID</TableHead>
+              <TableHead>Group ID</TableHead>
               <TableHead>Buyer</TableHead>
               <TableHead>Product</TableHead>
               <TableHead>Bundle</TableHead>
@@ -357,7 +361,7 @@ export default function Orders() {
           <TableBody>
             {paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={15} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={16} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -366,6 +370,9 @@ export default function Orders() {
                 <TableRow key={shipment.id}>
                   <TableCell className="font-mono font-semibold">{shipment.uid}</TableCell>
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
+                  <TableCell className="font-mono text-xs max-w-[100px] truncate" title={shipment.order_group_id || ''}>
+                    {shipment.order_group_id ? shipment.order_group_id.slice(0, 8) : '-'}
+                  </TableCell>
                   <TableCell>{shipment.buyer}</TableCell>
                   <TableCell>{shipment.product_name}</TableCell>
                   <TableCell className="text-center">
