@@ -65,26 +65,47 @@ export default function Upload() {
         .map(row => normalizeShipmentData(row, columnMap))
         .filter(s => !s.cancelled || s.cancelled.trim() === '');
 
-      // Group shipments by buyer name
-      const groupedByBuyer = new Map<string, any[]>();
+      // Group shipments by tracking number
+      const groupedByTracking = new Map<string, any[]>();
       shipments.forEach(shipment => {
-        const buyerName = shipment.buyer.trim().toLowerCase();
-        if (!groupedByBuyer.has(buyerName)) {
-          groupedByBuyer.set(buyerName, []);
+        // Only group if tracking number exists
+        if (shipment.tracking && shipment.tracking.trim()) {
+          const trackingNumber = shipment.tracking.trim().toLowerCase();
+          if (!groupedByTracking.has(trackingNumber)) {
+            groupedByTracking.set(trackingNumber, []);
+          }
+          groupedByTracking.get(trackingNumber)!.push(shipment);
         }
-        groupedByBuyer.get(buyerName)!.push(shipment);
       });
 
-      // Assign order_group_id to each buyer group
+      // Assign order_group_id to groups with same tracking number
       const shipmentsWithGroups: any[] = [];
-      groupedByBuyer.forEach((group) => {
-        const groupId = crypto.randomUUID();
-        group.forEach(shipment => {
+      const processedShipments = new Set();
+
+      groupedByTracking.forEach((group) => {
+        // Only assign group ID if there are multiple shipments with the same tracking
+        if (group.length > 1) {
+          const groupId = crypto.randomUUID();
+          group.forEach(shipment => {
+            shipmentsWithGroups.push({
+              ...shipment,
+              order_group_id: groupId,
+              bundle: true
+            });
+            processedShipments.add(shipment);
+          });
+        }
+      });
+
+      // Add remaining shipments without group IDs (single tracking or no tracking)
+      shipments.forEach(shipment => {
+        if (!processedShipments.has(shipment)) {
           shipmentsWithGroups.push({
             ...shipment,
-            order_group_id: groupId
+            order_group_id: null,
+            bundle: false
           });
-        });
+        }
       });
 
       // Insert shipments into database
