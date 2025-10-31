@@ -21,6 +21,14 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon } from 'lucide-react';
 import { Shipment } from '@/types';
@@ -33,6 +41,9 @@ export default function Orders() {
   const [printing, setPrinting] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [showDateFilter, setShowDateFilter] = useState<Date | undefined>(undefined);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const itemsPerPage = 50;
   
   const { shipments, updateShipment, settings, setShipments } = useAppStore();
 
@@ -59,46 +70,71 @@ export default function Orders() {
   };
 
   const loadShipments = async () => {
+    setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // First get shipments
-    const { data: shipmentsData, error: shipmentsError } = await supabase
-      .from('shipments')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (shipmentsError) {
-      toast.error('Failed to load shipments');
+    if (!user) {
+      setLoading(false);
       return;
     }
 
-    // Then get all unique user IDs who printed labels
-    const printerIds = [...new Set(
-      shipmentsData
-        ?.filter(s => s.printed_by_user_id)
-        .map(s => s.printed_by_user_id) || []
-    )];
+    try {
+      // Fetch all shipments with pagination (1000 rows at a time)
+      let allShipments: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-    if (printerIds.length > 0) {
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .in('id', printerIds);
+      while (hasMore) {
+        const { data: shipmentsData, error: shipmentsError } = await supabase
+          .from('shipments')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      // Map profiles to shipments
-      const profileMap = new Map(profilesData?.map(p => [p.id, p]) || []);
-      const enrichedShipments = shipmentsData?.map(shipment => ({
-        ...shipment,
-        printed_by: shipment.printed_by_user_id 
-          ? profileMap.get(shipment.printed_by_user_id) 
-          : undefined
-      }));
+        if (shipmentsError) {
+          toast.error('Failed to load shipments');
+          setLoading(false);
+          return;
+        }
 
-      setShipments(enrichedShipments || []);
-    } else {
-      setShipments(shipmentsData || []);
+        if (shipmentsData && shipmentsData.length > 0) {
+          allShipments = [...allShipments, ...shipmentsData];
+          hasMore = shipmentsData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Then get all unique user IDs who printed labels
+      const printerIds = [...new Set(
+        allShipments
+          .filter(s => s.printed_by_user_id)
+          .map(s => s.printed_by_user_id)
+      )];
+
+      if (printerIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', printerIds);
+
+        // Map profiles to shipments
+        const profileMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+        const enrichedShipments = allShipments.map(shipment => ({
+          ...shipment,
+          printed_by: shipment.printed_by_user_id 
+            ? profileMap.get(shipment.printed_by_user_id) 
+            : undefined
+        }));
+
+        setShipments(enrichedShipments);
+      } else {
+        setShipments(allShipments);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -213,6 +249,17 @@ export default function Orders() {
     exceptions: filteredShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length
   };
 
+  // Pagination
+  const totalPages = Math.ceil(filteredShipments.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedShipments = filteredShipments.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, showDateFilter, filter]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -232,6 +279,12 @@ export default function Orders() {
           </Badge>
         </div>
       </div>
+
+      {loading && (
+        <div className="text-center py-8 text-muted-foreground">
+          Loading shipments...
+        </div>
+      )}
 
       <div className="flex gap-4">
         <Input
@@ -301,14 +354,14 @@ export default function Orders() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredShipments.length === 0 ? (
+            {paginatedShipments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
             ) : (
-              filteredShipments.map((shipment) => (
+              paginatedShipments.map((shipment) => (
                 <TableRow key={shipment.id}>
                   <TableCell className="font-mono font-semibold">{shipment.uid}</TableCell>
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
@@ -358,6 +411,56 @@ export default function Orders() {
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(endIndex, filteredShipments.length)} of {filteredShipments.length} orders
+          </div>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      onClick={() => setCurrentPage(pageNum)}
+                      isActive={currentPage === pageNum}
+                      className="cursor-pointer"
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }
