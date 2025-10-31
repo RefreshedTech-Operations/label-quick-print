@@ -133,12 +133,14 @@ export type Database = {
       shipments: {
         Row: {
           address_full: string | null
+          bundle: boolean | null
           buyer: string | null
           cancelled: string | null
           created_at: string | null
           id: string
           label_url: string | null
           manifest_url: string | null
+          order_group_id: string | null
           order_id: string | null
           price: string | null
           printed: boolean | null
@@ -154,12 +156,14 @@ export type Database = {
         }
         Insert: {
           address_full?: string | null
+          bundle?: boolean | null
           buyer?: string | null
           cancelled?: string | null
           created_at?: string | null
           id?: string
           label_url?: string | null
           manifest_url?: string | null
+          order_group_id?: string | null
           order_id?: string | null
           price?: string | null
           printed?: boolean | null
@@ -175,12 +179,14 @@ export type Database = {
         }
         Update: {
           address_full?: string | null
+          bundle?: boolean | null
           buyer?: string | null
           cancelled?: string | null
           created_at?: string | null
           id?: string
           label_url?: string | null
           manifest_url?: string | null
+          order_group_id?: string | null
           order_id?: string | null
           price?: string | null
           printed?: boolean | null

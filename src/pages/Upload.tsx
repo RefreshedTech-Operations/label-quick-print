@@ -65,8 +65,30 @@ export default function Upload() {
         .map(row => normalizeShipmentData(row, columnMap))
         .filter(s => !s.cancelled || s.cancelled.trim() === '');
 
+      // Group shipments by buyer name
+      const groupedByBuyer = new Map<string, any[]>();
+      shipments.forEach(shipment => {
+        const buyerName = shipment.buyer.trim().toLowerCase();
+        if (!groupedByBuyer.has(buyerName)) {
+          groupedByBuyer.set(buyerName, []);
+        }
+        groupedByBuyer.get(buyerName)!.push(shipment);
+      });
+
+      // Assign order_group_id to each buyer group
+      const shipmentsWithGroups: any[] = [];
+      groupedByBuyer.forEach((group) => {
+        const groupId = crypto.randomUUID();
+        group.forEach(shipment => {
+          shipmentsWithGroups.push({
+            ...shipment,
+            order_group_id: groupId
+          });
+        });
+      });
+
       // Insert shipments into database
-      const shipmentsWithUser = shipments.map(s => ({
+      const shipmentsWithUser = shipmentsWithGroups.map(s => ({
         ...s,
         user_id: user.id,
         show_date: showDate ? format(showDate, 'yyyy-MM-dd') : null

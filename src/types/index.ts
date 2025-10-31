@@ -11,6 +11,7 @@ export interface ColumnMap {
   price: string;
   cancelled: string;
   manifest_url: string;
+  bundle?: string;
 }
 
 export interface Shipment {
@@ -27,6 +28,8 @@ export interface Shipment {
   price?: string;
   cancelled?: string;
   manifest_url?: string;
+  bundle?: boolean;
+  order_group_id?: string;
   raw: any;
   printed: boolean;
   printed_at?: string;
@@ -68,5 +71,6 @@ export const DEFAULT_COLUMN_MAP: ColumnMap = {
   quantity: 'product quantity',
   price: 'sold price',
   cancelled: 'cancelled or failed',
-  manifest_url: 'shipment manifest'
+  manifest_url: 'shipment manifest',
+  bundle: 'bundle'
 };
