@@ -16,6 +16,7 @@ export default function Scan() {
   const [printing, setPrinting] = useState(false);
   const [printerId, setPrinterId] = useState<string>('');
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
+  const [isLastInGroup, setIsLastInGroup] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -179,7 +180,20 @@ export default function Scan() {
       return;
     }
 
+    // Check if this is the last item in a bundle group
+    let lastInGroup = false;
+    if (shipment.bundle && shipment.order_group_id) {
+      const { data: groupShipments } = await supabase
+        .from('shipments')
+        .select('id, printed')
+        .eq('order_group_id', shipment.order_group_id);
+      
+      const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
+      lastInGroup = unprintedCount === 1;
+    }
+
     setSelectedShipment(shipment);
+    setIsLastInGroup(lastInGroup);
     addRecentScan(trimmedUid, 'found');
     setUid('');
 
@@ -537,12 +551,12 @@ export default function Scan() {
             {(selectedShipment.manifest_url || selectedShipment.bundle) && (
               <Button
                 onClick={() => handlePrint(selectedShipment)}
-                disabled={printing || (selectedShipment.bundle && selectedShipment.group_id_printed)}
+                disabled={printing || (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup)}
                 size="lg"
                 className="w-full"
               >
                 <Printer className="h-5 w-5 mr-2" />
-                {printing ? 'Printing...' : selectedShipment.bundle ? 'Print Group ID Label' : 'Print Label'}
+                {printing ? 'Printing...' : (selectedShipment.bundle && !isLastInGroup) ? 'Print Group ID Label' : 'Print Label'}
               </Button>
             )}
             
