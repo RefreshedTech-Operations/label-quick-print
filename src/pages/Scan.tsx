@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { submitPrintJob, createPrintJob } from '@/lib/printnode';
+import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
 
 export default function Scan() {
@@ -189,6 +189,24 @@ export default function Scan() {
   };
 
   const handlePrint = async (shipment: Shipment) => {
+    // For bundle items, print group ID instead of manifest
+    if (shipment.bundle) {
+      if (!shipment.order_group_id) {
+        toast.error('Cannot print: Missing group ID');
+        return;
+      }
+      
+      if (shipment.group_id_printed) {
+        toast.error('Group ID already printed', {
+          description: `This bundle's group ID was already printed${shipment.group_id_printed_at ? ` on ${new Date(shipment.group_id_printed_at).toLocaleString()}` : ''}`
+        });
+        return;
+      }
+      
+      return handlePrintGroupId(shipment);
+    }
+
+    // Regular manifest printing for non-bundle items
     if (!shipment.manifest_url) {
       toast.error('Cannot print: Missing manifest URL');
       return;
@@ -277,6 +295,104 @@ export default function Scan() {
             order_id: shipment.order_id,
             printer_id: printerId || '',
             label_url: shipment.manifest_url,
+            status: 'error',
+            error: error.message
+          });
+      }
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const handlePrintGroupId = async (shipment: Shipment) => {
+    if (!shipment.order_group_id) {
+      toast.error('Cannot print: Missing group ID');
+      return;
+    }
+
+    if (!printnodeApiKey) {
+      toast.error('PrintNode not configured', {
+        description: 'Please configure PrintNode API key in Settings'
+      });
+      return;
+    }
+
+    if (!printerId) {
+      toast.error('No printer selected', {
+        description: 'Please enter a printer ID'
+      });
+      return;
+    }
+
+    setPrinting(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      const printJob = createGroupIdPrintJob(
+        parseInt(printerId),
+        shipment.order_group_id,
+        shipment.uid
+      );
+
+      const jobId = await submitPrintJob(printnodeApiKey, printJob);
+
+      // Update shipment with group ID printed status
+      await supabase
+        .from('shipments')
+        .update({ 
+          group_id_printed: true, 
+          group_id_printed_at: new Date().toISOString(),
+          group_id_printed_by_user_id: user.id
+        })
+        .eq('id', shipment.id);
+
+      // Log print job
+      await supabase
+        .from('print_jobs')
+        .insert({
+          user_id: user.id,
+          shipment_id: shipment.id,
+          uid: shipment.uid,
+          order_id: shipment.order_id,
+          printer_id: printerId,
+          printnode_job_id: jobId,
+          label_url: `group_id_${shipment.order_group_id}`,
+          status: 'queued'
+        });
+
+      updateShipment(shipment.id, { 
+        group_id_printed: true, 
+        group_id_printed_at: new Date().toISOString(),
+        group_id_printed_by_user_id: user.id
+      });
+      
+      toast.success('Group ID label printed!', {
+        description: `Printed group ID for bundle ${shipment.uid}`
+      });
+
+      setSelectedShipment(null);
+    } catch (error: any) {
+      toast.error('Print failed', {
+        description: error.message
+      });
+
+      // Log failed print job
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: printerId || '',
+            label_url: `group_id_${shipment.order_group_id}`,
             status: 'error',
             error: error.message
           });
@@ -390,16 +506,22 @@ export default function Scan() {
               )}
             </div>
 
-            {selectedShipment.manifest_url && (
+            {(selectedShipment.manifest_url || selectedShipment.bundle) && (
               <Button
                 onClick={() => handlePrint(selectedShipment)}
-                disabled={printing}
+                disabled={printing || (selectedShipment.bundle && selectedShipment.group_id_printed)}
                 size="lg"
                 className="w-full"
               >
                 <Printer className="h-5 w-5 mr-2" />
-                {printing ? 'Printing...' : 'Print Label'}
+                {printing ? 'Printing...' : selectedShipment.bundle ? 'Print Group ID Label' : 'Print Label'}
               </Button>
+            )}
+            
+            {selectedShipment.bundle && selectedShipment.group_id_printed && (
+              <div className="text-sm text-muted-foreground text-center">
+                Group ID printed on {new Date(selectedShipment.group_id_printed_at!).toLocaleString()}
+              </div>
             )}
           </CardContent>
         </Card>

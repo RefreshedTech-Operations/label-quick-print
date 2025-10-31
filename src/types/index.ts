@@ -35,6 +35,9 @@ export interface Shipment {
   printed_at?: string;
   printed_by_user_id?: string;
   printed_by?: { email: string };
+  group_id_printed?: boolean;
+  group_id_printed_at?: string;
+  group_id_printed_by_user_id?: string;
   show_date?: string;
   created_at: string;
 }

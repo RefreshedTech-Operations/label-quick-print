@@ -137,6 +137,9 @@ export type Database = {
           buyer: string | null
           cancelled: string | null
           created_at: string | null
+          group_id_printed: boolean | null
+          group_id_printed_at: string | null
+          group_id_printed_by_user_id: string | null
           id: string
           label_url: string | null
           manifest_url: string | null
@@ -160,6 +163,9 @@ export type Database = {
           buyer?: string | null
           cancelled?: string | null
           created_at?: string | null
+          group_id_printed?: boolean | null
+          group_id_printed_at?: string | null
+          group_id_printed_by_user_id?: string | null
           id?: string
           label_url?: string | null
           manifest_url?: string | null
@@ -183,6 +189,9 @@ export type Database = {
           buyer?: string | null
           cancelled?: string | null
           created_at?: string | null
+          group_id_printed?: boolean | null
+          group_id_printed_at?: string | null
+          group_id_printed_by_user_id?: string | null
           id?: string
           label_url?: string | null
           manifest_url?: string | null
