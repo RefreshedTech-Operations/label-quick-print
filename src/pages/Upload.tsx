@@ -167,27 +167,49 @@ export default function Upload() {
           {preview.length > 0 && (
             <div className="space-y-2">
               <h3 className="font-semibold">Preview (first 5 rows)</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border">
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted">
-                      <th className="border p-2">UID</th>
-                      <th className="border p-2">Order ID</th>
-                      <th className="border p-2">Buyer</th>
-                      <th className="border p-2">Product</th>
-                      <th className="border p-2">Manifest URL</th>
+                      <th className="border p-2 whitespace-nowrap">UID</th>
+                      <th className="border p-2 whitespace-nowrap">Order ID</th>
+                      <th className="border p-2 whitespace-nowrap">Buyer</th>
+                      <th className="border p-2 whitespace-nowrap">Product Name</th>
+                      <th className="border p-2 whitespace-nowrap">Quantity</th>
+                      <th className="border p-2 whitespace-nowrap">Price</th>
+                      <th className="border p-2 whitespace-nowrap">Tracking</th>
+                      <th className="border p-2 whitespace-nowrap">Address</th>
+                      <th className="border p-2 whitespace-nowrap">Cancelled</th>
+                      <th className="border p-2 whitespace-nowrap">Label URL</th>
+                      <th className="border p-2 whitespace-nowrap">Manifest URL</th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.map((row, i) => {
                       const normalized = normalizeShipmentData(row, columnMap);
                       return (
-                        <tr key={i}>
-                          <td className="border p-2 font-mono">{normalized.uid}</td>
-                          <td className="border p-2">{normalized.order_id}</td>
-                          <td className="border p-2">{normalized.buyer}</td>
-                          <td className="border p-2">{normalized.product_name}</td>
-                          <td className="border p-2">
+                        <tr key={i} className="hover:bg-muted/50">
+                          <td className="border p-2 font-mono whitespace-nowrap">{normalized.uid || '-'}</td>
+                          <td className="border p-2 whitespace-nowrap">{normalized.order_id || '-'}</td>
+                          <td className="border p-2 whitespace-nowrap">{normalized.buyer || '-'}</td>
+                          <td className="border p-2 max-w-[200px] truncate" title={normalized.product_name}>
+                            {normalized.product_name || '-'}
+                          </td>
+                          <td className="border p-2 text-center">{normalized.quantity || '-'}</td>
+                          <td className="border p-2 whitespace-nowrap">{normalized.price || '-'}</td>
+                          <td className="border p-2 font-mono text-xs max-w-[150px] truncate" title={normalized.tracking}>
+                            {normalized.tracking || '-'}
+                          </td>
+                          <td className="border p-2 max-w-[200px] truncate" title={normalized.address_full}>
+                            {normalized.address_full || '-'}
+                          </td>
+                          <td className="border p-2 text-center">
+                            {normalized.cancelled ? '✓' : '✗'}
+                          </td>
+                          <td className="border p-2 text-center">
+                            {normalized.label_url ? '✓' : '✗'}
+                          </td>
+                          <td className="border p-2 text-center">
                             {normalized.manifest_url ? '✓' : '✗'}
                           </td>
                         </tr>
