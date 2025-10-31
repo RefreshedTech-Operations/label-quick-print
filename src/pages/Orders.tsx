@@ -107,12 +107,15 @@ export default function Orders() {
         }
       }
 
-      // Then get all unique user IDs who printed labels
-      const printerIds = [...new Set(
-        allShipments
+      // Get all unique user IDs who printed labels (both individual and group)
+      const printerIds = [...new Set([
+        ...allShipments
           .filter(s => s.printed_by_user_id)
-          .map(s => s.printed_by_user_id)
-      )];
+          .map(s => s.printed_by_user_id),
+        ...allShipments
+          .filter(s => s.group_id_printed_by_user_id)
+          .map(s => s.group_id_printed_by_user_id)
+      ])];
 
       if (printerIds.length > 0) {
         const { data: profilesData } = await supabase
@@ -126,6 +129,9 @@ export default function Orders() {
           ...shipment,
           printed_by: shipment.printed_by_user_id 
             ? profileMap.get(shipment.printed_by_user_id) 
+            : undefined,
+          group_id_printed_by: shipment.group_id_printed_by_user_id 
+            ? profileMap.get(shipment.group_id_printed_by_user_id) 
             : undefined
         }));
 
@@ -354,6 +360,8 @@ export default function Orders() {
               <TableHead>Cancelled</TableHead>
               <TableHead>Printed</TableHead>
               <TableHead>Printed By</TableHead>
+              <TableHead>Group Label Printed</TableHead>
+              <TableHead>Group Label By</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -361,7 +369,7 @@ export default function Orders() {
           <TableBody>
             {paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={16} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={18} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -390,6 +398,8 @@ export default function Orders() {
                   <TableCell>{shipment.cancelled || '-'}</TableCell>
                   <TableCell>{shipment.printed ? format(new Date(shipment.printed_at!), 'MMM d, HH:mm') : '-'}</TableCell>
                   <TableCell className="text-xs">{shipment.printed_by?.email || '-'}</TableCell>
+                  <TableCell>{shipment.group_id_printed ? format(new Date(shipment.group_id_printed_at!), 'MMM d, HH:mm') : '-'}</TableCell>
+                  <TableCell className="text-xs">{shipment.group_id_printed_by?.email || '-'}</TableCell>
                   <TableCell>
                     {!shipment.manifest_url ? (
                       <Badge variant="destructive">

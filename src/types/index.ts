@@ -38,6 +38,7 @@ export interface Shipment {
   group_id_printed?: boolean;
   group_id_printed_at?: string;
   group_id_printed_by_user_id?: string;
+  group_id_printed_by?: { email: string };
   show_date?: string;
   created_at: string;
 }
