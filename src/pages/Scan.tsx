@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/printnode';
@@ -18,6 +19,7 @@ export default function Scan() {
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [isLastInGroup, setIsLastInGroup] = useState(false);
   const [totalGroupItems, setTotalGroupItems] = useState(0);
+  const [groupItems, setGroupItems] = useState<Shipment[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -184,20 +186,24 @@ export default function Scan() {
     // Check if this is the last item in a bundle group
     let lastInGroup = false;
     let groupTotal = 0;
+    let allGroupItems: Shipment[] = [];
     if (shipment.bundle && shipment.order_group_id) {
       const { data: groupShipments } = await supabase
         .from('shipments')
-        .select('id, printed')
-        .eq('order_group_id', shipment.order_group_id);
+        .select('*')
+        .eq('order_group_id', shipment.order_group_id)
+        .order('uid');
       
-      groupTotal = groupShipments?.length || 0;
-      const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
+      allGroupItems = groupShipments || [];
+      groupTotal = allGroupItems.length;
+      const unprintedCount = allGroupItems.filter(s => !s.printed).length;
       lastInGroup = unprintedCount === 1;
     }
 
     setSelectedShipment(shipment);
     setIsLastInGroup(lastInGroup);
     setTotalGroupItems(groupTotal);
+    setGroupItems(allGroupItems);
     addRecentScan(trimmedUid, 'found');
     setUid('');
 
@@ -580,6 +586,54 @@ export default function Scan() {
                 Group ID printed on {new Date(selectedShipment.group_id_printed_at!).toLocaleString()}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedShipment?.bundle && groupItems.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>UID</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Buyer</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {groupItems.map((item) => (
+                  <TableRow 
+                    key={item.id}
+                    className={
+                      item.id === selectedShipment.id 
+                        ? "bg-primary/20 font-semibold" 
+                        : item.printed 
+                          ? "bg-success/10" 
+                          : ""
+                    }
+                  >
+                    <TableCell className="font-mono">{item.uid}</TableCell>
+                    <TableCell>{item.product_name}</TableCell>
+                    <TableCell>{item.buyer}</TableCell>
+                    <TableCell className="text-center">
+                      {item.printed ? (
+                        <Badge className="bg-success text-success-foreground">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Printed
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">Pending</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
