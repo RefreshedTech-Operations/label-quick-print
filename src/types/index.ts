@@ -72,5 +72,5 @@ export const DEFAULT_COLUMN_MAP: ColumnMap = {
   price: 'sold price',
   cancelled: 'cancelled or failed',
   manifest_url: 'shipment manifest',
-  bundle: 'bundle'
+  bundle: 'bundled in show'
 };

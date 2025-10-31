@@ -36,7 +36,7 @@ export function parseCSV(file: File): Promise<any[]> {
 export function normalizeShipmentData(row: any, map: ColumnMap) {
   const uid = extractUid(row, map);
   const bundleValue = map.bundle ? (row[map.bundle] ?? '').toString().trim().toLowerCase() : '';
-  const bundle = bundleValue === 'true' || bundleValue === '1' || bundleValue === 'yes';
+  const bundle = bundleValue === 'true' || bundleValue === '1' || bundleValue === 'yes' || bundleValue === 't';
   
   return {
     uid: uid || '',
