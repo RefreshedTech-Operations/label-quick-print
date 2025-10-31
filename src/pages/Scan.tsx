@@ -327,10 +327,17 @@ export default function Scan() {
       </Card>
 
       {selectedShipment && (
-        <Card className="border-2 border-primary">
+        <Card className={selectedShipment.bundle ? "border-4 border-primary bg-primary/10" : "border-2 border-primary"}>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Shipment Found</span>
+              <div className="flex items-center gap-2">
+                <span>Shipment Found</span>
+                {selectedShipment.bundle && (
+                  <Badge variant="secondary" className="text-sm">
+                    Bundle Item
+                  </Badge>
+                )}
+              </div>
               {selectedShipment.manifest_url ? (
                 <Badge className="bg-success text-success-foreground">
                   <CheckCircle className="h-4 w-4 mr-1" />
@@ -354,6 +361,14 @@ export default function Scan() {
                 <p className="text-muted-foreground">Order ID</p>
                 <p className="font-mono">{selectedShipment.order_id}</p>
               </div>
+              {selectedShipment.order_group_id && (
+                <div>
+                  <p className="text-muted-foreground">Group ID</p>
+                  <p className="font-mono text-xs" title={selectedShipment.order_group_id}>
+                    {selectedShipment.order_group_id.slice(0, 12)}...
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-muted-foreground">Buyer</p>
                 <p className="font-semibold">{selectedShipment.buyer}</p>
