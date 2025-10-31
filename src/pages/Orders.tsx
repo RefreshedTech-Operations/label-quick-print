@@ -367,7 +367,7 @@ export default function Orders() {
               </TableRow>
             ) : (
               paginatedShipments.map((shipment) => (
-                <TableRow key={shipment.id}>
+                <TableRow key={shipment.id} className={shipment.bundle ? "bg-secondary/30" : ""}>
                   <TableCell className="font-mono font-semibold">{shipment.uid}</TableCell>
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
                   <TableCell className="font-mono text-xs max-w-[100px] truncate" title={shipment.order_group_id || ''}>
