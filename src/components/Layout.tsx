@@ -69,6 +69,17 @@ export default function Layout({ children }: LayoutProps) {
               </Button>
 
               <Button
+                variant={isActive('/print-jobs') ? 'default' : 'ghost'}
+                asChild
+                className="gap-2"
+              >
+                <Link to="/print-jobs">
+                  <Printer className="h-4 w-4" />
+                  Print Jobs
+                </Link>
+              </Button>
+
+              <Button
                 variant={isActive('/settings') ? 'default' : 'ghost'}
                 asChild
                 className="gap-2"
