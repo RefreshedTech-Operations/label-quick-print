@@ -110,6 +110,12 @@ export default function PrintJobs() {
   };
 
   const filteredJobs = printJobs.filter(j => {
+    // Filter out failed or cancelled rows
+    if (j.status === 'failed' || j.status === 'cancelled' || j.error) {
+      return false;
+    }
+
+    // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
       return (
