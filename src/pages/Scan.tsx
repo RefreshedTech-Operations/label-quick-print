@@ -146,6 +146,7 @@ export default function Scan() {
         description: `No shipment found for UID: ${trimmedUid}`
       });
       addRecentScan(trimmedUid, 'not_found');
+      setSelectedShipment(null);
       setUid('');
       return;
     }
