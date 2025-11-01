@@ -350,6 +350,99 @@ export default function Scan() {
     }
   };
 
+  const handlePrintAllGroupManifests = async () => {
+    if (!selectedShipment?.order_group_id) {
+      toast.error('Cannot print: Missing group ID');
+      return;
+    }
+
+    if (!selectedShipment.manifest_url) {
+      toast.error('Cannot print: Missing manifest URL');
+      return;
+    }
+
+    if (!printnodeApiKey) {
+      toast.error('PrintNode not configured', {
+        description: 'Please configure PrintNode API key in Settings'
+      });
+      return;
+    }
+
+    if (!printerId) {
+      toast.error('No printer selected', {
+        description: 'Please enter a printer ID'
+      });
+      return;
+    }
+
+    setPrinting(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      // Print the manifest
+      const printJob = createPrintJob(
+        parseInt(printerId),
+        selectedShipment.uid,
+        selectedShipment.manifest_url
+      );
+
+      const jobId = await submitPrintJob(printnodeApiKey, printJob);
+
+      // Mark all items in the group as printed
+      await supabase
+        .from('shipments')
+        .update({ 
+          printed: true, 
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
+        })
+        .eq('order_group_id', selectedShipment.order_group_id);
+
+      // Log print job for the manifest
+      await supabase
+        .from('print_jobs')
+        .insert({
+          user_id: user.id,
+          shipment_id: selectedShipment.id,
+          uid: selectedShipment.uid,
+          order_id: selectedShipment.order_id,
+          printer_id: printerId,
+          printnode_job_id: jobId,
+          label_url: selectedShipment.manifest_url,
+          status: 'queued'
+        });
+
+      // Update local state for all group items
+      groupItems.forEach(item => {
+        updateShipment(item.id, { 
+          printed: true, 
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
+        });
+      });
+
+      toast.success('All items marked as printed!', {
+        description: `Printed manifest for group`
+      });
+
+      // Reload the group items
+      await loadShipments();
+      setSelectedShipment(null);
+      setGroupItems([]);
+    } catch (error: any) {
+      toast.error('Print failed', {
+        description: error.message
+      });
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const handlePrintGroupId = async (shipment: Shipment) => {
     if (!shipment.order_group_id) {
       toast.error('Cannot print: Missing group ID');
@@ -593,7 +686,17 @@ export default function Scan() {
       {selectedShipment?.bundle && groupItems.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
+              <Button
+                onClick={handlePrintAllGroupManifests}
+                disabled={printing || groupItems.every(item => item.printed)}
+                variant="default"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Mark All Printed & Print Manifest
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
