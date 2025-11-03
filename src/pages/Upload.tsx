@@ -112,7 +112,9 @@ export default function Upload() {
       const shipmentsWithUser = shipmentsWithGroups.map(s => ({
         ...s,
         user_id: user.id,
-        show_date: showDate ? format(showDate, 'yyyy-MM-dd') : null
+        show_date: showDate 
+          ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
+          : null
       }));
 
       const { data: insertedData, error } = await supabase
