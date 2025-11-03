@@ -144,7 +144,7 @@ export type Database = {
           label_url: string | null
           manifest_url: string | null
           order_group_id: string | null
-          order_id: string | null
+          order_id: string
           price: string | null
           printed: boolean | null
           printed_at: string | null
@@ -170,7 +170,7 @@ export type Database = {
           label_url?: string | null
           manifest_url?: string | null
           order_group_id?: string | null
-          order_id?: string | null
+          order_id: string
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
@@ -196,7 +196,7 @@ export type Database = {
           label_url?: string | null
           manifest_url?: string | null
           order_group_id?: string | null
-          order_id?: string | null
+          order_id?: string
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
