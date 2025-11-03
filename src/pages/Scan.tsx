@@ -704,7 +704,6 @@ export default function Scan() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>UID</TableHead>
-                    <TableHead>Order ID</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Buyer</TableHead>
                     <TableHead>Address</TableHead>
@@ -731,8 +730,7 @@ export default function Scan() {
                         }
                       >
                         <TableCell className="font-mono text-xs">{item.uid}</TableCell>
-                        <TableCell className="font-mono text-xs">{item.order_id}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{item.product_name}</TableCell>
+                        <TableCell>{item.product_name}</TableCell>
                         <TableCell>{item.buyer}</TableCell>
                         <TableCell className="max-w-[250px] truncate" title={item.address_full}>
                           {item.address_full}
