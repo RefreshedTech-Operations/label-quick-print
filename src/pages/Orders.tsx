@@ -44,6 +44,7 @@ export default function Orders() {
   const [showDateFilter, setShowDateFilter] = useState<Date | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
   const itemsPerPage = 1000;
   
   const { shipments, updateShipment, settings, setShipments } = useAppStore();
@@ -145,6 +146,10 @@ export default function Orders() {
   };
 
   const handleLocationIdChange = async (shipmentId: string, newLocationId: string) => {
+    // Clear editing state
+    const { [shipmentId]: _, ...rest } = editingLocationIds;
+    setEditingLocationIds(rest);
+
     try {
       const { error } = await supabase
         .from('shipments')
@@ -486,8 +491,22 @@ export default function Orders() {
                   </TableCell>
                   <TableCell>
                     <Input
-                      value={shipment.location_id || ''}
-                      onChange={(e) => handleLocationIdChange(shipment.id, e.target.value)}
+                      value={editingLocationIds[shipment.id] ?? shipment.location_id ?? ''}
+                      onChange={(e) => setEditingLocationIds(prev => ({ 
+                        ...prev, 
+                        [shipment.id]: e.target.value 
+                      }))}
+                      onBlur={(e) => {
+                        if (editingLocationIds[shipment.id] !== undefined) {
+                          handleLocationIdChange(shipment.id, e.target.value);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleLocationIdChange(shipment.id, e.currentTarget.value);
+                          e.currentTarget.blur();
+                        }
+                      }}
                       placeholder="Location"
                       className="w-24 h-8 text-xs"
                     />

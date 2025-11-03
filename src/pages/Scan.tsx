@@ -20,6 +20,7 @@ export default function Scan() {
   const [isLastInGroup, setIsLastInGroup] = useState(false);
   const [totalGroupItems, setTotalGroupItems] = useState(0);
   const [groupItems, setGroupItems] = useState<Shipment[]>([]);
+  const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -56,6 +57,10 @@ export default function Scan() {
   };
 
   const handleLocationIdChange = async (shipmentId: string, newLocationId: string) => {
+    // Clear editing state
+    const { [shipmentId]: _, ...rest } = editingLocationIds;
+    setEditingLocationIds(rest);
+
     try {
       const { error } = await supabase
         .from('shipments')
@@ -693,10 +698,23 @@ export default function Scan() {
                 <div>
                   <p className="text-muted-foreground">Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}</p>
                   <Input
-                    value={selectedShipment.location_id || ''}
-                    onChange={(e) => {
-                      handleLocationIdChange(selectedShipment.id, e.target.value);
-                      setSelectedShipment({ ...selectedShipment, location_id: e.target.value });
+                    value={editingLocationIds[selectedShipment.id] ?? selectedShipment.location_id ?? ''}
+                    onChange={(e) => setEditingLocationIds(prev => ({ 
+                      ...prev, 
+                      [selectedShipment.id]: e.target.value 
+                    }))}
+                    onBlur={(e) => {
+                      if (editingLocationIds[selectedShipment.id] !== undefined) {
+                        handleLocationIdChange(selectedShipment.id, e.target.value);
+                        setSelectedShipment({ ...selectedShipment, location_id: e.target.value });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleLocationIdChange(selectedShipment.id, e.currentTarget.value);
+                        setSelectedShipment({ ...selectedShipment, location_id: e.currentTarget.value });
+                        e.currentTarget.blur();
+                      }
                     }}
                     placeholder="Enter location..."
                     className="h-9 mt-1"
@@ -804,8 +822,22 @@ export default function Scan() {
                         <TableCell className="font-mono text-xs">{item.uid}</TableCell>
                         <TableCell>
                           <Input
-                            value={item.location_id || ''}
-                            onChange={(e) => handleLocationIdChange(item.id, e.target.value)}
+                            value={editingLocationIds[item.id] ?? item.location_id ?? ''}
+                            onChange={(e) => setEditingLocationIds(prev => ({ 
+                              ...prev, 
+                              [item.id]: e.target.value 
+                            }))}
+                            onBlur={(e) => {
+                              if (editingLocationIds[item.id] !== undefined) {
+                                handleLocationIdChange(item.id, e.target.value);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleLocationIdChange(item.id, e.currentTarget.value);
+                                e.currentTarget.blur();
+                              }
+                            }}
                             placeholder="Location"
                             className="w-24 h-8 text-xs"
                           />
