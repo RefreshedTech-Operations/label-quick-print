@@ -109,18 +109,25 @@ export default function Scan() {
 
   const loadShipments = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.log('[Scan] No user found');
+      return;
+    }
 
+    console.log('[Scan] Loading shipments...');
     const { data, error } = await supabase
       .from('shipments')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Failed to load shipments:', error);
+      console.error('[Scan] Failed to load shipments:', error);
       return;
     }
 
+    console.log('[Scan] Loaded', data?.length, 'shipments from database');
+    console.log('[Scan] Sample UIDs:', data?.slice(0, 10).map(s => s.uid));
+    console.log('[Scan] Does AKV9L exist in data?', data?.some(s => s.uid === 'AKV9L'));
     setShipments(data || []);
   };
 
