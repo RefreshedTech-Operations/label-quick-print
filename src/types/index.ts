@@ -30,6 +30,7 @@ export interface Shipment {
   manifest_url?: string;
   bundle?: boolean;
   order_group_id?: string;
+  location_id?: string;
   raw: any;
   printed: boolean;
   printed_at?: string;

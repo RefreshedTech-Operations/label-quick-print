@@ -142,6 +142,7 @@ export type Database = {
           group_id_printed_by_user_id: string | null
           id: string
           label_url: string | null
+          location_id: string | null
           manifest_url: string | null
           order_group_id: string | null
           order_id: string
@@ -168,6 +169,7 @@ export type Database = {
           group_id_printed_by_user_id?: string | null
           id?: string
           label_url?: string | null
+          location_id?: string | null
           manifest_url?: string | null
           order_group_id?: string | null
           order_id: string
@@ -194,6 +196,7 @@ export type Database = {
           group_id_printed_by_user_id?: string | null
           id?: string
           label_url?: string | null
+          location_id?: string | null
           manifest_url?: string | null
           order_group_id?: string | null
           order_id?: string

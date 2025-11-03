@@ -144,6 +144,22 @@ export default function Orders() {
     }
   };
 
+  const handleLocationIdChange = async (shipmentId: string, newLocationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('shipments')
+        .update({ location_id: newLocationId })
+        .eq('id', shipmentId);
+
+      if (error) throw error;
+
+      updateShipment(shipmentId, { location_id: newLocationId });
+      toast.success('Location ID updated');
+    } catch (error: any) {
+      toast.error('Failed to update location ID', { description: error.message });
+    }
+  };
+
   const handlePrint = async (shipment: Shipment) => {
     if (!shipment.manifest_url) {
       toast.error('Cannot print: Missing manifest URL');
@@ -349,6 +365,7 @@ export default function Orders() {
               <TableHead>UID</TableHead>
               <TableHead>Order ID</TableHead>
               <TableHead>Group ID</TableHead>
+              <TableHead>Location ID</TableHead>
               <TableHead>Buyer</TableHead>
               <TableHead>Product</TableHead>
               <TableHead>Bundle</TableHead>
@@ -369,7 +386,7 @@ export default function Orders() {
           <TableBody>
             {paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={18} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={19} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -389,6 +406,14 @@ export default function Orders() {
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
                   <TableCell className="font-mono text-xs max-w-[100px] truncate" title={shipment.order_group_id || ''}>
                     {shipment.order_group_id ? shipment.order_group_id.slice(0, 8) : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={shipment.location_id || ''}
+                      onChange={(e) => handleLocationIdChange(shipment.id, e.target.value)}
+                      placeholder="Location"
+                      className="w-24 h-8 text-xs"
+                    />
                   </TableCell>
                   <TableCell>{shipment.buyer}</TableCell>
                   <TableCell>{shipment.product_name}</TableCell>

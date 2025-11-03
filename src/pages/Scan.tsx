@@ -55,6 +55,28 @@ export default function Scan() {
     }
   };
 
+  const handleLocationIdChange = async (shipmentId: string, newLocationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('shipments')
+        .update({ location_id: newLocationId })
+        .eq('id', shipmentId);
+
+      if (error) throw error;
+
+      updateShipment(shipmentId, { location_id: newLocationId });
+      
+      // Update the groupItems array if the item is in it
+      setGroupItems(prev => prev.map(item => 
+        item.id === shipmentId ? { ...item, location_id: newLocationId } : item
+      ));
+      
+      toast.success('Location ID updated');
+    } catch (error: any) {
+      toast.error('Failed to update location ID', { description: error.message });
+    }
+  };
+
   const loadUserSettings = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -704,6 +726,7 @@ export default function Scan() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>UID</TableHead>
+                    <TableHead>Location ID</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Buyer</TableHead>
                     <TableHead>Address</TableHead>
@@ -730,6 +753,14 @@ export default function Scan() {
                         }
                       >
                         <TableCell className="font-mono text-xs">{item.uid}</TableCell>
+                        <TableCell>
+                          <Input
+                            value={item.location_id || ''}
+                            onChange={(e) => handleLocationIdChange(item.id, e.target.value)}
+                            placeholder="Location"
+                            className="w-24 h-8 text-xs"
+                          />
+                        </TableCell>
                         <TableCell>{item.product_name}</TableCell>
                         <TableCell>{item.buyer}</TableCell>
                         <TableCell className="max-w-[250px] truncate" title={item.address_full}>
