@@ -88,7 +88,6 @@ export default function Orders() {
         const { data: shipmentsData, error: shipmentsError } = await supabase
           .from('shipments')
           .select('*')
-          .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
