@@ -471,6 +471,14 @@ export default function Scan() {
       return;
     }
 
+    // Require location_id for group ID labels
+    if (!shipment.location_id || shipment.location_id.trim() === '') {
+      toast.error('Cannot print: Location ID required', {
+        description: 'Please enter a location ID before printing group labels'
+      });
+      return;
+    }
+
     if (!printnodeApiKey) {
       toast.error('PrintNode not configured', {
         description: 'Please configure PrintNode API key in Settings'
@@ -664,6 +672,20 @@ export default function Scan() {
                   </p>
                 </div>
               )}
+              {selectedShipment.bundle && (
+                <div>
+                  <p className="text-muted-foreground">Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}</p>
+                  <Input
+                    value={selectedShipment.location_id || ''}
+                    onChange={(e) => {
+                      handleLocationIdChange(selectedShipment.id, e.target.value);
+                      setSelectedShipment({ ...selectedShipment, location_id: e.target.value });
+                    }}
+                    placeholder="Enter location..."
+                    className="h-9 mt-1"
+                  />
+                </div>
+              )}
               <div>
                 <p className="text-muted-foreground">Buyer</p>
                 <p className="font-semibold">{selectedShipment.buyer}</p>
@@ -687,13 +709,23 @@ export default function Scan() {
             {(selectedShipment.manifest_url || selectedShipment.bundle) && (
               <Button
                 onClick={() => handlePrint(selectedShipment)}
-                disabled={printing || (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup)}
+                disabled={
+                  printing || 
+                  (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
+                  (selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === ''))
+                }
                 size="lg"
                 className="w-full"
               >
                 <Printer className="h-5 w-5 mr-2" />
                 {printing ? 'Printing...' : (selectedShipment.bundle && !isLastInGroup) ? 'Print Group ID Label' : 'Print Label'}
               </Button>
+            )}
+            
+            {selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
+              <p className="text-sm text-destructive text-center">
+                Location ID is required to print group labels
+              </p>
             )}
             
             {selectedShipment.bundle && selectedShipment.group_id_printed && (
