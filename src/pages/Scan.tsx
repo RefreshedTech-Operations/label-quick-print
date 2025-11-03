@@ -114,22 +114,40 @@ export default function Scan() {
       return;
     }
 
-    console.log('[Scan] Loading shipments...');
-    const { data, error } = await supabase
-      .from('shipments')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(0, 9999); // Load up to 10,000 shipments
+    console.log('[Scan] Loading all shipments with pagination...');
+    
+    // Fetch all shipments with pagination (1000 rows at a time)
+    let allShipments: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) {
-      console.error('[Scan] Failed to load shipments:', error);
-      return;
+    while (hasMore) {
+      const { data: shipmentsData, error: shipmentsError } = await supabase
+        .from('shipments')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (shipmentsError) {
+        console.error('[Scan] Failed to load shipments:', shipmentsError);
+        return;
+      }
+
+      if (shipmentsData && shipmentsData.length > 0) {
+        allShipments = [...allShipments, ...shipmentsData];
+        hasMore = shipmentsData.length === pageSize;
+        page++;
+        console.log('[Scan] Loaded page', page, '- Total so far:', allShipments.length);
+      } else {
+        hasMore = false;
+      }
     }
 
-    console.log('[Scan] Loaded', data?.length, 'shipments from database');
-    console.log('[Scan] Sample UIDs:', data?.slice(0, 10).map(s => s.uid));
-    console.log('[Scan] Does AKV9L exist in data?', data?.some(s => s.uid === 'AKV9L'));
-    setShipments(data || []);
+    console.log('[Scan] Finished loading. Total shipments:', allShipments.length);
+    console.log('[Scan] Sample UIDs:', allShipments.slice(0, 10).map(s => s.uid));
+    console.log('[Scan] Does AKV9L exist in data?', allShipments.some(s => s.uid === 'AKV9L'));
+    setShipments(allShipments);
   };
 
   // Load printer ID from cookie on mount
