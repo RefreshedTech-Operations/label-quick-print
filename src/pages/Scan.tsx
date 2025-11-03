@@ -109,13 +109,8 @@ export default function Scan() {
 
   const loadShipments = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.log('[Scan] No user found');
-      return;
-    }
+    if (!user) return;
 
-    console.log('[Scan] Loading all shipments with pagination...');
-    
     // Fetch all shipments with pagination (1000 rows at a time)
     let allShipments: any[] = [];
     let page = 0;
@@ -130,7 +125,7 @@ export default function Scan() {
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (shipmentsError) {
-        console.error('[Scan] Failed to load shipments:', shipmentsError);
+        console.error('Failed to load shipments:', shipmentsError);
         return;
       }
 
@@ -138,15 +133,11 @@ export default function Scan() {
         allShipments = [...allShipments, ...shipmentsData];
         hasMore = shipmentsData.length === pageSize;
         page++;
-        console.log('[Scan] Loaded page', page, '- Total so far:', allShipments.length);
       } else {
         hasMore = false;
       }
     }
 
-    console.log('[Scan] Finished loading. Total shipments:', allShipments.length);
-    console.log('[Scan] Sample UIDs:', allShipments.slice(0, 10).map(s => s.uid));
-    console.log('[Scan] Does AKV9L exist in data?', allShipments.some(s => s.uid === 'AKV9L'));
     setShipments(allShipments);
   };
 

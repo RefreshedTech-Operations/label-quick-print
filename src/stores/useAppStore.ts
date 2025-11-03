@@ -29,17 +29,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
   recentScans: [],
 
   setShipments: (shipments) => {
-        const shipmentMap = new Map<string, string>();
-        shipments.forEach(s => {
-          if (s.uid) {
-            shipmentMap.set(s.uid.toUpperCase(), s.id);
-          }
-        });
-        console.log('[Store] Setting shipments:', shipments.length, 'shipments');
-        console.log('[Store] Sample UIDs in map:', Array.from(shipmentMap.keys()).slice(0, 10));
-        console.log('[Store] Looking for AKV9L:', shipmentMap.has('AKV9L'));
-        set({ shipments, shipmentMap });
-      },
+    const shipmentMap = new Map<string, string>();
+    shipments.forEach(s => {
+      if (s.uid) {
+        shipmentMap.set(s.uid.toUpperCase(), s.id);
+      }
+    });
+    set({ shipments, shipmentMap });
+  },
 
       addShipment: (shipment) => {
         const { shipments, shipmentMap } = get();
@@ -62,20 +59,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
       findShipmentByUid: (uid) => {
         const { shipments, shipmentMap } = get();
         const upperUid = uid.toUpperCase();
-        console.log('[Store] Searching for UID:', upperUid);
-        console.log('[Store] Map size:', shipmentMap.size);
-        console.log('[Store] Shipments array length:', shipments.length);
         
         const shipmentId = shipmentMap.get(upperUid);
         if (shipmentId) {
-          console.log('[Store] Found in map:', shipmentId);
           return shipments.find(s => s.id === shipmentId);
         }
         
         // Fallback: search directly in shipments array
-        const fallbackResult = shipments.find(s => s.uid && s.uid.toUpperCase() === upperUid);
-        console.log('[Store] Fallback search result:', fallbackResult ? 'FOUND' : 'NOT FOUND');
-        return fallbackResult;
+        return shipments.find(s => s.uid && s.uid.toUpperCase() === upperUid);
       },
 
       updateSettings: (newSettings) => {
