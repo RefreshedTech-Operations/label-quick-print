@@ -39,6 +39,7 @@ export default function Orders() {
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
   const [search, setSearch] = useState('');
   const [printing, setPrinting] = useState<string | null>(null);
+  const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [showDateFilter, setShowDateFilter] = useState<Date | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
@@ -223,6 +224,83 @@ export default function Orders() {
       toast.error('Print failed', { description: error.message });
     } finally {
       setPrinting(null);
+    }
+  };
+
+  const handlePrintGroupLabel = async (shipment: Shipment) => {
+    if (!shipment.order_group_id) {
+      toast.error('No group ID for this shipment');
+      return;
+    }
+
+    if (!shipment.manifest_url) {
+      toast.error('Cannot print: Missing manifest URL');
+      return;
+    }
+
+    if (!printnodeApiKey || !settings.default_printer_id) {
+      toast.error('PrintNode not configured');
+      return;
+    }
+
+    setPrintingGroup(shipment.order_group_id);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      // Print the group label
+      const printJob = createPrintJob(
+        parseInt(settings.default_printer_id),
+        `GROUP-${shipment.order_group_id.slice(0, 8)}`,
+        shipment.manifest_url
+      );
+
+      const jobId = await submitPrintJob(printnodeApiKey, printJob);
+
+      // Mark all shipments in this group as group_id_printed
+      await supabase
+        .from('shipments')
+        .update({
+          group_id_printed: true,
+          group_id_printed_at: new Date().toISOString(),
+          group_id_printed_by_user_id: user.id
+        })
+        .eq('order_group_id', shipment.order_group_id);
+
+      // Log print job
+      await supabase
+        .from('print_jobs')
+        .insert({
+          user_id: user.id,
+          shipment_id: shipment.id,
+          uid: `GROUP-${shipment.order_group_id.slice(0, 8)}`,
+          order_id: shipment.order_id,
+          printer_id: settings.default_printer_id,
+          printnode_job_id: jobId,
+          label_url: shipment.manifest_url,
+          status: 'queued'
+        });
+
+      // Update local state for all shipments in this group
+      shipments.forEach(s => {
+        if (s.order_group_id === shipment.order_group_id) {
+          updateShipment(s.id, {
+            group_id_printed: true,
+            group_id_printed_at: new Date().toISOString(),
+            group_id_printed_by_user_id: user.id
+          });
+        }
+      });
+
+      toast.success(`Printed group label for ${shipment.order_group_id.slice(0, 8)}`);
+    } catch (error: any) {
+      toast.error('Group print failed', { description: error.message });
+    } finally {
+      setPrintingGroup(null);
     }
   };
 
@@ -454,14 +532,27 @@ export default function Orders() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      size="sm"
-                      onClick={() => handlePrint(shipment)}
-                      disabled={!shipment.manifest_url || printing === shipment.id}
-                    >
-                      <Printer className="h-4 w-4 mr-1" />
-                      {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handlePrint(shipment)}
+                        disabled={!shipment.manifest_url || printing === shipment.id}
+                      >
+                        <Printer className="h-4 w-4 mr-1" />
+                        {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
+                      </Button>
+                      {shipment.order_group_id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handlePrintGroupLabel(shipment)}
+                          disabled={!shipment.manifest_url || printingGroup === shipment.order_group_id}
+                        >
+                          <Printer className="h-4 w-4 mr-1" />
+                          {printingGroup === shipment.order_group_id ? 'Printing...' : 'Group'}
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
