@@ -505,7 +505,8 @@ export default function Scan() {
       const printJob = createGroupIdPrintJob(
         parseInt(printerId),
         shipment.order_group_id,
-        shipment.uid
+        shipment.uid,
+        shipment.location_id
       );
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
@@ -828,7 +829,11 @@ export default function Scan() {
                               size="sm"
                               variant="outline"
                               onClick={() => handlePrint(item)}
-                              disabled={printing || (item.group_id_printed && !isItemLastInGroup)}
+                              disabled={
+                                printing || 
+                                (item.group_id_printed && !isItemLastInGroup) ||
+                                (!isItemLastInGroup && item.bundle && (!item.location_id || item.location_id.trim() === ''))
+                              }
                             >
                               <Printer className="h-4 w-4 mr-1" />
                               {isItemLastInGroup ? 'Manifest' : item.group_id_printed ? 'Printed' : 'Group ID'}

@@ -80,7 +80,8 @@ export function createPrintJob(
 export function createGroupIdPrintJob(
   printerId: number,
   groupId: string,
-  uid: string
+  uid: string,
+  locationId?: string
 ): PrintNodeJob {
   // Create PDF (4x6 inches = 101.6mm x 152.4mm)
   const doc = new jsPDF({
@@ -96,14 +97,23 @@ export function createGroupIdPrintJob(
   // Title
   doc.text('BUNDLE GROUP ID', 50.8, 30, { align: 'center' });
   
+  // Location ID (if provided)
+  if (locationId) {
+    doc.setFontSize(24);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`LOCATION: ${locationId}`, 50.8, 50, { align: 'center' });
+  }
+  
   // Group ID
   doc.setFontSize(14);
   doc.setFont('courier', 'bold');
+  doc.setTextColor(0, 0, 0);
   
   // Split long group ID into multiple lines if needed
   const maxWidth = 90;
   const lines = doc.splitTextToSize(groupId, maxWidth);
-  const startY = 60;
+  const startY = locationId ? 75 : 60;
   lines.forEach((line: string, index: number) => {
     doc.text(line, 50.8, startY + (index * 8), { align: 'center' });
   });
