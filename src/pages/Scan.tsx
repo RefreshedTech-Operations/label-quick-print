@@ -117,8 +117,9 @@ export default function Scan() {
     console.log('[Scan] Loading shipments...');
     const { data, error } = await supabase
       .from('shipments')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(0, 9999); // Load up to 10,000 shipments
 
     if (error) {
       console.error('[Scan] Failed to load shipments:', error);
