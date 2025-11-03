@@ -63,7 +63,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
         if (shipmentId) {
           return shipments.find(s => s.id === shipmentId);
         }
-        return undefined;
+        // Fallback: search directly in shipments array
+        return shipments.find(s => s.uid && s.uid.toUpperCase() === upperUid);
       },
 
       updateSettings: (newSettings) => {
