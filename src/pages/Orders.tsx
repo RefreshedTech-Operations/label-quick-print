@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -19,6 +20,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -45,6 +56,13 @@ export default function Orders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
+  const [selectedShipments, setSelectedShipments] = useState<Set<string>>(new Set());
+  const [isBulkPrinting, setIsBulkPrinting] = useState(false);
+  const [showAlreadyPrintedDialog, setShowAlreadyPrintedDialog] = useState(false);
+  const [bulkPrintData, setBulkPrintData] = useState<{
+    alreadyPrinted: Shipment[];
+    unprinted: Shipment[];
+  }>({ alreadyPrinted: [], unprinted: [] });
   const itemsPerPage = 1000;
   
   const { shipments, updateShipment, settings, setShipments } = useAppStore();
@@ -309,6 +327,133 @@ export default function Orders() {
     }
   };
 
+  const toggleSelectAll = () => {
+    if (selectedShipments.size === filteredShipments.length) {
+      setSelectedShipments(new Set());
+    } else {
+      setSelectedShipments(new Set(filteredShipments.map(s => s.id)));
+    }
+  };
+
+  const toggleSelectShipment = (id: string) => {
+    const newSelected = new Set(selectedShipments);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedShipments(newSelected);
+  };
+
+  const handleBulkPrint = async () => {
+    if (selectedShipments.size === 0) return;
+
+    const selectedShipmentsList = Array.from(selectedShipments)
+      .map(id => shipments.find(s => s.id === id))
+      .filter(Boolean) as Shipment[];
+
+    const alreadyPrinted = selectedShipmentsList.filter(s => s.printed);
+    const unprinted = selectedShipmentsList.filter(s => !s.printed);
+
+    if (alreadyPrinted.length === selectedShipmentsList.length) {
+      toast.error('All selected orders have already been printed');
+      return;
+    }
+
+    if (alreadyPrinted.length > 0) {
+      setBulkPrintData({ alreadyPrinted, unprinted });
+      setShowAlreadyPrintedDialog(true);
+      return;
+    }
+
+    await executeBulkPrint(unprinted);
+  };
+
+  const executeBulkPrint = async (shipmentsToPrint: Shipment[]) => {
+    setShowAlreadyPrintedDialog(false);
+    setIsBulkPrinting(true);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < shipmentsToPrint.length; i++) {
+      const shipment = shipmentsToPrint[i];
+      
+      toast.info(`Printing ${i + 1} of ${shipmentsToPrint.length}...`);
+
+      try {
+        if (!shipment.manifest_url) {
+          failCount++;
+          continue;
+        }
+
+        if (!printnodeApiKey || !settings.default_printer_id) {
+          toast.error('PrintNode not configured');
+          setIsBulkPrinting(false);
+          return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast.error('Not authenticated');
+          setIsBulkPrinting(false);
+          return;
+        }
+
+        const printJob = createPrintJob(
+          parseInt(settings.default_printer_id),
+          shipment.uid,
+          shipment.manifest_url
+        );
+
+        const jobId = await submitPrintJob(printnodeApiKey, printJob);
+
+        await supabase
+          .from('shipments')
+          .update({ 
+            printed: true, 
+            printed_at: new Date().toISOString(),
+            printed_by_user_id: user.id
+          })
+          .eq('id', shipment.id);
+
+        await supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: settings.default_printer_id,
+            printnode_job_id: jobId,
+            label_url: shipment.manifest_url,
+            status: 'queued'
+          });
+
+        updateShipment(shipment.id, { 
+          printed: true, 
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
+        });
+
+        successCount++;
+      } catch (error: any) {
+        console.error(`Failed to print ${shipment.uid}:`, error);
+        failCount++;
+      }
+    }
+
+    setIsBulkPrinting(false);
+    setSelectedShipments(new Set());
+
+    if (successCount > 0) {
+      toast.success(`Successfully printed ${successCount} label${successCount !== 1 ? 's' : ''}`);
+    }
+    if (failCount > 0) {
+      toast.error(`Failed to print ${failCount} label${failCount !== 1 ? 's' : ''}`);
+    }
+  };
+
   const filteredShipments = shipments.filter(s => {
     // Search filter
     if (search) {
@@ -440,10 +585,40 @@ export default function Orders() {
         </Select>
       </div>
 
+      {selectedShipments.size > 0 && (
+        <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
+          <span className="text-sm font-medium">
+            {selectedShipments.size} order{selectedShipments.size !== 1 ? 's' : ''} selected
+          </span>
+          <Button 
+            onClick={handleBulkPrint}
+            disabled={isBulkPrinting}
+            className="ml-auto"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            {isBulkPrinting ? 'Printing...' : `Print Selected (${selectedShipments.size})`}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setSelectedShipments(new Set())}
+            disabled={isBulkPrinting}
+          >
+            Clear Selection
+          </Button>
+        </div>
+      )}
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={selectedShipments.size === filteredShipments.length && filteredShipments.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                  disabled={isBulkPrinting}
+                />
+              </TableHead>
               <TableHead>UID</TableHead>
               <TableHead>Order ID</TableHead>
               <TableHead>Group ID</TableHead>
@@ -468,7 +643,7 @@ export default function Orders() {
           <TableBody>
             {paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={19} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={20} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -484,6 +659,13 @@ export default function Orders() {
                         : ""
                   }
                 >
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedShipments.has(shipment.id)}
+                      onCheckedChange={() => toggleSelectShipment(shipment.id)}
+                      disabled={isBulkPrinting}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono font-semibold">{shipment.uid}</TableCell>
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
                   <TableCell className="font-mono text-xs max-w-[100px] truncate" title={shipment.order_group_id || ''}>
@@ -629,6 +811,43 @@ export default function Orders() {
           </Pagination>
         </div>
       )}
+
+      <AlertDialog open={showAlreadyPrintedDialog} onOpenChange={setShowAlreadyPrintedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Some Orders Already Printed
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <p>
+                {bulkPrintData.alreadyPrinted.length} of {bulkPrintData.alreadyPrinted.length + bulkPrintData.unprinted.length} selected orders have already been printed:
+              </p>
+              
+              <div className="max-h-[200px] overflow-y-auto bg-muted p-3 rounded border">
+                {bulkPrintData.alreadyPrinted.map(s => (
+                  <div key={s.id} className="font-mono text-sm py-1 border-b last:border-0">
+                    <span className="font-semibold">UID: {s.uid}</span> | Order: {s.order_id}
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-sm">
+                Would you like to print only the {bulkPrintData.unprinted.length} unprinted order{bulkPrintData.unprinted.length !== 1 ? 's' : ''}?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkPrinting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => executeBulkPrint(bulkPrintData.unprinted)}
+              disabled={isBulkPrinting}
+            >
+              Print Unprinted Only ({bulkPrintData.unprinted.length})
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
