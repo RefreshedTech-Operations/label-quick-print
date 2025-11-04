@@ -7,6 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import Papa from 'papaparse';
+import { Upload, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+
+interface ProcessResult {
+  successful: string[];
+  alreadyPrinted: string[];
+  notFound: string[];
+  errors: { uid: string; error: string }[];
+}
 
 export default function Settings() {
   const { settings, updateSettings } = useAppStore();
@@ -14,6 +23,11 @@ export default function Settings() {
   const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
   const [loading, setLoading] = useState(false);
   const [appConfigId, setAppConfigId] = useState<string>('');
+  
+  // Administrative tools state
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [processing, setProcessing] = useState(false);
+  const [results, setResults] = useState<ProcessResult | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -146,6 +160,179 @@ export default function Settings() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      setSelectedFiles(Array.from(files));
+      setResults(null);
+    }
+  };
+
+  const parseCSVFile = (file: File): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const uids: string[] = [];
+          results.data.forEach((row: any) => {
+            // Look for UID column (case-insensitive)
+            const uidKey = Object.keys(row).find(key => key.toLowerCase() === 'uid');
+            if (uidKey && row[uidKey]) {
+              const uid = row[uidKey].toString().trim().toUpperCase();
+              if (uid) uids.push(uid);
+            }
+          });
+          resolve(uids);
+        },
+        error: (error) => reject(error)
+      });
+    });
+  };
+
+  const processShippedOrders = async () => {
+    if (selectedFiles.length === 0) {
+      toast.error('Please select at least one CSV file');
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('You must be logged in');
+      return;
+    }
+
+    setProcessing(true);
+    setResults(null);
+
+    try {
+      // Parse all CSV files and collect UIDs
+      const allUids: string[] = [];
+      for (const file of selectedFiles) {
+        const uids = await parseCSVFile(file);
+        allUids.push(...uids);
+      }
+
+      // Remove duplicates
+      const uniqueUids = Array.from(new Set(allUids));
+      
+      if (uniqueUids.length === 0) {
+        toast.error('No valid UIDs found in CSV files');
+        setProcessing(false);
+        return;
+      }
+
+      const result: ProcessResult = {
+        successful: [],
+        alreadyPrinted: [],
+        notFound: [],
+        errors: []
+      };
+
+      // Process in batches of 50
+      const batchSize = 50;
+      for (let i = 0; i < uniqueUids.length; i += batchSize) {
+        const batch = uniqueUids.slice(i, i + batchSize);
+        
+        for (const uid of batch) {
+          try {
+            // Check if shipment exists and get its printed status
+            const { data: existing, error: fetchError } = await supabase
+              .from('shipments')
+              .select('id, printed')
+              .eq('uid', uid)
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+            if (fetchError) {
+              result.errors.push({ uid, error: fetchError.message });
+              continue;
+            }
+
+            if (!existing) {
+              result.notFound.push(uid);
+              continue;
+            }
+
+            if (existing.printed) {
+              result.alreadyPrinted.push(uid);
+              continue;
+            }
+
+            // Update the shipment
+            const { error: updateError } = await supabase
+              .from('shipments')
+              .update({
+                printed: true,
+                printed_at: new Date().toISOString(),
+                printed_by_user_id: user.id
+              })
+              .eq('id', existing.id);
+
+            if (updateError) {
+              result.errors.push({ uid, error: updateError.message });
+            } else {
+              result.successful.push(uid);
+            }
+          } catch (error: any) {
+            result.errors.push({ uid, error: error.message });
+          }
+        }
+      }
+
+      setResults(result);
+      
+      const successCount = result.successful.length;
+      if (successCount > 0) {
+        toast.success(`Successfully marked ${successCount} order${successCount === 1 ? '' : 's'} as printed`);
+      } else {
+        toast.warning('No orders were updated');
+      }
+    } catch (error: any) {
+      toast.error('Failed to process orders', {
+        description: error.message
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const downloadResults = () => {
+    if (!results) return;
+
+    const csvRows: string[] = ['UID,Status,Details'];
+    
+    results.successful.forEach(uid => {
+      csvRows.push(`${uid},Marked as Printed,Successfully updated`);
+    });
+    
+    results.alreadyPrinted.forEach(uid => {
+      csvRows.push(`${uid},Already Printed,Skipped - already marked as printed`);
+    });
+    
+    results.notFound.forEach(uid => {
+      csvRows.push(`${uid},Not Found,UID not found in database`);
+    });
+    
+    results.errors.forEach(({ uid, error }) => {
+      csvRows.push(`${uid},Error,"${error}"`);
+    });
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mark-shipped-results-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const clearResults = () => {
+    setResults(null);
+    setSelectedFiles([]);
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="space-y-2">
@@ -218,6 +405,146 @@ export default function Settings() {
               onCheckedChange={(checked) => handleUpdateSetting('block_cancelled', checked)}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Administrative Tools</CardTitle>
+          <CardDescription>Mark manually shipped orders as printed in the system</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="csv-files">Upload CSV Files</Label>
+              <p className="text-sm text-muted-foreground">
+                Select one or more CSV files containing a UID column. Orders matching these UIDs will be marked as printed.
+              </p>
+              <Input
+                id="csv-files"
+                type="file"
+                accept=".csv"
+                multiple
+                onChange={handleFileChange}
+                disabled={processing}
+              />
+            </div>
+
+            {selectedFiles.length > 0 && (
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    {selectedFiles.length} file{selectedFiles.length === 1 ? '' : 's'} selected
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {selectedFiles.map((file, idx) => (
+                    <li key={idx} className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span>•</span>
+                      <span>{file.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Button 
+              onClick={processShippedOrders} 
+              disabled={processing || selectedFiles.length === 0}
+              className="w-full"
+            >
+              {processing ? (
+                <>Processing...</>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Process and Mark as Printed
+                </>
+              )}
+            </Button>
+          </div>
+
+          {results && (
+            <div className="space-y-4 border-t pt-6">
+              <div className="space-y-3">
+                <h3 className="font-semibold">Results Summary</h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border bg-muted/50 p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <span className="font-medium">Marked as Printed</span>
+                    </div>
+                    <p className="text-2xl font-bold mt-1">{results.successful.length}</p>
+                  </div>
+
+                  <div className="rounded-lg border bg-muted/50 p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <AlertCircle className="h-4 w-4 text-yellow-600" />
+                      <span className="font-medium">Already Printed</span>
+                    </div>
+                    <p className="text-2xl font-bold mt-1">{results.alreadyPrinted.length}</p>
+                  </div>
+
+                  <div className="rounded-lg border bg-muted/50 p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <XCircle className="h-4 w-4 text-red-600" />
+                      <span className="font-medium">Not Found</span>
+                    </div>
+                    <p className="text-2xl font-bold mt-1">{results.notFound.length}</p>
+                  </div>
+
+                  <div className="rounded-lg border bg-muted/50 p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <XCircle className="h-4 w-4 text-red-600" />
+                      <span className="font-medium">Errors</span>
+                    </div>
+                    <p className="text-2xl font-bold mt-1">{results.errors.length}</p>
+                  </div>
+                </div>
+              </div>
+
+              {(results.notFound.length > 0 || results.errors.length > 0) && (
+                <div className="space-y-2">
+                  <Label>Details</Label>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-muted">
+                        <tr>
+                          <th className="text-left p-2 font-medium">UID</th>
+                          <th className="text-left p-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {results.notFound.map((uid, idx) => (
+                          <tr key={`nf-${idx}`} className="border-t">
+                            <td className="p-2">{uid}</td>
+                            <td className="p-2 text-yellow-600">Not Found</td>
+                          </tr>
+                        ))}
+                        {results.errors.map(({ uid, error }, idx) => (
+                          <tr key={`err-${idx}`} className="border-t">
+                            <td className="p-2">{uid}</td>
+                            <td className="p-2 text-red-600">{error}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button onClick={downloadResults} variant="outline" className="flex-1">
+                  Download Results
+                </Button>
+                <Button onClick={clearResults} variant="outline" className="flex-1">
+                  Clear Results
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
