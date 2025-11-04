@@ -273,54 +273,87 @@ export default function Settings() {
         errors: []
       };
 
-      // Process in batches of 50
-      const batchSize = 50;
+      // Process in batches of 100 for better efficiency
+      const batchSize = 100;
       for (let i = 0; i < uniqueUids.length; i += batchSize) {
         const batch = uniqueUids.slice(i, i + batchSize);
         
-        for (const uid of batch) {
-          try {
-            // Check if shipment exists and get its printed status
-            const { data: existing, error: fetchError } = await supabase
-              .from('shipments')
-              .select('id, printed')
-              .eq('uid', uid)
-              .eq('user_id', user.id)
-              .maybeSingle();
+        console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} UIDs`);
+        
+        try {
+          // Fetch all shipments for this batch (NO user_id filter)
+          const { data: matches, error: fetchError } = await supabase
+            .from('shipments')
+            .select('id, uid, printed')
+            .in('uid', batch);
 
-            if (fetchError) {
-              result.errors.push({ uid, error: fetchError.message });
-              continue;
+          if (fetchError) {
+            console.error('Batch fetch error:', fetchError);
+            batch.forEach(uid => result.errors.push({ uid, error: fetchError.message }));
+            continue;
+          }
+
+          console.log(`Found ${matches?.length || 0} shipments matching ${batch.length} UIDs`);
+
+          // Build map of shipments by UID
+          const byUid = new Map<string, Array<{ id: string; uid: string; printed: boolean | null }>>();
+          (matches || []).forEach(shipment => {
+            if (!byUid.has(shipment.uid)) {
+              byUid.set(shipment.uid, []);
             }
+            byUid.get(shipment.uid)!.push(shipment);
+          });
 
-            if (!existing) {
+          // Collect IDs to update
+          const idsToUpdate: string[] = [];
+          const uidsToMark: string[] = [];
+
+          batch.forEach(uid => {
+            const rows = byUid.get(uid) || [];
+            
+            if (rows.length === 0) {
               result.notFound.push(uid);
-              continue;
+              return;
             }
 
-            if (existing.printed) {
+            // Filter to rows that need updating (not already printed)
+            const toUpdate = rows.filter(r => !r.printed);
+            
+            if (toUpdate.length > 0) {
+              idsToUpdate.push(...toUpdate.map(r => r.id));
+              uidsToMark.push(uid);
+            } else {
               result.alreadyPrinted.push(uid);
-              continue;
             }
+          });
 
-            // Update the shipment
-            const { error: updateError } = await supabase
+          // Update all rows in one call
+          if (idsToUpdate.length > 0) {
+            console.log(`Updating ${idsToUpdate.length} shipments for ${uidsToMark.length} UIDs`);
+            
+            const { data: updatedRows, error: updateError } = await supabase
               .from('shipments')
               .update({
                 printed: true,
                 printed_at: new Date().toISOString(),
                 printed_by_user_id: user.id
               })
-              .eq('id', existing.id);
+              .in('id', idsToUpdate)
+              .eq('printed', false)  // Concurrency safety
+              .select('id, uid');
 
             if (updateError) {
-              result.errors.push({ uid, error: updateError.message });
-            } else {
-              result.successful.push(uid);
+              console.error('Batch update error:', updateError);
+              uidsToMark.forEach(uid => result.errors.push({ uid, error: updateError.message }));
+            } else if (updatedRows) {
+              const updatedUids = Array.from(new Set(updatedRows.map(r => r.uid)));
+              console.log(`Successfully updated ${updatedRows.length} shipments (${updatedUids.length} unique UIDs)`);
+              result.successful.push(...updatedUids);
             }
-          } catch (error: any) {
-            result.errors.push({ uid, error: error.message });
           }
+        } catch (error: any) {
+          console.error('Batch processing error:', error);
+          batch.forEach(uid => result.errors.push({ uid, error: error.message }));
         }
       }
 
