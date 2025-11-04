@@ -171,16 +171,21 @@ export default function Settings() {
       setSelectedFiles(filesArray);
       setResults(null);
       
-      // Parse files to extract preview UIDs (first 10)
+      // Parse files to extract preview UIDs
       try {
-        const allPreviewUids: string[] = [];
+        const allUids: string[] = [];
         for (const file of filesArray) {
-          const uids = await parseCSVFile(file);
-          allPreviewUids.push(...uids);
-          if (allPreviewUids.length >= 10) break;
+          const result = await parseCSVFile(file);
+          allUids.push(...result.uids);
         }
-        const uniquePreview = Array.from(new Set(allPreviewUids)).slice(0, 10);
-        setPreviewUids(uniquePreview);
+        const uniqueUids = Array.from(new Set(allUids));
+        setPreviewUids(uniqueUids.slice(0, 10));
+        
+        if (allUids.length === 0) {
+          toast.error("No UIDs found in the selected files. Make sure they have a 'UID' or 'SKU' column. Check console for details.");
+        } else {
+          toast.success(`Found ${allUids.length} UIDs across ${filesArray.length} file(s)`);
+        }
       } catch (error) {
         console.error('Failed to parse preview:', error);
         setPreviewUids([]);
@@ -188,24 +193,43 @@ export default function Settings() {
     }
   };
 
-  const parseCSVFile = (file: File): Promise<string[]> => {
-    return new Promise((resolve, reject) => {
+  const parseCSVFile = (file: File): Promise<{ uids: string[], fileName: string }> => {
+    return new Promise((resolve) => {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
+        transformHeader: (header) => header.trim(),
         complete: (results) => {
           const uids: string[] = [];
-          results.data.forEach((row: any) => {
-            // Look for UID column (case-insensitive)
-            const uidKey = Object.keys(row).find(key => key.toLowerCase() === 'uid');
-            if (uidKey && row[uidKey]) {
-              const uid = row[uidKey].toString().trim().toUpperCase();
-              if (uid) uids.push(uid);
+          const data = results.data as any[];
+          
+          if (data.length > 0) {
+            const headers = Object.keys(data[0]);
+            console.log(`[${file.name}] Headers found:`, headers);
+            
+            const uidKey = headers.find(key => 
+              key.trim().toLowerCase() === 'uid' || 
+              key.trim().toLowerCase() === 'sku'
+            );
+            
+            if (uidKey) {
+              data.forEach((row) => {
+                const uid = row[uidKey]?.toString().trim().toUpperCase();
+                if (uid) {
+                  uids.push(uid);
+                }
+              });
+              console.log(`[${file.name}] Found ${uids.length} UIDs`);
+            } else {
+              console.warn(`[${file.name}] No UID/SKU column found. Available headers:`, headers);
             }
-          });
-          resolve(uids);
+          }
+          
+          resolve({ uids, fileName: file.name });
         },
-        error: (error) => reject(error)
+        error: () => {
+          resolve({ uids: [], fileName: file.name });
+        }
       });
     });
   };
@@ -229,15 +253,15 @@ export default function Settings() {
       // Parse all CSV files and collect UIDs
       const allUids: string[] = [];
       for (const file of selectedFiles) {
-        const uids = await parseCSVFile(file);
-        allUids.push(...uids);
+        const result = await parseCSVFile(file);
+        allUids.push(...result.uids);
       }
 
       // Remove duplicates
       const uniqueUids = Array.from(new Set(allUids));
       
       if (uniqueUids.length === 0) {
-        toast.error('No valid UIDs found in CSV files');
+        toast.error('No valid UIDs found in CSV files. Check console for details.');
         setProcessing(false);
         return;
       }
@@ -486,7 +510,9 @@ export default function Settings() {
                   <div className="rounded-lg border bg-muted/50 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Preview UIDs (first 10)</span>
+                      <span className="text-sm font-medium">
+                        Preview UIDs (first 10 of {previewUids.length} shown)
+                      </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {previewUids.map((uid, idx) => (
@@ -495,6 +521,9 @@ export default function Settings() {
                         </span>
                       ))}
                     </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Check browser console for detailed parsing info per file
+                    </p>
                   </div>
                 )}
               </div>
