@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
 import { Upload, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
@@ -28,6 +29,9 @@ export default function Settings() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<ProcessResult | null>(null);
+  const [showResultsDialog, setShowResultsDialog] = useState(false);
+  const [previewUids, setPreviewUids] = useState<string[]>([]);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -160,11 +164,27 @@ export default function Settings() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      setSelectedFiles(Array.from(files));
+      const filesArray = Array.from(files);
+      setSelectedFiles(filesArray);
       setResults(null);
+      
+      // Parse files to extract preview UIDs (first 10)
+      try {
+        const allPreviewUids: string[] = [];
+        for (const file of filesArray) {
+          const uids = await parseCSVFile(file);
+          allPreviewUids.push(...uids);
+          if (allPreviewUids.length >= 10) break;
+        }
+        const uniquePreview = Array.from(new Set(allPreviewUids)).slice(0, 10);
+        setPreviewUids(uniquePreview);
+      } catch (error) {
+        console.error('Failed to parse preview:', error);
+        setPreviewUids([]);
+      }
     }
   };
 
@@ -281,19 +301,31 @@ export default function Settings() {
       }
 
       setResults(result);
+      setShowResultsDialog(true);
       
-      const successCount = result.successful.length;
-      if (successCount > 0) {
-        toast.success(`Successfully marked ${successCount} order${successCount === 1 ? '' : 's'} as printed`);
-      } else {
-        toast.warning('No orders were updated');
-      }
+      const updated = result.successful.length;
+      const already = result.alreadyPrinted.length;
+      const notFoundCount = result.notFound.length;
+      const errorsCount = result.errors.length;
+      
+      // Show detailed toast with counts and action
+      toast.info(`${updated} updated • ${already} already printed • ${notFoundCount} not found • ${errorsCount} errors`, {
+        action: {
+          label: 'View results',
+          onClick: () => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        },
+        duration: 5000
+      });
     } catch (error: any) {
       toast.error('Failed to process orders', {
         description: error.message
       });
     } finally {
       setProcessing(false);
+      // Scroll to results section
+      requestAnimationFrame(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     }
   };
 
@@ -331,6 +363,7 @@ export default function Settings() {
   const clearResults = () => {
     setResults(null);
     setSelectedFiles([]);
+    setPreviewUids([]);
   };
 
   return (
@@ -431,21 +464,39 @@ export default function Settings() {
             </div>
 
             {selectedFiles.length > 0 && (
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">
-                    {selectedFiles.length} file{selectedFiles.length === 1 ? '' : 's'} selected
-                  </span>
+              <div className="space-y-3">
+                <div className="rounded-lg border bg-muted/50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      {selectedFiles.length} file{selectedFiles.length === 1 ? '' : 's'} selected
+                    </span>
+                  </div>
+                  <ul className="space-y-1">
+                    {selectedFiles.map((file, idx) => (
+                      <li key={idx} className="text-sm text-muted-foreground flex items-center gap-2">
+                        <span>•</span>
+                        <span>{file.name}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="space-y-1">
-                  {selectedFiles.map((file, idx) => (
-                    <li key={idx} className="text-sm text-muted-foreground flex items-center gap-2">
-                      <span>•</span>
-                      <span>{file.name}</span>
-                    </li>
-                  ))}
-                </ul>
+
+                {previewUids.length > 0 && (
+                  <div className="rounded-lg border bg-muted/50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Preview UIDs (first 10)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {previewUids.map((uid, idx) => (
+                        <span key={idx} className="px-2 py-1 text-xs font-mono bg-background border rounded">
+                          {uid}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -466,7 +517,7 @@ export default function Settings() {
           </div>
 
           {results && (
-            <div className="space-y-4 border-t pt-6">
+            <div ref={resultsRef} className="space-y-4 border-t pt-6">
               <div className="space-y-3">
                 <h3 className="font-semibold">Results Summary</h3>
                 
@@ -547,6 +598,92 @@ export default function Settings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Results Modal */}
+      <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Processing Results</DialogTitle>
+          </DialogHeader>
+          
+          {results && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border bg-muted/50 p-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <span className="font-medium">Marked as Printed</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">{results.successful.length}</p>
+                </div>
+
+                <div className="rounded-lg border bg-muted/50 p-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <span className="font-medium">Already Printed</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">{results.alreadyPrinted.length}</p>
+                </div>
+
+                <div className="rounded-lg border bg-muted/50 p-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <XCircle className="h-4 w-4 text-red-600" />
+                    <span className="font-medium">Not Found</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">{results.notFound.length}</p>
+                </div>
+
+                <div className="rounded-lg border bg-muted/50 p-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <XCircle className="h-4 w-4 text-red-600" />
+                    <span className="font-medium">Errors</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">{results.errors.length}</p>
+                </div>
+              </div>
+
+              {(results.notFound.length > 0 || results.errors.length > 0) && (
+                <div className="space-y-2">
+                  <Label>Details</Label>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-muted">
+                        <tr>
+                          <th className="text-left p-2 font-medium">UID</th>
+                          <th className="text-left p-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {results.notFound.map((uid, idx) => (
+                          <tr key={`nf-${idx}`} className="border-t">
+                            <td className="p-2">{uid}</td>
+                            <td className="p-2 text-yellow-600">Not Found</td>
+                          </tr>
+                        ))}
+                        {results.errors.map(({ uid, error }, idx) => (
+                          <tr key={`err-${idx}`} className="border-t">
+                            <td className="p-2">{uid}</td>
+                            <td className="p-2 text-red-600">{error}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button onClick={downloadResults} variant="outline">
+              Download Results
+            </Button>
+            <Button onClick={() => setShowResultsDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
