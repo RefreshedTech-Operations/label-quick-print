@@ -373,6 +373,34 @@ export default function Orders() {
     setShowAlreadyPrintedDialog(false);
     setIsBulkPrinting(true);
 
+    // Optional printer check - won't block if it fails
+    try {
+      if (printnodeApiKey && settings.default_printer_id) {
+        const { fetchPrinters } = await import('@/lib/printnode');
+        const printers = await fetchPrinters(printnodeApiKey);
+        const printerIdNum = parseInt(settings.default_printer_id, 10);
+        
+        // Validate conversion
+        if (!isNaN(printerIdNum)) {
+          const printer = printers.find(p => p.id === printerIdNum);
+          
+          if (printer) {
+            console.log('Printer found:', printer.name, 'State:', printer.state);
+            if (printer.state !== 'online' && printer.state !== 'idle') {
+              toast.error(`Warning: Printer is ${printer.state}`, {
+                description: 'Jobs may not print immediately. Check PrintNode.'
+              });
+            }
+          } else {
+            console.warn('Printer ID not found in printer list');
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Could not verify printer state (non-critical):', error);
+      // Continue with printing - this is just a check
+    }
+
     let successCount = 0;
     let failCount = 0;
 
@@ -408,6 +436,11 @@ export default function Orders() {
 
         const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
+        // Add delay to prevent overwhelming PrintNode
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        console.log(`✓ Submitted job ${i + 1}/${shipmentsToPrint.length} - UID: ${shipment.uid} - PrintNode Job ID: ${jobId}`);
+
         await supabase
           .from('shipments')
           .update({ 
@@ -427,7 +460,7 @@ export default function Orders() {
             printer_id: settings.default_printer_id,
             printnode_job_id: jobId,
             label_url: shipment.manifest_url,
-            status: 'queued'
+            status: 'done'
           });
 
         updateShipment(shipment.id, { 
@@ -438,8 +471,27 @@ export default function Orders() {
 
         successCount++;
       } catch (error: any) {
-        console.error(`Failed to print ${shipment.uid}:`, error);
         failCount++;
+        console.error(`✗ Failed to print ${shipment.uid}:`, error.message);
+        
+        // Log failed job to database
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.from('print_jobs').insert({
+              user_id: user.id,
+              shipment_id: shipment.id,
+              uid: shipment.uid,
+              order_id: shipment.order_id,
+              printer_id: settings.default_printer_id,
+              label_url: shipment.manifest_url,
+              status: 'error',
+              error: error.message
+            });
+          }
+        } catch (dbError) {
+          console.error('Failed to log error to database:', dbError);
+        }
       }
     }
 

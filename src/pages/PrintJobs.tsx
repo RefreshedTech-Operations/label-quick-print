@@ -125,8 +125,8 @@ export default function PrintJobs() {
   const stats = {
     total: filteredJobs.length,
     queued: filteredJobs.filter(j => j.status === 'queued').length,
-    completed: filteredJobs.filter(j => j.status === 'completed').length,
-    failed: filteredJobs.filter(j => j.status === 'failed' || j.error).length
+    completed: filteredJobs.filter(j => j.status === 'completed' || j.status === 'done').length,
+    failed: filteredJobs.filter(j => j.status === 'failed' || j.status === 'error' || j.error).length
   };
 
   // Pagination
@@ -152,10 +152,11 @@ export default function PrintJobs() {
     
     switch (job.status) {
       case 'completed':
+      case 'done':
         return (
           <Badge className="bg-success">
             <CheckCircle className="h-3 w-3 mr-1" />
-            Completed
+            Printed
           </Badge>
         );
       case 'queued':
