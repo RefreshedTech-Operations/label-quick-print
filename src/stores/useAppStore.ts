@@ -31,7 +31,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setShipments: (shipments) => {
     const shipmentMap = new Map<string, string>();
     shipments.forEach(s => {
-      if (s.uid) {
+      if (s.uid != null && s.uid !== '') {
         shipmentMap.set(s.uid.toUpperCase(), s.id);
       }
     });
@@ -42,7 +42,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         const { shipments, shipmentMap } = get();
         const newShipments = [...shipments, shipment];
         const newMap = new Map(shipmentMap);
-        if (shipment.uid) {
+        if (shipment.uid != null && shipment.uid !== '') {
           newMap.set(shipment.uid.toUpperCase(), shipment.id);
         }
         set({ shipments: newShipments, shipmentMap: newMap });
@@ -66,7 +66,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         }
         
         // Fallback: search directly in shipments array
-        return shipments.find(s => s.uid && s.uid.toUpperCase() === upperUid);
+        return shipments.find(s => s.uid != null && s.uid.toUpperCase() === upperUid);
       },
 
       updateSettings: (newSettings) => {

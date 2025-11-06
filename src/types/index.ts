@@ -18,7 +18,7 @@ export interface Shipment {
   id: string;
   user_id: string;
   order_id: string;
-  uid: string;
+  uid: string | null;
   buyer: string;
   label_url: string;
   tracking?: string;
@@ -48,7 +48,7 @@ export interface PrintJob {
   id: string;
   user_id: string;
   shipment_id: string;
-  uid: string;
+  uid: string | null;
   order_id: string;
   printer_id: string;
   printnode_job_id?: number;

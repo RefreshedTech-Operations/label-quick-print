@@ -562,6 +562,9 @@ export default function Orders() {
           });
         });
 
+        // Force a full reload to ensure UI reflects database state
+        await loadShipments();
+
       } catch (error: any) {
         failCount++;
         console.error(`✗ Failed to print group ${groupKey}:`, error.message);
@@ -652,7 +655,7 @@ export default function Orders() {
     if (search) {
       const searchLower = search.toLowerCase();
       if (
-        !s.uid.toLowerCase().includes(searchLower) &&
+        !s.uid?.toLowerCase().includes(searchLower) &&
         !s.order_id?.toLowerCase().includes(searchLower) &&
         !s.buyer?.toLowerCase().includes(searchLower) &&
         !s.order_group_id?.toLowerCase().includes(searchLower)

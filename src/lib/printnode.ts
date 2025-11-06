@@ -61,12 +61,12 @@ export async function submitPrintJob(
 
 export function createPrintJob(
   printerId: number,
-  uid: string,
+  uid: string | null,
   labelUrl: string
 ): PrintNodeJob {
   return {
     printerId,
-    title: `Whatnot Label - ${uid}`,
+    title: `Whatnot Label - ${uid || 'NO-UID'}`,
     contentType: 'pdf_uri',
     content: labelUrl,
     source: 'whatnot-labels',
@@ -80,7 +80,7 @@ export function createPrintJob(
 export function createGroupIdPrintJob(
   printerId: number,
   groupId: string,
-  uid: string,
+  uid: string | null,
   locationId?: string
 ): PrintNodeJob {
   // Create PDF (4x6 inches = 101.6mm x 152.4mm)
@@ -122,14 +122,14 @@ export function createGroupIdPrintJob(
   doc.setFontSize(12);
   doc.setFont(undefined, 'normal');
   doc.setTextColor(102, 102, 102);
-  doc.text(`UID: ${uid}`, 50.8, 120, { align: 'center' });
+  doc.text(`UID: ${uid || 'NO-UID'}`, 50.8, 120, { align: 'center' });
   
   // Get PDF as base64 string (remove data URI prefix)
   const pdfBase64 = doc.output('datauristring').split(',')[1];
   
   return {
     printerId,
-    title: `Bundle Group ID - ${uid}`,
+    title: `Bundle Group ID - ${uid || 'NO-UID'}`,
     contentType: 'pdf_base64',
     content: pdfBase64,
     source: 'whatnot-labels',
