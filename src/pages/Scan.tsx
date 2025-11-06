@@ -353,7 +353,7 @@ export default function Scan() {
           printer_id: printerId,
           printnode_job_id: jobId,
           label_url: shipment.manifest_url,
-          status: 'queued'
+          status: 'done'
         });
 
       updateShipment(shipment.id, { 
@@ -457,7 +457,7 @@ export default function Scan() {
           printer_id: printerId,
           printnode_job_id: jobId,
           label_url: selectedShipment.manifest_url,
-          status: 'queued'
+          status: 'done'
         });
 
       // Update local state for all group items
@@ -556,7 +556,7 @@ export default function Scan() {
           printer_id: printerId,
           printnode_job_id: jobId,
           label_url: `group_id_${shipment.order_group_id}`,
-          status: 'queued'
+          status: 'done'
         });
 
       updateShipment(shipment.id, { 
