@@ -412,7 +412,6 @@ export default function Orders() {
         const printers = await fetchPrinters(printnodeApiKey);
         const printerIdNum = parseInt(settings.default_printer_id, 10);
         
-        // Validate conversion
         if (!isNaN(printerIdNum)) {
           const printer = printers.find(p => p.id === printerIdNum);
           
@@ -430,49 +429,82 @@ export default function Orders() {
       }
     } catch (error) {
       console.warn('Could not verify printer state (non-critical):', error);
-      // Continue with printing - this is just a check
+    }
+
+    // Group shipments by order_id
+    const orderGroups = new Map<string, Shipment[]>();
+    shipmentsToPrint.forEach(shipment => {
+      const orderId = shipment.order_id;
+      if (!orderGroups.has(orderId)) {
+        orderGroups.set(orderId, []);
+      }
+      orderGroups.get(orderId)!.push(shipment);
+    });
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Not authenticated');
+      setIsBulkPrinting(false);
+      return;
+    }
+
+    if (!printnodeApiKey || !settings.default_printer_id) {
+      toast.error('PrintNode not configured');
+      setIsBulkPrinting(false);
+      return;
     }
 
     let successCount = 0;
     let failCount = 0;
+    let ordersProcessed = 0;
+    const totalOrders = orderGroups.size;
+    const totalItems = shipmentsToPrint.length;
 
-    for (let i = 0; i < shipmentsToPrint.length; i++) {
-      const shipment = shipmentsToPrint[i];
+    toast.info(`Printing ${totalOrders} shipping label${totalOrders !== 1 ? 's' : ''} for ${totalItems} item${totalItems !== 1 ? 's' : ''}...`);
+
+    // Process each order group
+    for (const [orderId, shipmentsInOrder] of orderGroups) {
+      ordersProcessed++;
       
-      toast.info(`Printing ${i + 1} of ${shipmentsToPrint.length}...`);
-
       try {
-        if (!shipment.manifest_url) {
-          failCount++;
-          continue;
+        // Find a shipment with manifest_url in this order
+        const shipmentWithLabel = shipmentsInOrder.find(s => s.manifest_url);
+        
+        if (shipmentWithLabel) {
+          // Print ONE label for this order
+          const printJob = createPrintJob(
+            parseInt(settings.default_printer_id),
+            shipmentWithLabel.uid || orderId,
+            shipmentWithLabel.manifest_url
+          );
+
+          const jobId = await submitPrintJob(printnodeApiKey, printJob);
+
+          // Add delay to prevent overwhelming PrintNode
+          await new Promise(resolve => setTimeout(resolve, 150));
+
+          console.log(`✓ Printed label ${ordersProcessed}/${totalOrders} - Order: ${orderId} - Items: ${shipmentsInOrder.length} - Job ID: ${jobId}`);
+
+          // Log print job
+          await supabase.from('print_jobs').insert({
+            user_id: user.id,
+            shipment_id: shipmentWithLabel.id,
+            uid: shipmentWithLabel.uid,
+            order_id: orderId,
+            printer_id: settings.default_printer_id,
+            printnode_job_id: jobId,
+            label_url: shipmentWithLabel.manifest_url,
+            status: 'done'
+          });
+
+          successCount++;
+        } else {
+          // No manifest_url found for this order
+          console.warn(`⚠ Order ${orderId} has no manifest_url, skipping print but marking as shipped`);
         }
 
-        if (!printnodeApiKey || !settings.default_printer_id) {
-          toast.error('PrintNode not configured');
-          setIsBulkPrinting(false);
-          return;
-        }
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          toast.error('Not authenticated');
-          setIsBulkPrinting(false);
-          return;
-        }
-
-        const printJob = createPrintJob(
-          parseInt(settings.default_printer_id),
-          shipment.uid,
-          shipment.manifest_url
-        );
-
-        const jobId = await submitPrintJob(printnodeApiKey, printJob);
-
-        // Add delay to prevent overwhelming PrintNode
-        await new Promise(resolve => setTimeout(resolve, 150));
-
-        console.log(`✓ Submitted job ${i + 1}/${shipmentsToPrint.length} - UID: ${shipment.uid} - PrintNode Job ID: ${jobId}`);
-
+        // Mark ALL items in this order as printed (including those without manifest_url)
+        const shipmentIds = shipmentsInOrder.map(s => s.id);
         await supabase
           .from('shipments')
           .update({ 
@@ -480,49 +512,38 @@ export default function Orders() {
             printed_at: new Date().toISOString(),
             printed_by_user_id: user.id
           })
-          .eq('id', shipment.id);
+          .in('id', shipmentIds);
 
-        await supabase
-          .from('print_jobs')
-          .insert({
-            user_id: user.id,
-            shipment_id: shipment.id,
-            uid: shipment.uid,
-            order_id: shipment.order_id,
-            printer_id: settings.default_printer_id,
-            printnode_job_id: jobId,
-            label_url: shipment.manifest_url,
-            status: 'done'
+        // Update local state for all items
+        shipmentsInOrder.forEach(shipment => {
+          updateShipment(shipment.id, { 
+            printed: true, 
+            printed_at: new Date().toISOString(),
+            printed_by_user_id: user.id
           });
-
-        updateShipment(shipment.id, { 
-          printed: true, 
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
         });
 
-        successCount++;
       } catch (error: any) {
         failCount++;
-        console.error(`✗ Failed to print ${shipment.uid}:`, error.message);
+        console.error(`✗ Failed to print order ${orderId}:`, error.message);
         
-        // Log failed job to database
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
+        // Log failed job
+        const shipmentWithLabel = shipmentsInOrder.find(s => s.manifest_url);
+        if (shipmentWithLabel) {
+          try {
             await supabase.from('print_jobs').insert({
               user_id: user.id,
-              shipment_id: shipment.id,
-              uid: shipment.uid,
-              order_id: shipment.order_id,
+              shipment_id: shipmentWithLabel.id,
+              uid: shipmentWithLabel.uid || orderId,
+              order_id: orderId,
               printer_id: settings.default_printer_id,
-              label_url: shipment.manifest_url,
+              label_url: shipmentWithLabel.manifest_url,
               status: 'error',
               error: error.message
             });
+          } catch (dbError) {
+            console.error('Failed to log error to database:', dbError);
           }
-        } catch (dbError) {
-          console.error('Failed to log error to database:', dbError);
         }
       }
     }
@@ -531,10 +552,56 @@ export default function Orders() {
     setSelectedShipments(new Set());
 
     if (successCount > 0) {
-      toast.success(`Successfully printed ${successCount} label${successCount !== 1 ? 's' : ''}`);
+      toast.success(`Successfully printed ${successCount} shipping label${successCount !== 1 ? 's' : ''} for ${totalItems} item${totalItems !== 1 ? 's' : ''}`);
     }
     if (failCount > 0) {
-      toast.error(`Failed to print ${failCount} label${failCount !== 1 ? 's' : ''}`);
+      toast.error(`Failed to print ${failCount} order${failCount !== 1 ? 's' : ''}`);
+    }
+  };
+
+  const handleBulkMarkShipped = async () => {
+    if (selectedShipments.size === 0) return;
+
+    const selectedShipmentsList = Array.from(selectedShipments)
+      .map(id => shipments.find(s => s.id === id))
+      .filter(Boolean) as Shipment[];
+
+    setIsBulkPrinting(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        setIsBulkPrinting(false);
+        return;
+      }
+
+      // Update all selected shipments
+      const shipmentIds = selectedShipmentsList.map(s => s.id);
+      await supabase
+        .from('shipments')
+        .update({ 
+          printed: true, 
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
+        })
+        .in('id', shipmentIds);
+
+      // Update local state
+      selectedShipmentsList.forEach(shipment => {
+        updateShipment(shipment.id, { 
+          printed: true, 
+          printed_at: new Date().toISOString(),
+          printed_by_user_id: user.id
+        });
+      });
+
+      toast.success(`Marked ${selectedShipments.size} item${selectedShipments.size !== 1 ? 's' : ''} as shipped`);
+      setSelectedShipments(new Set());
+    } catch (error: any) {
+      toast.error('Failed to mark as shipped', { description: error.message });
+    } finally {
+      setIsBulkPrinting(false);
     }
   };
 
@@ -680,7 +747,15 @@ export default function Orders() {
             className="ml-auto"
           >
             <Printer className="h-4 w-4 mr-2" />
-            {isBulkPrinting ? 'Printing...' : `Print Selected (${selectedShipments.size})`}
+            {isBulkPrinting ? 'Processing...' : `Print Selected (${selectedShipments.size})`}
+          </Button>
+          <Button 
+            variant="secondary"
+            onClick={handleBulkMarkShipped}
+            disabled={isBulkPrinting}
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Mark as Shipped ({selectedShipments.size})
           </Button>
           <Button 
             variant="outline" 
