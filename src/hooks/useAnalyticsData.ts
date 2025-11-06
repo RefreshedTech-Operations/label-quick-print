@@ -16,24 +16,65 @@ export function useAnalyticsData(dateRange: DateRange) {
       setIsLoading(true);
 
       try {
-        // Fetch shipments
-        const { data: shipmentsData } = await supabase
-          .from('shipments')
-          .select('*')
-          .gte('created_at', format(dateRange.from, 'yyyy-MM-dd'))
-          .lte('created_at', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59')
-          .order('created_at', { ascending: false });
+        // Fetch all shipments with pagination (1000 rows at a time)
+        let allShipments: any[] = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        // Fetch print jobs
-        const { data: printJobsData } = await supabase
-          .from('print_jobs')
-          .select('*')
-          .gte('created_at', format(dateRange.from, 'yyyy-MM-dd'))
-          .lte('created_at', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59')
-          .order('created_at', { ascending: false });
+        while (hasMore) {
+          const { data: shipmentsData, error: shipmentsError } = await supabase
+            .from('shipments')
+            .select('*')
+            .gte('created_at', format(dateRange.from, 'yyyy-MM-dd'))
+            .lte('created_at', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59')
+            .order('created_at', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        setShipments((shipmentsData || []) as Shipment[]);
-        setPrintJobs((printJobsData || []) as PrintJob[]);
+          if (shipmentsError) {
+            console.error('Error fetching shipments:', shipmentsError);
+            break;
+          }
+
+          if (shipmentsData && shipmentsData.length > 0) {
+            allShipments = [...allShipments, ...shipmentsData];
+            hasMore = shipmentsData.length === pageSize;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        // Fetch all print jobs with pagination (1000 rows at a time)
+        let allPrintJobs: any[] = [];
+        page = 0;
+        hasMore = true;
+
+        while (hasMore) {
+          const { data: printJobsData, error: printJobsError } = await supabase
+            .from('print_jobs')
+            .select('*')
+            .gte('created_at', format(dateRange.from, 'yyyy-MM-dd'))
+            .lte('created_at', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59')
+            .order('created_at', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (printJobsError) {
+            console.error('Error fetching print jobs:', printJobsError);
+            break;
+          }
+
+          if (printJobsData && printJobsData.length > 0) {
+            allPrintJobs = [...allPrintJobs, ...printJobsData];
+            hasMore = printJobsData.length === pageSize;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        setShipments(allShipments as Shipment[]);
+        setPrintJobs(allPrintJobs as PrintJob[]);
       } catch (error) {
         console.error('Error fetching analytics data:', error);
       } finally {
