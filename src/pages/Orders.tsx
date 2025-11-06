@@ -56,6 +56,7 @@ export default function Orders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
+  const [editingUids, setEditingUids] = useState<{[key: string]: string}>({});
   const [selectedShipments, setSelectedShipments] = useState<Set<string>>(new Set());
   const [isBulkPrinting, setIsBulkPrinting] = useState(false);
   const [showAlreadyPrintedDialog, setShowAlreadyPrintedDialog] = useState(false);
@@ -180,6 +181,37 @@ export default function Orders() {
       toast.success('Location ID updated');
     } catch (error: any) {
       toast.error('Failed to update location ID', { description: error.message });
+    }
+  };
+
+  const handleUidChange = async (shipmentId: string, newUid: string) => {
+    // Clear editing state
+    const { [shipmentId]: _, ...rest } = editingUids;
+    setEditingUids(rest);
+
+    const trimmedUid = newUid.trim().toUpperCase();
+    
+    if (!trimmedUid) {
+      toast.error('UID cannot be empty');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('shipments')
+        .update({ uid: trimmedUid })
+        .eq('id', shipmentId);
+
+      if (error) throw error;
+
+      updateShipment(shipmentId, { uid: trimmedUid });
+      
+      // Reload shipments to update the shipmentMap with new UID
+      await loadShipments();
+      
+      toast.success('UID updated');
+    } catch (error: any) {
+      toast.error('Failed to update UID', { description: error.message });
     }
   };
 
@@ -718,7 +750,35 @@ export default function Orders() {
                       disabled={isBulkPrinting}
                     />
                   </TableCell>
-                  <TableCell className="font-mono font-semibold">{shipment.uid}</TableCell>
+                  <TableCell>
+                    <Input
+                      value={editingUids[shipment.id] ?? shipment.uid ?? ''}
+                      onChange={(e) => setEditingUids(prev => ({ 
+                        ...prev, 
+                        [shipment.id]: e.target.value 
+                      }))}
+                      onBlur={(e) => {
+                        if (editingUids[shipment.id] !== undefined && editingUids[shipment.id] !== shipment.uid) {
+                          handleUidChange(shipment.id, e.target.value);
+                        } else {
+                          const { [shipment.id]: _, ...rest } = editingUids;
+                          setEditingUids(rest);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleUidChange(shipment.id, e.currentTarget.value);
+                          e.currentTarget.blur();
+                        } else if (e.key === 'Escape') {
+                          const { [shipment.id]: _, ...rest } = editingUids;
+                          setEditingUids(rest);
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder="UID"
+                      className="w-32 h-8 text-xs font-mono font-semibold"
+                    />
+                  </TableCell>
                   <TableCell className="font-mono">{shipment.order_id}</TableCell>
                   <TableCell className="font-mono text-xs max-w-[100px] truncate" title={shipment.order_group_id || ''}>
                     {shipment.order_group_id ? shipment.order_group_id.slice(0, 8) : '-'}
