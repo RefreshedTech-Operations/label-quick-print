@@ -456,14 +456,22 @@ export default function Orders() {
       console.warn('Could not verify printer state (non-critical):', error);
     }
 
-    // Group shipments by order_id
-    const orderGroups = new Map<string, Shipment[]>();
+    // Group shipments by tracking number (primary), manifest_url (secondary), or order_id (fallback)
+    const shipmentGroups = new Map<string, Shipment[]>();
     shipmentsToPrint.forEach(shipment => {
-      const orderId = shipment.order_id;
-      if (!orderGroups.has(orderId)) {
-        orderGroups.set(orderId, []);
+      let groupKey: string;
+      if (shipment.tracking?.trim()) {
+        groupKey = `tracking:${shipment.tracking.trim()}`;
+      } else if (shipment.manifest_url) {
+        groupKey = `manifest:${shipment.manifest_url}`;
+      } else {
+        groupKey = `order:${shipment.order_id}`;
       }
-      orderGroups.get(orderId)!.push(shipment);
+      
+      if (!shipmentGroups.has(groupKey)) {
+        shipmentGroups.set(groupKey, []);
+      }
+      shipmentGroups.get(groupKey)!.push(shipment);
     });
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -481,55 +489,61 @@ export default function Orders() {
 
     let successCount = 0;
     let failCount = 0;
-    let ordersProcessed = 0;
-    const totalOrders = orderGroups.size;
+    let groupsProcessed = 0;
+    const totalShipments = shipmentGroups.size;
     const totalItems = shipmentsToPrint.length;
 
-    toast.info(`Printing ${totalOrders} shipping label${totalOrders !== 1 ? 's' : ''} for ${totalItems} item${totalItems !== 1 ? 's' : ''}...`);
+    toast.info(`Printing ${totalShipments} shipping label${totalShipments !== 1 ? 's' : ''} for ${totalItems} item${totalItems !== 1 ? 's' : ''}...`);
 
-    // Process each order group
-    for (const [orderId, shipmentsInOrder] of orderGroups) {
-      ordersProcessed++;
+    // Process each shipment group
+    for (const [groupKey, shipmentsInGroup] of shipmentGroups) {
+      groupsProcessed++;
       
       try {
-        // Find a shipment with manifest_url in this order
-        const shipmentWithLabel = shipmentsInOrder.find(s => s.manifest_url);
+        // Find representative shipment with manifest_url or label_url
+        const representative = shipmentsInGroup.find(s => s.manifest_url) || shipmentsInGroup.find(s => s.label_url);
         
-        if (shipmentWithLabel) {
-          // Print ONE label for this order
-          const printJob = createPrintJob(
-            parseInt(settings.default_printer_id),
-            shipmentWithLabel.uid || orderId,
-            shipmentWithLabel.manifest_url
-          );
+        if (representative) {
+          const labelUrl = representative.manifest_url || representative.label_url;
+          const displayUid = representative.uid || shipmentsInGroup[0].order_id;
+          
+          if (!labelUrl) {
+            console.warn(`⚠ Group ${groupKey} has no label URL, skipping print but marking as shipped`);
+          } else {
+            // Print ONE label for this shipment group
+            const printJob = createPrintJob(
+              parseInt(settings.default_printer_id),
+              displayUid,
+              labelUrl
+            );
 
-          const jobId = await submitPrintJob(printnodeApiKey, printJob);
+            const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-          // Add delay to prevent overwhelming PrintNode
-          await new Promise(resolve => setTimeout(resolve, 150));
+            // Add delay to prevent overwhelming PrintNode
+            await new Promise(resolve => setTimeout(resolve, 150));
 
-          console.log(`✓ Printed label ${ordersProcessed}/${totalOrders} - Order: ${orderId} - Items: ${shipmentsInOrder.length} - Job ID: ${jobId}`);
+            console.log(`✓ Printed label ${groupsProcessed}/${totalShipments} - Group: ${groupKey} - Items: ${shipmentsInGroup.length} - Job ID: ${jobId}`);
 
-          // Log print job
-          await supabase.from('print_jobs').insert({
-            user_id: user.id,
-            shipment_id: shipmentWithLabel.id,
-            uid: shipmentWithLabel.uid,
-            order_id: orderId,
-            printer_id: settings.default_printer_id,
-            printnode_job_id: jobId,
-            label_url: shipmentWithLabel.manifest_url,
-            status: 'done'
-          });
+            // Log print job
+            await supabase.from('print_jobs').insert({
+              user_id: user.id,
+              shipment_id: representative.id,
+              uid: representative.uid,
+              order_id: representative.order_id,
+              printer_id: settings.default_printer_id,
+              printnode_job_id: jobId,
+              label_url: labelUrl,
+              status: 'done'
+            });
 
-          successCount++;
+            successCount++;
+          }
         } else {
-          // No manifest_url found for this order
-          console.warn(`⚠ Order ${orderId} has no manifest_url, skipping print but marking as shipped`);
+          console.warn(`⚠ Group ${groupKey} has no label URL, skipping print but marking as shipped`);
         }
 
-        // Mark ALL items in this order as printed (including those without manifest_url)
-        const shipmentIds = shipmentsInOrder.map(s => s.id);
+        // Mark ALL items in this shipment group as printed
+        const shipmentIds = shipmentsInGroup.map(s => s.id);
         await supabase
           .from('shipments')
           .update({ 
@@ -540,7 +554,7 @@ export default function Orders() {
           .in('id', shipmentIds);
 
         // Update local state for all items
-        shipmentsInOrder.forEach(shipment => {
+        shipmentsInGroup.forEach(shipment => {
           updateShipment(shipment.id, { 
             printed: true, 
             printed_at: new Date().toISOString(),
@@ -550,24 +564,27 @@ export default function Orders() {
 
       } catch (error: any) {
         failCount++;
-        console.error(`✗ Failed to print order ${orderId}:`, error.message);
+        console.error(`✗ Failed to print group ${groupKey}:`, error.message);
         
         // Log failed job
-        const shipmentWithLabel = shipmentsInOrder.find(s => s.manifest_url);
-        if (shipmentWithLabel) {
-          try {
-            await supabase.from('print_jobs').insert({
-              user_id: user.id,
-              shipment_id: shipmentWithLabel.id,
-              uid: shipmentWithLabel.uid || orderId,
-              order_id: orderId,
-              printer_id: settings.default_printer_id,
-              label_url: shipmentWithLabel.manifest_url,
-              status: 'error',
-              error: error.message
-            });
-          } catch (dbError) {
-            console.error('Failed to log error to database:', dbError);
+        const representative = shipmentsInGroup.find(s => s.manifest_url) || shipmentsInGroup.find(s => s.label_url);
+        if (representative) {
+          const labelUrl = representative.manifest_url || representative.label_url;
+          if (labelUrl) {
+            try {
+              await supabase.from('print_jobs').insert({
+                user_id: user.id,
+                shipment_id: representative.id,
+                uid: representative.uid || shipmentsInGroup[0].order_id,
+                order_id: representative.order_id,
+                printer_id: settings.default_printer_id,
+                label_url: labelUrl,
+                status: 'error',
+                error: error.message
+              });
+            } catch (dbError) {
+              console.error('Failed to log error to database:', dbError);
+            }
           }
         }
       }
