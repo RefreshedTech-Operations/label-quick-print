@@ -66,11 +66,12 @@ export default function Orders() {
   }>({ alreadyPrinted: [], unprinted: [] });
   const itemsPerPage = 1000;
   
-  const { shipments, updateShipment, settings, setShipments } = useAppStore();
+  const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
 
   useEffect(() => {
     loadShipments();
     loadAppConfig();
+    loadUserSettings();
   }, []);
 
   const loadAppConfig = async () => {
@@ -87,6 +88,30 @@ export default function Orders() {
 
     if (data?.value) {
       setPrintnodeApiKey(data.value);
+    }
+  };
+
+  const loadUserSettings = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to load user settings:', error);
+      return;
+    }
+
+    if (data) {
+      updateSettings({
+        default_printer_id: data.default_printer_id,
+        auto_print: data.auto_print,
+        block_cancelled: data.block_cancelled
+      });
     }
   };
 
