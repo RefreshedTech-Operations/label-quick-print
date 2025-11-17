@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import JsBarcode from 'jsbarcode';
 
 const PRINTNODE_API_URL = 'https://api.printnode.com';
 
@@ -90,39 +91,57 @@ export function createGroupIdPrintJob(
     format: [101.6, 152.4]
   });
   
-  // Set font sizes and styles
-  doc.setFontSize(20);
-  doc.setFont(undefined, 'bold');
+  // Generate barcode using canvas
+  const canvas = document.createElement('canvas');
+  try {
+    JsBarcode(canvas, groupId, {
+      format: 'CODE128',
+      width: 2,
+      height: 60,
+      displayValue: false,
+      margin: 0
+    });
+    
+    // Convert canvas to base64 image
+    const barcodeDataUrl = canvas.toDataURL('image/png');
+    
+    // Add barcode to PDF
+    doc.addImage(barcodeDataUrl, 'PNG', 10, 20, 81.6, 20);
+  } catch (error) {
+    console.error('Failed to generate barcode:', error);
+  }
   
   // Title
-  doc.text('BUNDLE GROUP ID', 50.8, 30, { align: 'center' });
+  doc.setFontSize(20);
+  doc.setFont(undefined, 'bold');
+  doc.text('BUNDLE GROUP ID', 50.8, 50, { align: 'center' });
   
   // Location ID (if provided)
   if (locationId) {
     doc.setFontSize(24);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(0, 0, 0);
-    doc.text(`LOCATION: ${locationId}`, 50.8, 50, { align: 'center' });
+    doc.text(`LOCATION: ${locationId}`, 50.8, 70, { align: 'center' });
   }
   
-  // Group ID
-  doc.setFontSize(14);
+  // Group ID (text version below barcode)
+  doc.setFontSize(10);
   doc.setFont('courier', 'bold');
   doc.setTextColor(0, 0, 0);
   
   // Split long group ID into multiple lines if needed
   const maxWidth = 90;
   const lines = doc.splitTextToSize(groupId, maxWidth);
-  const startY = locationId ? 75 : 60;
+  const startY = locationId ? 90 : 80;
   lines.forEach((line: string, index: number) => {
-    doc.text(line, 50.8, startY + (index * 8), { align: 'center' });
+    doc.text(line, 50.8, startY + (index * 6), { align: 'center' });
   });
   
   // UID
   doc.setFontSize(12);
   doc.setFont(undefined, 'normal');
   doc.setTextColor(102, 102, 102);
-  doc.text(`UID: ${uid || 'NO-UID'}`, 50.8, 120, { align: 'center' });
+  doc.text(`UID: ${uid || 'NO-UID'}`, 50.8, 130, { align: 'center' });
   
   // Get PDF as base64 string (remove data URI prefix)
   const pdfBase64 = doc.output('datauristring').split(',')[1];

@@ -45,6 +45,8 @@ import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon } from 'lucide
 import { Shipment } from '@/types';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { format } from 'date-fns';
+import { DateRangeFilter } from '@/components/analytics/DateRangeFilter';
+import { DateRange } from 'react-day-picker';
 
 export default function Orders() {
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
@@ -53,6 +55,7 @@ export default function Orders() {
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [showDateFilter, setShowDateFilter] = useState<Date | undefined>(undefined);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
@@ -64,7 +67,9 @@ export default function Orders() {
     alreadyPrinted: Shipment[];
     unprinted: Shipment[];
   }>({ alreadyPrinted: [], unprinted: [] });
-  const itemsPerPage = 1000;
+  const [pageSize, setPageSize] = useState(50);
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [totalRecords, setTotalRecords] = useState(0);
   
   const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
 
@@ -115,7 +120,7 @@ export default function Orders() {
     }
   };
 
-  const loadShipments = async () => {
+  const loadShipments = async (forceSearchMode = false) => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -124,40 +129,52 @@ export default function Orders() {
     }
 
     try {
-      // Fetch all shipments with pagination (1000 rows at a time)
-      let allShipments: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      // Determine if we're in search mode
+      const inSearchMode = forceSearchMode || isSearchMode || search.trim() !== '' || (dateRange?.from && dateRange?.to);
+      
+      let query = supabase
+        .from('shipments')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false });
 
-      while (hasMore) {
-        const { data: shipmentsData, error: shipmentsError } = await supabase
-          .from('shipments')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (shipmentsError) {
-          toast.error('Failed to load shipments');
-          setLoading(false);
-          return;
+      // Apply search filters if in search mode
+      if (inSearchMode) {
+        if (search.trim()) {
+          const searchTerm = search.trim();
+          query = query.or(`uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,location_id.ilike.%${searchTerm}%`);
         }
-
-        if (shipmentsData && shipmentsData.length > 0) {
-          allShipments = [...allShipments, ...shipmentsData];
-          hasMore = shipmentsData.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
+        
+        if (dateRange?.from && dateRange?.to) {
+          query = query
+            .gte('show_date', dateRange.from.toISOString().split('T')[0])
+            .lte('show_date', dateRange.to.toISOString().split('T')[0]);
         }
+        
+        // In search mode, load all matching results (up to 10000)
+        query = query.limit(10000);
+      } else {
+        // In pagination mode, only load current page
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize - 1;
+        query = query.range(startIndex, endIndex);
       }
+
+      const { data: shipmentsData, error: shipmentsError, count } = await query;
+
+      if (shipmentsError) {
+        toast.error('Failed to load shipments');
+        setLoading(false);
+        return;
+      }
+
+      setTotalRecords(count || 0);
 
       // Get all unique user IDs who printed labels (both individual and group)
       const printerIds = [...new Set([
-        ...allShipments
+        ...(shipmentsData || [])
           .filter(s => s.printed_by_user_id)
           .map(s => s.printed_by_user_id),
-        ...allShipments
+        ...(shipmentsData || [])
           .filter(s => s.group_id_printed_by_user_id)
           .map(s => s.group_id_printed_by_user_id)
       ])];
@@ -170,7 +187,7 @@ export default function Orders() {
 
         // Map profiles to shipments
         const profileMap = new Map(profilesData?.map(p => [p.id, p]) || []);
-        const enrichedShipments = allShipments.map(shipment => ({
+        const enrichedShipments = (shipmentsData || []).map(shipment => ({
           ...shipment,
           printed_by: shipment.printed_by_user_id 
             ? profileMap.get(shipment.printed_by_user_id) 
@@ -182,7 +199,7 @@ export default function Orders() {
 
         setShipments(enrichedShipments);
       } else {
-        setShipments(allShipments);
+        setShipments(shipmentsData || []);
       }
     } finally {
       setLoading(false);
@@ -385,10 +402,16 @@ export default function Orders() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedShipments.size === filteredShipments.length) {
-      setSelectedShipments(new Set());
+    if (selectedShipments.size === paginatedShipments.length && paginatedShipments.length > 0) {
+      // Deselect all on current page
+      const newSelected = new Set(selectedShipments);
+      paginatedShipments.forEach(s => newSelected.delete(s.id));
+      setSelectedShipments(newSelected);
     } else {
-      setSelectedShipments(new Set(filteredShipments.map(s => s.id)));
+      // Select all on current page
+      const newSelected = new Set(selectedShipments);
+      paginatedShipments.forEach(s => newSelected.add(s.id));
+      setSelectedShipments(newSelected);
     }
   };
 
@@ -651,33 +674,7 @@ export default function Orders() {
   };
 
   const filteredShipments = shipments.filter(s => {
-    // Search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      if (
-        !s.uid?.toLowerCase().includes(searchLower) &&
-        !s.order_id?.toLowerCase().includes(searchLower) &&
-        !s.buyer?.toLowerCase().includes(searchLower) &&
-        !s.order_group_id?.toLowerCase().includes(searchLower)
-      ) {
-        return false;
-      }
-    }
-
-    // Show date filter
-    if (showDateFilter && s.show_date) {
-      const shipmentDate = new Date(s.show_date);
-      const filterDate = new Date(showDateFilter);
-      if (
-        shipmentDate.getFullYear() !== filterDate.getFullYear() ||
-        shipmentDate.getMonth() !== filterDate.getMonth() ||
-        shipmentDate.getDate() !== filterDate.getDate()
-      ) {
-        return false;
-      }
-    }
-
-    // Status filter
+    // Status filter (always apply)
     if (filter === 'printed' && !s.printed) return false;
     if (filter === 'unprinted' && s.printed) return false;
     if (filter === 'bundled' && !s.bundle) return false;
@@ -697,15 +694,32 @@ export default function Orders() {
   };
 
   // Pagination
-  const totalPages = Math.ceil(filteredShipments.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedShipments = filteredShipments.slice(startIndex, endIndex);
+  const totalPages = isSearchMode ? Math.ceil(filteredShipments.length / pageSize) : Math.ceil(totalRecords / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedShipments = isSearchMode ? filteredShipments.slice(startIndex, endIndex) : filteredShipments;
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 and trigger search mode when search/date filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, showDateFilter, filter]);
+    const shouldBeSearchMode = search.trim() !== '' || (dateRange?.from !== undefined && dateRange?.to !== undefined);
+    if (shouldBeSearchMode !== isSearchMode) {
+      setIsSearchMode(shouldBeSearchMode);
+      loadShipments(shouldBeSearchMode);
+    }
+  }, [search, dateRange]);
+
+  // Reload when filter or pagination changes (only in non-search mode)
+  useEffect(() => {
+    if (!isSearchMode) {
+      loadShipments();
+    }
+  }, [filter, currentPage, pageSize]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
 
   return (
     <div className="space-y-6">
@@ -733,40 +747,28 @@ export default function Orders() {
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 items-center flex-wrap">
         <Input
-          placeholder="Search by UID, Order ID, Buyer, or Group ID..."
+          placeholder="Search by UID, Order ID, Buyer, Tracking, Location..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1"
+          className="flex-1 min-w-[300px]"
         />
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-[240px] justify-start">
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {showDateFilter ? format(showDateFilter, "PPP") : "Filter by Show Date"}
+        <div className="flex items-center gap-2">
+          <DateRangeFilter 
+            dateRange={dateRange} 
+            setDateRange={setDateRange} 
+          />
+          {dateRange?.from && dateRange?.to && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setDateRange(undefined)}
+            >
+              Clear Dates
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={showDateFilter}
-              onSelect={setShowDateFilter}
-              initialFocus
-            />
-            {showDateFilter && (
-              <div className="p-3 border-t">
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={() => setShowDateFilter(undefined)}
-                >
-                  Clear Filter
-                </Button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+          )}
+        </div>
         <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
@@ -777,6 +779,16 @@ export default function Orders() {
             <SelectItem value="unprinted">Unprinted</SelectItem>
             <SelectItem value="bundled">Bundled Items</SelectItem>
             <SelectItem value="exceptions">Exceptions</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="25">25 per page</SelectItem>
+            <SelectItem value="50">50 per page</SelectItem>
+            <SelectItem value="100">100 per page</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -818,7 +830,7 @@ export default function Orders() {
             <TableRow>
               <TableHead className="w-[50px]">
                 <Checkbox
-                  checked={selectedShipments.size === filteredShipments.length && filteredShipments.length > 0}
+                  checked={paginatedShipments.length > 0 && paginatedShipments.every(s => selectedShipments.has(s.id))}
                   onCheckedChange={toggleSelectAll}
                   disabled={isBulkPrinting}
                 />
@@ -997,7 +1009,11 @@ export default function Orders() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(endIndex, filteredShipments.length)} of {filteredShipments.length} orders
+            {isSearchMode ? (
+              <>Showing {startIndex + 1} to {Math.min(endIndex, filteredShipments.length)} of {filteredShipments.length} orders (filtered from {totalRecords} total)</>
+            ) : (
+              <>Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} orders</>
+            )}
           </div>
           <Pagination>
             <PaginationContent>
