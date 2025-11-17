@@ -165,7 +165,7 @@ export default function Orders() {
             query = query.eq('uid', searchTerm);
           } else {
             // No exact match, use broad search across all fields
-            query = query.or(`uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,location_id.ilike.%${searchTerm}%`);
+            query = query.or(`uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,order_group_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,location_id.ilike.%${searchTerm}%`);
           }
         }
         
@@ -714,6 +714,7 @@ export default function Orders() {
       const matchesSearch = 
         (s.uid && s.uid.toLowerCase().includes(searchLower)) ||
         (s.order_id && s.order_id.toLowerCase().includes(searchLower)) ||
+        (s.order_group_id && s.order_group_id.toLowerCase().includes(searchLower)) ||
         (s.buyer && s.buyer.toLowerCase().includes(searchLower)) ||
         (s.tracking && s.tracking.toLowerCase().includes(searchLower)) ||
         (s.product_name && s.product_name.toLowerCase().includes(searchLower)) ||
