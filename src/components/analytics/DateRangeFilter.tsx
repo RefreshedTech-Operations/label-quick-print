@@ -7,8 +7,8 @@ import { CalendarIcon } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 
 interface DateRangeFilterProps {
-  dateRange: DateRange;
-  setDateRange: (range: DateRange) => void;
+  dateRange?: DateRange;
+  setDateRange: (range: DateRange | undefined) => void;
 }
 
 export function DateRangeFilter({ dateRange, setDateRange }: DateRangeFilterProps) {
@@ -33,8 +33,8 @@ export function DateRangeFilter({ dateRange, setDateRange }: DateRangeFilterProp
           size="sm"
           onClick={() => setDateRange(preset.range)}
           className={cn(
-            dateRange.from &&
-            dateRange.to &&
+            dateRange?.from &&
+            dateRange?.to &&
             format(dateRange.from, 'yyyy-MM-dd') === format(preset.range.from, 'yyyy-MM-dd') &&
             format(dateRange.to, 'yyyy-MM-dd') === format(preset.range.to, 'yyyy-MM-dd') &&
             'bg-primary text-primary-foreground'
@@ -48,7 +48,7 @@ export function DateRangeFilter({ dateRange, setDateRange }: DateRangeFilterProp
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="gap-2">
             <CalendarIcon className="h-4 w-4" />
-            {dateRange.from && dateRange.to ? (
+            {dateRange?.from && dateRange?.to ? (
               <>
                 {format(dateRange.from, 'MMM d')} - {format(dateRange.to, 'MMM d, yyyy')}
               </>
