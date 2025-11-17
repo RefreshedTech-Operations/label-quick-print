@@ -137,6 +137,17 @@ export default function Orders() {
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
+      // Apply tab filters to database query
+      if (filter === 'printed') {
+        query = query.eq('printed', true);
+      } else if (filter === 'unprinted') {
+        query = query.eq('printed', false);
+      } else if (filter === 'bundled') {
+        query = query.eq('bundle', true);
+      } else if (filter === 'exceptions') {
+        query = query.or('manifest_url.is.null,cancelled.not.is.null');
+      }
+
       // Apply search filters if in search mode
       if (inSearchMode) {
         if (search.trim()) {
