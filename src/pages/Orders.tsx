@@ -151,8 +151,22 @@ export default function Orders() {
       // Apply search filters if in search mode
       if (inSearchMode) {
         if (search.trim()) {
-          const searchTerm = search.trim();
-          query = query.or(`uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,location_id.ilike.%${searchTerm}%`);
+          const searchTerm = search.trim().toUpperCase();
+          
+          // Try exact UID match first (UIDs are unique)
+          const exactUidQuery = await supabase
+            .from('shipments')
+            .select('id', { count: 'exact' })
+            .eq('uid', searchTerm)
+            .limit(1);
+          
+          if (exactUidQuery.data && exactUidQuery.data.length > 0) {
+            // Exact UID match found, filter by exact UID only
+            query = query.eq('uid', searchTerm);
+          } else {
+            // No exact match, use broad search across all fields
+            query = query.or(`uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,location_id.ilike.%${searchTerm}%`);
+          }
         }
         
         if (dateRange?.from && dateRange?.to) {
@@ -692,6 +706,20 @@ export default function Orders() {
     if (filter === 'exceptions') {
       const hasException = !s.manifest_url || (settings.block_cancelled && s.cancelled);
       if (!hasException) return false;
+    }
+
+    // Search filter (apply when in search mode)
+    if (search.trim() !== '') {
+      const searchLower = search.trim().toLowerCase();
+      const matchesSearch = 
+        (s.uid && s.uid.toLowerCase().includes(searchLower)) ||
+        (s.order_id && s.order_id.toLowerCase().includes(searchLower)) ||
+        (s.buyer && s.buyer.toLowerCase().includes(searchLower)) ||
+        (s.tracking && s.tracking.toLowerCase().includes(searchLower)) ||
+        (s.product_name && s.product_name.toLowerCase().includes(searchLower)) ||
+        (s.location_id && s.location_id.toLowerCase().includes(searchLower));
+      
+      if (!matchesSearch) return false;
     }
 
     return true;
