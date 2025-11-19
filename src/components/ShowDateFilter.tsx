@@ -15,6 +15,9 @@ interface ShowDateFilterProps {
 }
 
 export function ShowDateFilter({ selectedDate, recentDates, onDateSelect }: ShowDateFilterProps) {
+  const handleAllDatesClick = () => {
+    onDateSelect(undefined);
+  };
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) {
       onDateSelect(undefined);
@@ -41,6 +44,15 @@ export function ShowDateFilter({ selectedDate, recentDates, onDateSelect }: Show
     <div className="flex flex-wrap items-center gap-2">
       <div className="text-sm font-medium text-foreground">Show Date:</div>
       
+      {/* All Dates Button */}
+      <Button
+        variant={!selectedDate ? "default" : "outline"}
+        size="sm"
+        onClick={handleAllDatesClick}
+      >
+        All Dates
+      </Button>
+
       {/* Today Button */}
       <Button
         variant={selectedDate === formatInTimeZone(toZonedTime(new Date(), EST_TIMEZONE), EST_TIMEZONE, "yyyy-MM-dd") ? "default" : "outline"}
@@ -81,17 +93,6 @@ export function ShowDateFilter({ selectedDate, recentDates, onDateSelect }: Show
         </PopoverContent>
       </Popover>
 
-      {/* Clear Filter */}
-      {selectedDate && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onDateSelect(undefined)}
-        >
-          <X className="h-4 w-4" />
-          Clear Filter
-        </Button>
-      )}
     </div>
   );
 }
