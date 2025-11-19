@@ -70,7 +70,7 @@ export default function Orders() {
     alreadyPrinted: Shipment[];
     unprinted: Shipment[];
   }>({ alreadyPrinted: [], unprinted: [] });
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(25);
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   

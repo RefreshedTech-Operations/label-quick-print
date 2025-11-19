@@ -7,6 +7,11 @@ interface KPICardProps {
 }
 
 export function KPICard({ title, value, description }: KPICardProps) {
+  // Format numbers with commas for thousands
+  const formattedValue = typeof value === 'number' 
+    ? value.toLocaleString('en-US')
+    : value;
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -15,7 +20,7 @@ export function KPICard({ title, value, description }: KPICardProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold">{value}</div>
+        <div className="text-3xl font-bold">{formattedValue}</div>
         {description && (
           <p className="text-xs text-muted-foreground mt-1">{description}</p>
         )}
