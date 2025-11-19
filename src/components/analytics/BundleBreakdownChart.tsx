@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
-import { Shipment } from '@/types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
+interface DailyData {
+  bundle_orders: number;
+  total_orders: number;
+}
+
 interface BundleBreakdownChartProps {
-  shipments: Shipment[];
+  dailyData: DailyData[];
 }
 
 const COLORS = {
@@ -11,16 +14,15 @@ const COLORS = {
   nonBundled: 'hsl(var(--primary))',
 };
 
-export function BundleBreakdownChart({ shipments }: BundleBreakdownChartProps) {
-  const chartData = useMemo(() => {
-    const bundled = shipments.filter(s => s.bundle).length;
-    const nonBundled = shipments.filter(s => !s.bundle).length;
+export function BundleBreakdownChart({ dailyData }: BundleBreakdownChartProps) {
+  const bundled = dailyData.reduce((sum, d) => sum + Number(d.bundle_orders), 0);
+  const total = dailyData.reduce((sum, d) => sum + Number(d.total_orders), 0);
+  const nonBundled = total - bundled;
 
-    return [
-      { name: 'Bundled', value: bundled, color: COLORS.bundled },
-      { name: 'Non-Bundled', value: nonBundled, color: COLORS.nonBundled },
-    ].filter(item => item.value > 0);
-  }, [shipments]);
+  const chartData = [
+    { name: 'Bundled', value: bundled, color: COLORS.bundled },
+    { name: 'Non-Bundled', value: nonBundled, color: COLORS.nonBundled },
+  ].filter(item => item.value > 0);
 
   if (chartData.length === 0) {
     return <div className="h-[300px] flex items-center justify-center text-muted-foreground">No data available</div>;

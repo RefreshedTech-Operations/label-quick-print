@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import { Shipment } from '@/types';
 import { format, parseISO } from 'date-fns';
 import {
   LineChart,
@@ -12,30 +10,24 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-interface OrdersTimelineChartProps {
-  shipments: Shipment[];
+interface DailyData {
+  date: string;
+  total_orders: number;
+  printed_orders: number;
+  unprinted_orders: number;
 }
 
-export function OrdersTimelineChart({ shipments }: OrdersTimelineChartProps) {
-  const chartData = useMemo(() => {
-    const dataMap = new Map<string, { date: string; total: number; printed: number; unprinted: number }>();
+interface OrdersTimelineChartProps {
+  dailyData: DailyData[];
+}
 
-    shipments.forEach((shipment) => {
-      const date = format(parseISO(shipment.created_at), 'yyyy-MM-dd');
-      const existing = dataMap.get(date) || { date, total: 0, printed: 0, unprinted: 0 };
-      
-      existing.total++;
-      if (shipment.printed) {
-        existing.printed++;
-      } else {
-        existing.unprinted++;
-      }
-      
-      dataMap.set(date, existing);
-    });
-
-    return Array.from(dataMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [shipments]);
+export function OrdersTimelineChart({ dailyData }: OrdersTimelineChartProps) {
+  const chartData = dailyData.map(d => ({
+    date: d.date,
+    total: Number(d.total_orders),
+    printed: Number(d.printed_orders),
+    unprinted: Number(d.unprinted_orders),
+  }));
 
   if (chartData.length === 0) {
     return <div className="h-[300px] flex items-center justify-center text-muted-foreground">No data available</div>;

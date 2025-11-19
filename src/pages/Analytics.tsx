@@ -46,15 +46,15 @@ export default function Analytics() {
     setDateRange(newRange);
   };
 
-  const { shipments, printJobs, isLoading, kpis } = useAnalyticsData(dateRange);
+  const { isLoading, kpis, dailyData, printerData, printStatusData } = useAnalyticsData(dateRange);
 
   const handleExport = (type: 'orders' | 'printJobs' | 'summary') => {
-    if (type === 'orders') {
-      exportFilteredOrders(shipments, dateRange);
-    } else if (type === 'printJobs') {
-      exportPrintJobs(printJobs, dateRange);
-    } else {
+    if (type === 'summary') {
       exportSummaryReport(kpis, dateRange);
+    } else {
+      toast.info('Export feature temporarily unavailable', {
+        description: 'Please use the summary export for now.',
+      });
     }
   };
 
@@ -71,12 +71,6 @@ export default function Analytics() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleExport('orders')}>
-              Export Orders ({shipments.length})
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport('printJobs')}>
-              Export Print Jobs ({printJobs.length})
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleExport('summary')}>
               Export Summary Report
             </DropdownMenuItem>
@@ -156,7 +150,7 @@ export default function Analytics() {
                 <CardDescription>Daily order volume and print status</CardDescription>
               </CardHeader>
               <CardContent>
-                <OrdersTimelineChart shipments={shipments} />
+                <OrdersTimelineChart dailyData={dailyData} />
               </CardContent>
             </Card>
 
@@ -166,7 +160,7 @@ export default function Analytics() {
                 <CardDescription>Distribution of print job outcomes</CardDescription>
               </CardHeader>
               <CardContent>
-                <PrintStatusPieChart printJobs={printJobs} />
+                <PrintStatusPieChart printStatusData={printStatusData} />
               </CardContent>
             </Card>
           </div>
@@ -179,7 +173,7 @@ export default function Analytics() {
                 <CardDescription>Daily breakdown of order status</CardDescription>
               </CardHeader>
               <CardContent>
-                <StatusStackedBarChart shipments={shipments} />
+                <StatusStackedBarChart dailyData={dailyData} />
               </CardContent>
             </Card>
 
@@ -189,7 +183,7 @@ export default function Analytics() {
                 <CardDescription>Number of labels printed per day</CardDescription>
               </CardHeader>
               <CardContent>
-                <DailyActivityChart printJobs={printJobs} />
+                <DailyActivityChart dailyData={dailyData} />
               </CardContent>
             </Card>
           </div>
@@ -202,7 +196,7 @@ export default function Analytics() {
                 <CardDescription>Bundled vs non-bundled orders</CardDescription>
               </CardHeader>
               <CardContent>
-                <BundleBreakdownChart shipments={shipments} />
+                <BundleBreakdownChart dailyData={dailyData} />
               </CardContent>
             </Card>
 
@@ -212,7 +206,7 @@ export default function Analytics() {
                 <CardDescription>Top printers by volume</CardDescription>
               </CardHeader>
               <CardContent>
-                <PrinterPerformanceChart printJobs={printJobs} />
+                <PrinterPerformanceChart printerData={printerData} />
               </CardContent>
             </Card>
           </div>

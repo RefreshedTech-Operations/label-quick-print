@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import { PrintJob } from '@/types';
 import { format, parseISO } from 'date-fns';
 import {
   BarChart,
@@ -11,23 +9,20 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-interface DailyActivityChartProps {
-  printJobs: PrintJob[];
+interface DailyData {
+  date: string;
+  print_jobs_count: number;
 }
 
-export function DailyActivityChart({ printJobs }: DailyActivityChartProps) {
-  const chartData = useMemo(() => {
-    const dataMap = new Map<string, { date: string; count: number }>();
+interface DailyActivityChartProps {
+  dailyData: DailyData[];
+}
 
-    printJobs.forEach((job) => {
-      const date = format(parseISO(job.created_at), 'yyyy-MM-dd');
-      const existing = dataMap.get(date) || { date, count: 0 };
-      existing.count++;
-      dataMap.set(date, existing);
-    });
-
-    return Array.from(dataMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [printJobs]);
+export function DailyActivityChart({ dailyData }: DailyActivityChartProps) {
+  const chartData = dailyData.map(d => ({
+    date: d.date,
+    count: Number(d.print_jobs_count),
+  }));
 
   if (chartData.length === 0) {
     return <div className="h-[300px] flex items-center justify-center text-muted-foreground">No data available</div>;
