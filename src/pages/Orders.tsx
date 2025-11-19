@@ -43,7 +43,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2 } from 'lucide-react';
 import { Shipment } from '@/types';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { format } from 'date-fns';
@@ -53,7 +53,7 @@ import { DateRange } from 'react-day-picker';
 export default function Orders() {
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
   const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, 600);
   const [printing, setPrinting] = useState<string | null>(null);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
@@ -71,7 +71,6 @@ export default function Orders() {
     unprinted: Shipment[];
   }>({ alreadyPrinted: [], unprinted: [] });
   const [pageSize, setPageSize] = useState(25);
-  const [isSearchMode, setIsSearchMode] = useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   
   const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
@@ -132,7 +131,7 @@ export default function Orders() {
     }
   };
 
-  const loadShipments = async (forceSearchMode = false) => {
+  const loadShipments = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -155,7 +154,7 @@ export default function Orders() {
       
       let query = supabase
         .from('shipments')
-        .select('*', { count: 'exact' })
+        .select('*')
         .order('created_at', { ascending: false });
 
       // Apply tab filters to database query
@@ -196,7 +195,7 @@ export default function Orders() {
       const endIndex = startIndex + pageSize - 1;
       query = query.range(startIndex, endIndex);
 
-      const { data: shipmentsData, error: shipmentsError, count } = await query;
+      const { data: shipmentsData, error: shipmentsError } = await query;
 
       if (shipmentsError) {
         toast.error('Failed to load shipments');
@@ -204,40 +203,11 @@ export default function Orders() {
         return;
       }
 
-      setTotalRecords(count || 0);
-
-      // Get all unique user IDs who printed labels (both individual and group)
-      const printerIds = [...new Set([
-        ...(shipmentsData || [])
-          .filter(s => s.printed_by_user_id)
-          .map(s => s.printed_by_user_id),
-        ...(shipmentsData || [])
-          .filter(s => s.group_id_printed_by_user_id)
-          .map(s => s.group_id_printed_by_user_id)
-      ])];
-
-      if (printerIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, email')
-          .in('id', printerIds);
-
-        // Map profiles to shipments
-        const profileMap = new Map(profilesData?.map(p => [p.id, p]) || []);
-        const enrichedShipments = (shipmentsData || []).map(shipment => ({
-          ...shipment,
-          printed_by: shipment.printed_by_user_id 
-            ? profileMap.get(shipment.printed_by_user_id) 
-            : undefined,
-          group_id_printed_by: shipment.group_id_printed_by_user_id 
-            ? profileMap.get(shipment.group_id_printed_by_user_id) 
-            : undefined
-        }));
-
-        setShipments(enrichedShipments);
-      } else {
-        setShipments(shipmentsData || []);
-      }
+      // Store shipments without enrichment for performance
+      setShipments(shipmentsData || []);
+      setTotalRecords(shipmentsData?.length || 0);
+    } catch (error: any) {
+      toast.error('Failed to load shipments', { description: error.message });
     } finally {
       setLoading(false);
     }
@@ -736,28 +706,11 @@ export default function Orders() {
     }, { total: 0, printed: 0, unprinted: 0, exceptions: 0 });
   }, [filteredShipments, settings.block_cancelled]);
 
-  // Pagination
-  const totalPages = isSearchMode ? Math.ceil(filteredShipments.length / pageSize) : Math.ceil(totalRecords / pageSize);
+  // Pagination - simplified without search mode
+  const totalPages = Math.max(1, Math.ceil(filteredShipments.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedShipments = isSearchMode ? filteredShipments.slice(startIndex, endIndex) : filteredShipments;
-
-  // Reset to page 1 and trigger search mode when search/date filters change
-  useEffect(() => {
-    setCurrentPage(1);
-    const shouldBeSearchMode = debouncedSearch.trim() !== '' || (dateRange?.from !== undefined && dateRange?.to !== undefined);
-    if (shouldBeSearchMode !== isSearchMode) {
-      setIsSearchMode(shouldBeSearchMode);
-      loadShipments(shouldBeSearchMode);
-    }
-  }, [debouncedSearch, dateRange]);
-
-  // Reload when filter or pagination changes (only in non-search mode)
-  useEffect(() => {
-    if (!isSearchMode) {
-      loadShipments();
-    }
-  }, [filter, currentPage, pageSize]);
+  const paginatedShipments = filteredShipments;
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -785,12 +738,17 @@ export default function Orders() {
       </div>
 
       <div className="flex gap-4 items-center flex-wrap">
-        <Input
-          placeholder="Search by UID, Order ID, Buyer, Tracking, Location..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[300px]"
-        />
+        <div className="relative flex-1 min-w-[300px]">
+          <Input
+            placeholder="Search by UID, Order ID, Buyer, Tracking, Location..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pr-10"
+          />
+          {loading && debouncedSearch && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <DateRangeFilter 
             dateRange={dateRange} 
@@ -1073,11 +1031,7 @@ export default function Orders() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            {isSearchMode ? (
-              <>Showing {startIndex + 1} to {Math.min(endIndex, filteredShipments.length)} of {filteredShipments.length} orders (filtered from {totalRecords} total)</>
-            ) : (
-              <>Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} orders</>
-            )}
+            Showing {startIndex + 1} to {Math.min(endIndex, filteredShipments.length)} of {filteredShipments.length} orders
           </div>
           <Pagination>
             <PaginationContent>
