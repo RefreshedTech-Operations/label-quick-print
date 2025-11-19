@@ -13,7 +13,8 @@ import { PrinterPerformanceChart } from '@/components/analytics/PrinterPerforman
 import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 import { exportFilteredOrders, exportPrintJobs, exportSummaryReport } from '@/lib/analyticsExport';
 import { DateRange } from 'react-day-picker';
-import { subDays } from 'date-fns';
+import { subDays, differenceInDays } from 'date-fns';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,24 @@ export default function Analytics() {
     from: subDays(new Date(), 30),
     to: new Date(),
   });
+
+  const handleDateRangeChange = (newRange: DateRange | undefined) => {
+    if (!newRange?.from || !newRange?.to) {
+      setDateRange(newRange || { from: subDays(new Date(), 30), to: new Date() });
+      return;
+    }
+
+    const daysDiff = differenceInDays(newRange.to, newRange.from);
+    
+    if (daysDiff > 90) {
+      toast.error('Date range too large', {
+        description: 'Please select a date range of 90 days or less for optimal performance.',
+      });
+      return;
+    }
+
+    setDateRange(newRange);
+  };
 
   const { shipments, printJobs, isLoading, kpis } = useAnalyticsData(dateRange);
 
@@ -66,7 +85,7 @@ export default function Analytics() {
       </div>
 
       {/* Date Range Filter */}
-      <DateRangeFilter dateRange={dateRange} setDateRange={setDateRange} />
+      <DateRangeFilter dateRange={dateRange} setDateRange={handleDateRangeChange} />
 
       {/* KPI Cards - Show immediately when data loads */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

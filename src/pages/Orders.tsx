@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   Table,
   TableBody,
@@ -51,6 +53,7 @@ import { DateRange } from 'react-day-picker';
 export default function Orders() {
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
   const [printing, setPrinting] = useState<string | null>(null);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
@@ -130,7 +133,7 @@ export default function Orders() {
 
     try {
       // Determine if we're in search mode
-      const inSearchMode = forceSearchMode || isSearchMode || search.trim() !== '' || (dateRange?.from && dateRange?.to);
+      const inSearchMode = forceSearchMode || isSearchMode || debouncedSearch.trim() !== '' || (dateRange?.from && dateRange?.to);
       
       let query = supabase
         .from('shipments')
@@ -148,25 +151,20 @@ export default function Orders() {
         query = query.or('manifest_url.is.null,cancelled.not.is.null');
       }
 
-      // Apply search filters if in search mode
+      // Apply search filter if present - optimized single query
       if (inSearchMode) {
-        if (search.trim()) {
-          const searchTerm = search.trim().toUpperCase();
+        if (debouncedSearch.trim()) {
+          const searchTerm = debouncedSearch.trim();
+          const upperSearch = searchTerm.toUpperCase();
           
-          // Try exact UID match first (UIDs are unique)
-          const exactUidQuery = await supabase
-            .from('shipments')
-            .select('id', { count: 'exact' })
-            .eq('uid', searchTerm)
-            .limit(1);
-          
-          if (exactUidQuery.data && exactUidQuery.data.length > 0) {
-            // Exact UID match found, filter by exact UID only
-            query = query.eq('uid', searchTerm);
-          } else {
-            // No exact match, use broad search across all fields
-            query = query.or(`uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,order_group_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,location_id.ilike.%${searchTerm}%`);
-          }
+          // Single optimized query with exact UID match priority
+          query = query.or(
+            `uid.eq.${upperSearch},` + // Exact UID match (highest priority)
+            `uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,` +
+            `order_group_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,` +
+            `tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,` +
+            `location_id.ilike.%${searchTerm}%`
+          );
         }
         
         if (dateRange?.from && dateRange?.to) {
@@ -175,8 +173,8 @@ export default function Orders() {
             .lte('show_date', dateRange.to.toISOString().split('T')[0]);
         }
         
-        // In search mode, load all matching results (up to 10000)
-        query = query.limit(10000);
+        // In search mode, load reasonable amount of records
+        query = query.limit(1000);
       } else {
         // In pagination mode, only load current page
         const startIndex = (currentPage - 1) * pageSize;
@@ -698,40 +696,31 @@ export default function Orders() {
     }
   };
 
-  const filteredShipments = shipments.filter(s => {
-    // Status filter (always apply)
-    if (filter === 'printed' && !s.printed) return false;
-    if (filter === 'unprinted' && s.printed) return false;
-    if (filter === 'bundled' && !s.bundle) return false;
-    if (filter === 'exceptions') {
-      const hasException = !s.manifest_url || (settings.block_cancelled && s.cancelled);
-      if (!hasException) return false;
-    }
+  const filteredShipments = useMemo(() => {
+    if (!shipments) return [];
+    
+    // Only apply status tab filter - search is already handled by database query
+    return shipments.filter((s) => {
+      if (filter === 'printed') return s.printed;
+      if (filter === 'unprinted') return !s.printed;
+      if (filter === 'bundled') return s.bundle;
+      if (filter === 'exceptions') {
+        return !s.manifest_url || (settings.block_cancelled && s.cancelled);
+      }
+      return true;
+    });
+  }, [shipments, filter, settings.block_cancelled]);
 
-    // Search filter (apply when in search mode)
-    if (search.trim() !== '') {
-      const searchLower = search.trim().toLowerCase();
-      const matchesSearch = 
-        (s.uid && s.uid.toLowerCase().includes(searchLower)) ||
-        (s.order_id && s.order_id.toLowerCase().includes(searchLower)) ||
-        (s.order_group_id && s.order_group_id.toLowerCase().includes(searchLower)) ||
-        (s.buyer && s.buyer.toLowerCase().includes(searchLower)) ||
-        (s.tracking && s.tracking.toLowerCase().includes(searchLower)) ||
-        (s.product_name && s.product_name.toLowerCase().includes(searchLower)) ||
-        (s.location_id && s.location_id.toLowerCase().includes(searchLower));
-      
-      if (!matchesSearch) return false;
-    }
-
-    return true;
-  });
-
-  const stats = {
-    total: filteredShipments.length,
-    printed: filteredShipments.filter(s => s.printed).length,
-    unprinted: filteredShipments.filter(s => !s.printed).length,
-    exceptions: filteredShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length
-  };
+  // Optimized stats calculation - single pass through array
+  const stats = useMemo(() => {
+    return filteredShipments.reduce((acc, s) => {
+      acc.total++;
+      if (s.printed) acc.printed++;
+      if (!s.printed) acc.unprinted++;
+      if (!s.manifest_url || (settings.block_cancelled && s.cancelled)) acc.exceptions++;
+      return acc;
+    }, { total: 0, printed: 0, unprinted: 0, exceptions: 0 });
+  }, [filteredShipments, settings.block_cancelled]);
 
   // Pagination
   const totalPages = isSearchMode ? Math.ceil(filteredShipments.length / pageSize) : Math.ceil(totalRecords / pageSize);
@@ -742,12 +731,12 @@ export default function Orders() {
   // Reset to page 1 and trigger search mode when search/date filters change
   useEffect(() => {
     setCurrentPage(1);
-    const shouldBeSearchMode = search.trim() !== '' || (dateRange?.from !== undefined && dateRange?.to !== undefined);
+    const shouldBeSearchMode = debouncedSearch.trim() !== '' || (dateRange?.from !== undefined && dateRange?.to !== undefined);
     if (shouldBeSearchMode !== isSearchMode) {
       setIsSearchMode(shouldBeSearchMode);
       loadShipments(shouldBeSearchMode);
     }
-  }, [search, dateRange]);
+  }, [debouncedSearch, dateRange]);
 
   // Reload when filter or pagination changes (only in non-search mode)
   useEffect(() => {
@@ -780,12 +769,6 @@ export default function Orders() {
           </Badge>
         </div>
       </div>
-
-      {loading && (
-        <div className="text-center py-8 text-muted-foreground">
-          Loading shipments...
-        </div>
-      )}
 
       <div className="flex gap-4 items-center flex-wrap">
         <Input
@@ -897,7 +880,34 @@ export default function Orders() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedShipments.length === 0 ? (
+            {loading ? (
+              <>
+                {[...Array(10)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  </TableRow>
+                ))}
+              </>
+            ) : paginatedShipments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={20} className="text-center text-muted-foreground py-8">
                   No shipments found
