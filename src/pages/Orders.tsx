@@ -223,48 +223,55 @@ export default function Orders() {
         `, { count: 'exact' }) // Phase 2: Add exact count for proper pagination
         .order('created_at', { ascending: false });
 
-      // Apply tab filters to database query
-      if (filter === 'printed') {
-        query = query.eq('printed', true);
-      } else if (filter === 'unprinted') {
-        query = query.eq('printed', false);
-      } else if (filter === 'bundled') {
-        query = query.eq('bundle', true);
-      } else if (filter === 'exceptions') {
-        query = query.or('manifest_url.is.null,cancelled.not.is.null');
-      }
-
-      // Apply search filter if present - now searches all fields
-      if (debouncedSearch.trim()) {
-        const searchTerm = debouncedSearch.trim();
-        const upperSearch = searchTerm.toUpperCase();
-        
-        query = query.or(
-          `uid.eq.${upperSearch},` +
-          `uid.ilike.%${searchTerm}%,` +
-          `order_id.ilike.%${searchTerm}%,` +
-          `order_group_id.ilike.%${searchTerm}%,` +
-          `buyer.ilike.%${searchTerm}%,` +
-          `tracking.ilike.%${searchTerm}%,` +
-          `product_name.ilike.%${searchTerm}%,` +
-          `location_id.ilike.%${searchTerm}%,` +
-          `address_full.ilike.%${searchTerm}%,` +
-          `price.ilike.%${searchTerm}%,` +
-          `cancelled.ilike.%${searchTerm}%`
-        );
-      }
-      
-      // Apply show date filter if present
+      // Apply show date filter first
       if (showDateFilter) {
         query = query.eq('show_date', showDateFilter);
       }
-      
-      // Always paginate
-      const startIndex = (currentPage - 1) * pageSize;
-      const endIndex = startIndex + pageSize - 1;
-      query = query.range(startIndex, endIndex);
 
-      const { data: shipmentsData, error: shipmentsError, count } = await query;
+      const { data: allShipmentsData, error: shipmentsError } = await query;
+
+      if (shipmentsError) throw shipmentsError;
+
+      let shipmentsData = allShipmentsData || [];
+
+      // Apply tab filters client-side for reliability with search
+      if (filter === 'printed') {
+        shipmentsData = shipmentsData.filter(s => s.printed === true);
+      } else if (filter === 'unprinted') {
+        shipmentsData = shipmentsData.filter(s => s.printed === false);
+      } else if (filter === 'bundled') {
+        shipmentsData = shipmentsData.filter(s => s.bundle === true);
+      } else if (filter === 'exceptions') {
+        shipmentsData = shipmentsData.filter(s => !s.manifest_url || s.cancelled);
+      }
+
+      // Apply search filter client-side - searches all fields
+      if (debouncedSearch.trim()) {
+        const searchTerm = debouncedSearch.trim().toLowerCase();
+        
+        shipmentsData = shipmentsData.filter(shipment => {
+          return (
+            shipment.uid?.toLowerCase().includes(searchTerm) ||
+            shipment.order_id?.toLowerCase().includes(searchTerm) ||
+            shipment.order_group_id?.toLowerCase().includes(searchTerm) ||
+            shipment.buyer?.toLowerCase().includes(searchTerm) ||
+            shipment.tracking?.toLowerCase().includes(searchTerm) ||
+            shipment.product_name?.toLowerCase().includes(searchTerm) ||
+            shipment.location_id?.toLowerCase().includes(searchTerm) ||
+            shipment.address_full?.toLowerCase().includes(searchTerm) ||
+            shipment.price?.toLowerCase().includes(searchTerm) ||
+            shipment.cancelled?.toLowerCase().includes(searchTerm)
+          );
+        });
+      }
+
+      // Calculate count after all filters
+      const count = shipmentsData.length;
+      
+      // Apply pagination client-side
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      shipmentsData = shipmentsData.slice(startIndex, endIndex);
 
       if (shipmentsError) throw shipmentsError;
 
