@@ -89,7 +89,7 @@ export default function Orders() {
     loadShipments();
   }, [currentPage, filter, debouncedSearch, showDateFilter, pageSize]);
 
-  // Fetch recent show dates
+  // Fetch recent show dates and set default to most recent
   useEffect(() => {
     const fetchRecentShowDates = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -121,6 +121,11 @@ export default function Orders() {
           .slice(0, 5);
         
         setRecentShowDates(dates);
+        
+        // Auto-select most recent show date by default
+        if (dates.length > 0 && !showDateFilter) {
+          setShowDateFilter(dates[0].date);
+        }
       }
     };
     
