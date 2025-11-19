@@ -31,7 +31,7 @@ export interface Shipment {
   bundle?: boolean;
   order_group_id?: string;
   location_id?: string;
-  raw: any;
+  raw?: any;
   printed: boolean;
   printed_at?: string;
   printed_by_user_id?: string;
