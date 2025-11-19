@@ -177,7 +177,7 @@ export default function Orders() {
         query = query.or(
           `uid.eq.${upperSearch},` + // Exact UID match (highest priority)
           `uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,` +
-          `order_group_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,` +
+          `buyer.ilike.%${searchTerm}%,` +
           `tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,` +
           `location_id.ilike.%${searchTerm}%`
         );
