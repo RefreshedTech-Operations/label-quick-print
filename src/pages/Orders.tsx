@@ -53,7 +53,7 @@ import { useColumnResize } from '@/hooks/useColumnResize';
 
 export default function Orders() {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
+  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('unprinted');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 600);
   const [printing, setPrinting] = useState<string | null>(null);
@@ -210,22 +210,22 @@ export default function Orders() {
         query = query.eq('show_date', showDateFilter);
       }
 
+      // Apply tab filters at database level for performance
+      if (filter === 'printed') {
+        query = query.eq('printed', true);
+      } else if (filter === 'unprinted') {
+        query = query.eq('printed', false);
+      } else if (filter === 'bundled') {
+        query = query.eq('bundle', true);
+      } else if (filter === 'exceptions') {
+        query = query.or('manifest_url.is.null,cancelled.not.is.null');
+      }
+
       const { data: allShipmentsData, error: shipmentsError } = await query;
 
       if (shipmentsError) throw shipmentsError;
 
       let shipmentsData = allShipmentsData || [];
-
-      // Apply tab filters client-side for reliability with search
-      if (filter === 'printed') {
-        shipmentsData = shipmentsData.filter(s => s.printed === true);
-      } else if (filter === 'unprinted') {
-        shipmentsData = shipmentsData.filter(s => s.printed === false);
-      } else if (filter === 'bundled') {
-        shipmentsData = shipmentsData.filter(s => s.bundle === true);
-      } else if (filter === 'exceptions') {
-        shipmentsData = shipmentsData.filter(s => !s.manifest_url || s.cancelled);
-      }
 
       // Apply search filter client-side - searches all fields
       if (debouncedSearch.trim()) {
@@ -852,7 +852,13 @@ export default function Orders() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold">All Orders</h1>
+        <h1 className="text-4xl font-bold">
+          {filter === 'all' ? 'All Orders' : 
+           filter === 'unprinted' ? 'Active Orders' : 
+           filter === 'printed' ? 'Completed Orders' :
+           filter === 'bundled' ? 'Bundled Orders' : 
+           'Exception Orders'}
+        </h1>
         <div className="flex gap-2">
           <Badge variant="secondary" className="text-lg px-4 py-2">
             Total: {stats.total}
