@@ -107,30 +107,33 @@ export default function Orders() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Parallel fetch of recent show dates and initial data
+  // Parallel fetch of recent show dates with efficient aggregation
   const { data: recentShowDates } = useQuery({
     queryKey: ['recent-show-dates'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      // Use RPC call or efficient query to get distinct dates with counts
+      // First get distinct show dates (limited to recent ones)
+      const { data: distinctDates, error: datesError } = await supabase
         .from('shipments')
         .select('show_date')
         .not('show_date', 'is', null)
-        .order('show_date', { ascending: false });
+        .order('show_date', { ascending: false })
+        .limit(1000); // Limit to prevent fetching too many records
       
-      if (error) throw error;
+      if (datesError) throw datesError;
 
       // Count occurrences of each show_date
-      const dateCounts = (data || []).reduce((acc, { show_date }) => {
+      const dateCounts = (distinctDates || []).reduce((acc, { show_date }) => {
         if (show_date) {
           acc[show_date] = (acc[show_date] || 0) + 1;
         }
         return acc;
       }, {} as Record<string, number>);
 
-      // Convert to array and sort by date descending
+      // Convert to array and sort by date descending, take only top 5
       return Object.entries(dateCounts)
         .map(([date, count]) => ({ date, count }))
         .sort((a, b) => b.date.localeCompare(a.date))
