@@ -113,33 +113,15 @@ export default function Orders() {
   const { data: recentShowDates } = useQuery({
     queryKey: ['recent-show-dates'],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      // Use RPC call or efficient query to get distinct dates with counts
-      // First get distinct show dates (limited to recent ones)
-      const { data: distinctDates, error: datesError } = await supabase
-        .from('shipments')
-        .select('show_date')
-        .not('show_date', 'is', null)
-        .order('show_date', { ascending: false })
-        .limit(1000); // Limit to prevent fetching too many records
+      const { data, error } = await supabase
+        .rpc('get_show_date_counts', { limit_rows: 5 });
       
-      if (datesError) throw datesError;
-
-      // Count occurrences of each show_date
-      const dateCounts = (distinctDates || []).reduce((acc, { show_date }) => {
-        if (show_date) {
-          acc[show_date] = (acc[show_date] || 0) + 1;
-        }
-        return acc;
-      }, {} as Record<string, number>);
-
-      // Convert to array and sort by date descending, take only top 5
-      return Object.entries(dateCounts)
-        .map(([date, count]) => ({ date, count }))
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 5);
+      if (error) throw error;
+      
+      return data?.map(({ show_date, count }) => ({ 
+        date: show_date, 
+        count: Number(count) 
+      })) || [];
     },
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
   });
@@ -981,6 +963,13 @@ export default function Orders() {
                   onMouseDown={(e) => handleResizeStart('uid', e.clientX)}
                 />
               </TableHead>
+              <TableHead className="relative group" style={{ width: columnWidths.bundleId }}>
+                <span>Bundle ID</span>
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 group-hover:bg-primary/30 transition-colors"
+                  onMouseDown={(e) => handleResizeStart('bundleId', e.clientX)}
+                />
+              </TableHead>
               <TableHead className="relative group" style={{ width: columnWidths.location }}>
                 <span>Location & Buyer</span>
                 <div
@@ -1041,8 +1030,10 @@ export default function Orders() {
                       <div className="space-y-1.5">
                         <Skeleton className="h-9 w-full" />
                         <Skeleton className="h-3 w-28" />
-                        <Skeleton className="h-3 w-20" />
                       </div>
+                    </TableCell>
+                    <TableCell style={{ width: columnWidths.bundleId }}>
+                      <Skeleton className="h-5 w-32" />
                     </TableCell>
                     <TableCell style={{ width: columnWidths.location }}>
                       <div className="space-y-1.5">
@@ -1085,7 +1076,7 @@ export default function Orders() {
               </>
             ) : paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -1138,7 +1129,7 @@ export default function Orders() {
                     </div>
                   </TableCell>
 
-                  {/* Order Details Stack - UID (editable), Order ID, Group ID */}
+                  {/* Order Details - UID (editable) and Order ID only */}
                   <TableCell style={{ width: columnWidths.uid }}>
                     <div className="space-y-1">
                       <Input
@@ -1168,15 +1159,22 @@ export default function Orders() {
                         placeholder="UID"
                         className="h-9 text-sm font-mono font-semibold"
                       />
-                      <div className="text-xs text-muted-foreground space-y-0.5">
+                      <div className="text-xs text-muted-foreground">
                         <div className="font-mono break-all">Order: {shipment.order_id}</div>
-                        {shipment.order_group_id && (
-                          <div className="font-mono break-all" title={shipment.order_group_id}>
-                            Group: {shipment.order_group_id}
-                          </div>
-                        )}
                       </div>
                     </div>
+                  </TableCell>
+
+                  {/* Bundle ID - Separate column */}
+                  <TableCell style={{ width: columnWidths.bundleId }}>
+                    {shipment.order_group_id && (
+                      <div className="font-mono text-sm break-all" title={shipment.order_group_id}>
+                        {shipment.order_group_id}
+                      </div>
+                    )}
+                    {shipment.bundle && (
+                      <Badge variant="secondary" className="mt-1 text-xs">Bundle</Badge>
+                    )}
                   </TableCell>
 
                   {/* Location & Buyer Stack */}
