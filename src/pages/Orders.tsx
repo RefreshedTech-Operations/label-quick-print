@@ -47,8 +47,7 @@ import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2 } fro
 import { Shipment } from '@/types';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { format } from 'date-fns';
-import { DateRangeFilter } from '@/components/analytics/DateRangeFilter';
-import { DateRange } from 'react-day-picker';
+import { ShowDateFilter } from '@/components/ShowDateFilter';
 
 export default function Orders() {
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
@@ -57,8 +56,8 @@ export default function Orders() {
   const [printing, setPrinting] = useState<string | null>(null);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
-  const [showDateFilter, setShowDateFilter] = useState<Date | undefined>(undefined);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [showDateFilter, setShowDateFilter] = useState<string | undefined>(undefined);
+  const [recentShowDates, setRecentShowDates] = useState<Array<{ date: string; count: number }>>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
@@ -83,12 +82,50 @@ export default function Orders() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, debouncedSearch, dateRange]);
+  }, [filter, debouncedSearch, showDateFilter]);
 
   // Load shipments when page, filters, or search changes
   useEffect(() => {
     loadShipments();
-  }, [currentPage, filter, debouncedSearch, dateRange, pageSize]);
+  }, [currentPage, filter, debouncedSearch, showDateFilter, pageSize]);
+
+  // Fetch recent show dates
+  useEffect(() => {
+    const fetchRecentShowDates = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('show_date')
+        .not('show_date', 'is', null)
+        .eq('user_id', user.id)
+        .order('show_date', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching recent show dates:', error);
+        return;
+      }
+      
+      if (data) {
+        const dateCounts = data.reduce((acc, row) => {
+          if (row.show_date) {
+            acc[row.show_date] = (acc[row.show_date] || 0) + 1;
+          }
+          return acc;
+        }, {} as Record<string, number>);
+        
+        const dates = Object.entries(dateCounts)
+          .map(([date, count]) => ({ date, count }))
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .slice(0, 5);
+        
+        setRecentShowDates(dates);
+      }
+    };
+    
+    fetchRecentShowDates();
+  }, []);
 
   const loadAppConfig = async () => {
     const { data, error } = await supabase
@@ -183,11 +220,9 @@ export default function Orders() {
         );
       }
       
-      // Apply date range filter if present
-      if (dateRange?.from && dateRange?.to) {
-        query = query
-          .gte('show_date', dateRange.from.toISOString().split('T')[0])
-          .lte('show_date', dateRange.to.toISOString().split('T')[0]);
+      // Apply show date filter if present
+      if (showDateFilter) {
+        query = query.eq('show_date', showDateFilter);
       }
       
       // Always paginate
@@ -749,21 +784,14 @@ export default function Orders() {
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <DateRangeFilter 
-            dateRange={dateRange} 
-            setDateRange={setDateRange} 
-          />
-          {dateRange?.from && dateRange?.to && (
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setDateRange(undefined)}
-            >
-              Clear Dates
-            </Button>
-          )}
-        </div>
+        <ShowDateFilter 
+          selectedDate={showDateFilter}
+          recentDates={recentShowDates}
+          onDateSelect={setShowDateFilter}
+        />
+      </div>
+
+      <div className="flex gap-4 items-center flex-wrap">
         <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
