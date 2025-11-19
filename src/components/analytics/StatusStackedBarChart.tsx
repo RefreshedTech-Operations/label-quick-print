@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import { Shipment } from '@/types';
 import { format, parseISO } from 'date-fns';
 import {
   BarChart,
@@ -12,31 +10,24 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-interface StatusStackedBarChartProps {
-  shipments: Shipment[];
+interface DailyData {
+  date: string;
+  printed_orders: number;
+  unprinted_orders: number;
+  cancelled_orders: number;
 }
 
-export function StatusStackedBarChart({ shipments }: StatusStackedBarChartProps) {
-  const chartData = useMemo(() => {
-    const dataMap = new Map<string, { date: string; printed: number; unprinted: number; cancelled: number }>();
+interface StatusStackedBarChartProps {
+  dailyData: DailyData[];
+}
 
-    shipments.forEach((shipment) => {
-      const date = format(parseISO(shipment.created_at), 'yyyy-MM-dd');
-      const existing = dataMap.get(date) || { date, printed: 0, unprinted: 0, cancelled: 0 };
-      
-      if (shipment.cancelled && shipment.cancelled.toLowerCase() === 'yes') {
-        existing.cancelled++;
-      } else if (shipment.printed) {
-        existing.printed++;
-      } else {
-        existing.unprinted++;
-      }
-      
-      dataMap.set(date, existing);
-    });
-
-    return Array.from(dataMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [shipments]);
+export function StatusStackedBarChart({ dailyData }: StatusStackedBarChartProps) {
+  const chartData = dailyData.map(d => ({
+    date: d.date,
+    printed: Number(d.printed_orders),
+    unprinted: Number(d.unprinted_orders),
+    cancelled: Number(d.cancelled_orders),
+  }));
 
   if (chartData.length === 0) {
     return <div className="h-[300px] flex items-center justify-center text-muted-foreground">No data available</div>;

@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import { PrintJob } from '@/types';
 import {
   BarChart,
   Bar,
@@ -10,25 +8,20 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-interface PrinterPerformanceChartProps {
-  printJobs: PrintJob[];
+interface PrinterData {
+  printer_id: string;
+  job_count: number;
 }
 
-export function PrinterPerformanceChart({ printJobs }: PrinterPerformanceChartProps) {
-  const chartData = useMemo(() => {
-    const printerMap = new Map<string, number>();
+interface PrinterPerformanceChartProps {
+  printerData: PrinterData[];
+}
 
-    printJobs.forEach((job) => {
-      if (job.printer_id) {
-        printerMap.set(job.printer_id, (printerMap.get(job.printer_id) || 0) + 1);
-      }
-    });
-
-    return Array.from(printerMap.entries())
-      .map(([printer, count]) => ({ printer, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }, [printJobs]);
+export function PrinterPerformanceChart({ printerData }: PrinterPerformanceChartProps) {
+  const chartData = printerData.map(d => ({
+    printer: d.printer_id,
+    count: Number(d.job_count),
+  }));
 
   if (chartData.length === 0) {
     return <div className="h-[300px] flex items-center justify-center text-muted-foreground">No data available</div>;

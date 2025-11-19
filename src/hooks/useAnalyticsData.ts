@@ -1,133 +1,141 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Shipment, PrintJob } from '@/types';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 
-// Optimized columns for analytics (excludes heavy 'raw' JSONB column)
-const SHIPMENT_COLUMNS = 'id, created_at, printed, bundle, cancelled, order_id, uid, buyer, tracking, product_name, quantity, printed_at, user_id';
-const PRINT_JOB_COLUMNS = 'id, created_at, status, printer_id, order_id, uid';
-
-async function fetchPaginatedShipments(dateRange: DateRange): Promise<Shipment[]> {
-  if (!dateRange.from || !dateRange.to) return [];
-  
-  let allData: any[] = [];
-  let page = 0;
-  const pageSize = 1000;
-  const MAX_PAGES = 20; // Limit to 20k records max
-  let hasMore = true;
-
-  while (hasMore && page < MAX_PAGES) {
-    const { data, error } = await supabase
-      .from('shipments')
-      .select(SHIPMENT_COLUMNS)
-      .gte('created_at', format(dateRange.from, 'yyyy-MM-dd'))
-      .lte('created_at', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59')
-      .order('created_at', { ascending: false })
-      .range(page * pageSize, (page + 1) * pageSize - 1);
-
-    if (error) {
-      console.error('Error fetching shipments:', error);
-      break;
-    }
-
-    if (data && data.length > 0) {
-      allData = [...allData, ...data];
-      hasMore = data.length === pageSize;
-      page++;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  if (page >= MAX_PAGES) {
-    console.warn('Analytics hit max record limit. Consider using a smaller date range.');
-  }
-
-  return allData as Shipment[];
+interface DailyAnalytics {
+  date: string;
+  total_orders: number;
+  printed_orders: number;
+  unprinted_orders: number;
+  cancelled_orders: number;
+  bundle_orders: number;
+  print_jobs_count: number;
 }
 
-async function fetchPaginatedPrintJobs(dateRange: DateRange): Promise<PrintJob[]> {
-  if (!dateRange.from || !dateRange.to) return [];
-  
-  let allData: any[] = [];
-  let page = 0;
-  const pageSize = 1000;
-  const MAX_PAGES = 20; // Limit to 20k records max
-  let hasMore = true;
+interface PrinterPerformance {
+  printer_id: string;
+  job_count: number;
+}
 
-  while (hasMore && page < MAX_PAGES) {
-    const { data, error } = await supabase
-      .from('print_jobs')
-      .select(PRINT_JOB_COLUMNS)
-      .gte('created_at', format(dateRange.from, 'yyyy-MM-dd'))
-      .lte('created_at', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59')
-      .order('created_at', { ascending: false })
-      .range(page * pageSize, (page + 1) * pageSize - 1);
-
-    if (error) {
-      console.error('Error fetching print jobs:', error);
-      break;
-    }
-
-    if (data && data.length > 0) {
-      allData = [...allData, ...data];
-      hasMore = data.length === pageSize;
-      page++;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  if (page >= MAX_PAGES) {
-    console.warn('Analytics hit max print jobs limit. Consider using a smaller date range.');
-  }
-
-  return allData as PrintJob[];
+interface PrintStatusBreakdown {
+  status: string;
+  count: number;
 }
 
 export function useAnalyticsData(dateRange: DateRange) {
-  // Fetch shipments with optimized columns
-  const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
-    queryKey: ['analytics-shipments', dateRange.from, dateRange.to],
-    queryFn: () => fetchPaginatedShipments(dateRange),
+  // Fetch KPIs using server-side aggregation
+  const { data: kpisData, isLoading: kpisLoading } = useQuery({
+    queryKey: ['analytics-kpis', dateRange.from, dateRange.to],
+    queryFn: async () => {
+      if (!dateRange.from || !dateRange.to) return null;
+      
+      const { data, error } = await supabase.rpc('get_analytics_kpis', {
+        start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        end_date: format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59',
+      });
+
+      if (error) throw error;
+      return data?.[0] || null;
+    },
     enabled: !!dateRange.from && !!dateRange.to,
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch print jobs with optimized columns
-  const { data: printJobs = [], isLoading: printJobsLoading } = useQuery({
-    queryKey: ['analytics-printjobs', dateRange.from, dateRange.to],
-    queryFn: () => fetchPaginatedPrintJobs(dateRange),
+  // Fetch daily analytics for charts
+  const { data: dailyData = [], isLoading: dailyLoading } = useQuery<DailyAnalytics[]>({
+    queryKey: ['analytics-daily', dateRange.from, dateRange.to],
+    queryFn: async () => {
+      if (!dateRange.from || !dateRange.to) return [];
+      
+      const { data, error } = await supabase.rpc('get_daily_analytics', {
+        start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        end_date: format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59',
+      });
+
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!dateRange.from && !!dateRange.to,
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = shipmentsLoading || printJobsLoading;
+  // Fetch printer performance data
+  const { data: printerData = [], isLoading: printerLoading } = useQuery<PrinterPerformance[]>({
+    queryKey: ['analytics-printers', dateRange.from, dateRange.to],
+    queryFn: async () => {
+      if (!dateRange.from || !dateRange.to) return [];
+      
+      const { data, error } = await supabase.rpc('get_printer_performance', {
+        start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        end_date: format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59',
+        top_limit: 10,
+      });
 
-  const kpis = useMemo(() => {
-    const totalOrders = shipments.length;
-    const printedOrders = shipments.filter(s => s.printed).length;
-    const bundleOrders = shipments.filter(s => s.bundle).length;
-    const cancelledOrders = shipments.filter(s => s.cancelled && s.cancelled.toLowerCase() === 'yes').length;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!dateRange.from && !!dateRange.to,
+    staleTime: 5 * 60 * 1000,
+  });
 
-    const totalPrintJobs = printJobs.length;
-    const successfulPrints = printJobs.filter(j => j.status === 'done').length;
+  // Fetch print status breakdown
+  const { data: printStatusData = [], isLoading: printStatusLoading } = useQuery<PrintStatusBreakdown[]>({
+    queryKey: ['analytics-print-status', dateRange.from, dateRange.to],
+    queryFn: async () => {
+      if (!dateRange.from || !dateRange.to) return [];
+      
+      const { data, error } = await supabase.rpc('get_print_status_breakdown', {
+        start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        end_date: format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59',
+      });
 
-    return {
-      totalOrders,
-      printedOrders,
-      printedPercentage: totalOrders > 0 ? ((printedOrders / totalOrders) * 100).toFixed(1) : '0',
-      bundleOrders,
-      bundlePercentage: totalOrders > 0 ? ((bundleOrders / totalOrders) * 100).toFixed(1) : '0',
-      cancelledOrders,
-      cancelledPercentage: totalOrders > 0 ? ((cancelledOrders / totalOrders) * 100).toFixed(1) : '0',
-      totalPrintJobs,
-      successfulPrints,
-      printSuccessRate: totalPrintJobs > 0 ? ((successfulPrints / totalPrintJobs) * 100).toFixed(1) : '0',
-    };
-  }, [shipments, printJobs]);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!dateRange.from && !!dateRange.to,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  return { shipments, printJobs, isLoading, kpis };
+  const isLoading = kpisLoading || dailyLoading || printerLoading || printStatusLoading;
+
+  const kpis = kpisData ? {
+    totalOrders: Number(kpisData.total_orders),
+    printedOrders: Number(kpisData.printed_orders),
+    printedPercentage: kpisData.total_orders > 0 
+      ? ((Number(kpisData.printed_orders) / Number(kpisData.total_orders)) * 100).toFixed(1) 
+      : '0',
+    bundleOrders: Number(kpisData.bundle_orders),
+    bundlePercentage: kpisData.total_orders > 0 
+      ? ((Number(kpisData.bundle_orders) / Number(kpisData.total_orders)) * 100).toFixed(1) 
+      : '0',
+    cancelledOrders: Number(kpisData.cancelled_orders),
+    cancelledPercentage: kpisData.total_orders > 0 
+      ? ((Number(kpisData.cancelled_orders) / Number(kpisData.total_orders)) * 100).toFixed(1) 
+      : '0',
+    totalPrintJobs: Number(kpisData.total_print_jobs),
+    successfulPrints: Number(kpisData.successful_prints),
+    printSuccessRate: kpisData.total_print_jobs > 0 
+      ? ((Number(kpisData.successful_prints) / Number(kpisData.total_print_jobs)) * 100).toFixed(1) 
+      : '0',
+  } : {
+    totalOrders: 0,
+    printedOrders: 0,
+    printedPercentage: '0',
+    bundleOrders: 0,
+    bundlePercentage: '0',
+    cancelledOrders: 0,
+    cancelledPercentage: '0',
+    totalPrintJobs: 0,
+    successfulPrints: 0,
+    printSuccessRate: '0',
+  };
+
+  return { 
+    isLoading, 
+    kpis,
+    dailyData,
+    printerData,
+    printStatusData,
+  };
 }

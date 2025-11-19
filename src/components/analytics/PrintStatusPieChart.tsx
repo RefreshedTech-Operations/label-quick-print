@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
-import { PrintJob } from '@/types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
+interface PrintStatusData {
+  status: string;
+  count: number;
+}
+
 interface PrintStatusPieChartProps {
-  printJobs: PrintJob[];
+  printStatusData: PrintStatusData[];
 }
 
 const COLORS = {
@@ -12,18 +15,29 @@ const COLORS = {
   error: 'hsl(var(--destructive))',
 };
 
-export function PrintStatusPieChart({ printJobs }: PrintStatusPieChartProps) {
-  const chartData = useMemo(() => {
-    const completed = printJobs.filter(j => j.status === 'done').length;
-    const queued = printJobs.filter(j => j.status === 'queued').length;
-    const error = printJobs.filter(j => j.status === 'error').length;
-
-    return [
-      { name: 'Completed', value: completed, color: COLORS.completed },
-      { name: 'Queued', value: queued, color: COLORS.queued },
-      { name: 'Failed', value: error, color: COLORS.error },
-    ].filter(item => item.value > 0);
-  }, [printJobs]);
+export function PrintStatusPieChart({ printStatusData }: PrintStatusPieChartProps) {
+  const chartData = printStatusData.map(item => {
+    const statusLower = item.status.toLowerCase();
+    let name = item.status;
+    let color = COLORS.completed;
+    
+    if (statusLower === 'done') {
+      name = 'Completed';
+      color = COLORS.completed;
+    } else if (statusLower === 'queued') {
+      name = 'Queued';
+      color = COLORS.queued;
+    } else if (statusLower === 'error') {
+      name = 'Failed';
+      color = COLORS.error;
+    }
+    
+    return { 
+      name, 
+      value: Number(item.count), 
+      color 
+    };
+  }).filter(item => item.value > 0);
 
   if (chartData.length === 0) {
     return <div className="h-[300px] flex items-center justify-center text-muted-foreground">No data available</div>;
