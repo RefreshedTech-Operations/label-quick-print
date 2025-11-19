@@ -15,9 +15,10 @@ async function fetchPaginatedShipments(dateRange: DateRange): Promise<Shipment[]
   let allData: any[] = [];
   let page = 0;
   const pageSize = 1000;
+  const MAX_PAGES = 20; // Limit to 20k records max
   let hasMore = true;
 
-  while (hasMore) {
+  while (hasMore && page < MAX_PAGES) {
     const { data, error } = await supabase
       .from('shipments')
       .select(SHIPMENT_COLUMNS)
@@ -40,6 +41,10 @@ async function fetchPaginatedShipments(dateRange: DateRange): Promise<Shipment[]
     }
   }
 
+  if (page >= MAX_PAGES) {
+    console.warn('Analytics hit max record limit. Consider using a smaller date range.');
+  }
+
   return allData as Shipment[];
 }
 
@@ -49,9 +54,10 @@ async function fetchPaginatedPrintJobs(dateRange: DateRange): Promise<PrintJob[]
   let allData: any[] = [];
   let page = 0;
   const pageSize = 1000;
+  const MAX_PAGES = 20; // Limit to 20k records max
   let hasMore = true;
 
-  while (hasMore) {
+  while (hasMore && page < MAX_PAGES) {
     const { data, error } = await supabase
       .from('print_jobs')
       .select(PRINT_JOB_COLUMNS)
@@ -72,6 +78,10 @@ async function fetchPaginatedPrintJobs(dateRange: DateRange): Promise<PrintJob[]
     } else {
       hasMore = false;
     }
+  }
+
+  if (page >= MAX_PAGES) {
+    console.warn('Analytics hit max print jobs limit. Consider using a smaller date range.');
   }
 
   return allData as PrintJob[];

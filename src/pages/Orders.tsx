@@ -77,10 +77,19 @@ export default function Orders() {
   const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
 
   useEffect(() => {
-    loadShipments();
     loadAppConfig();
     loadUserSettings();
   }, []);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, debouncedSearch, dateRange]);
+
+  // Load shipments when page, filters, or search changes
+  useEffect(() => {
+    loadShipments();
+  }, [currentPage, filter, debouncedSearch, dateRange, pageSize]);
 
   const loadAppConfig = async () => {
     const { data, error } = await supabase
@@ -134,6 +143,18 @@ export default function Orders() {
     try {
       // Determine if we're in search mode
       const inSearchMode = forceSearchMode || isSearchMode || debouncedSearch.trim() !== '' || (dateRange?.from && dateRange?.to);
+      
+      // Prevent extremely high page numbers that cause slow queries
+      const MAX_OFFSET = 10000;
+      const currentOffset = (currentPage - 1) * pageSize;
+      if (currentOffset > MAX_OFFSET && !inSearchMode) {
+        toast.error('Page number too high', {
+          description: 'Please use search or filters to narrow down results.'
+        });
+        setCurrentPage(1);
+        setLoading(false);
+        return;
+      }
       
       let query = supabase
         .from('shipments')
