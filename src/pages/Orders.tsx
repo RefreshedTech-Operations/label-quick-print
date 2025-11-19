@@ -819,36 +819,36 @@ export default function Orders() {
         </div>
       )}
 
-      <div className="border rounded-lg">
-        <Table>
+      <div className="border rounded-lg overflow-x-auto">
+        <Table className="min-w-[800px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[50px]">
+              <TableHead className="w-[50px] sticky left-0 bg-background z-10">
                 <Checkbox
                   checked={paginatedShipments.length > 0 && paginatedShipments.every(s => selectedShipments.has(s.id))}
                   onCheckedChange={toggleSelectAll}
                   disabled={isBulkPrinting}
                 />
               </TableHead>
-              <TableHead>UID</TableHead>
-              <TableHead>Order ID</TableHead>
-              <TableHead>Group ID</TableHead>
-              <TableHead>Location ID</TableHead>
-              <TableHead>Buyer</TableHead>
+              <TableHead className="sticky left-[50px] bg-background z-10">UID</TableHead>
+              <TableHead className="hidden md:table-cell">Order ID</TableHead>
+              <TableHead className="hidden xl:table-cell">Group ID</TableHead>
+              <TableHead className="hidden xl:table-cell">Location ID</TableHead>
+              <TableHead className="hidden md:table-cell">Buyer</TableHead>
               <TableHead>Product</TableHead>
-              <TableHead>Bundle</TableHead>
-              <TableHead>Show Date</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Tracking</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Cancelled</TableHead>
-              <TableHead>Printed</TableHead>
-              <TableHead>Printed By</TableHead>
-              <TableHead>Group Label Printed</TableHead>
-              <TableHead>Group Label By</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="hidden lg:table-cell">Bundle</TableHead>
+              <TableHead className="hidden lg:table-cell">Show Date</TableHead>
+              <TableHead className="hidden lg:table-cell">Price</TableHead>
+              <TableHead className="hidden xl:table-cell">Quantity</TableHead>
+              <TableHead className="hidden md:table-cell">Tracking</TableHead>
+              <TableHead className="hidden xl:table-cell">Address</TableHead>
+              <TableHead className="hidden xl:table-cell">Cancelled</TableHead>
+              <TableHead className="hidden lg:table-cell">Printed</TableHead>
+              <TableHead className="hidden xl:table-cell">Printed By</TableHead>
+              <TableHead className="hidden xl:table-cell">Group Label Printed</TableHead>
+              <TableHead className="hidden xl:table-cell">Group Label By</TableHead>
+              <TableHead className="hidden lg:table-cell">Status</TableHead>
+              <TableHead className="sticky right-0 bg-background z-10">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -856,26 +856,26 @@ export default function Orders() {
               <>
                 {[...Array(10)].map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-4" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="sticky left-0 bg-background z-10"><Skeleton className="h-4 w-4" /></TableCell>
+                    <TableCell className="sticky left-[50px] bg-background z-10"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-12" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-40" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="sticky right-0 bg-background z-10"><Skeleton className="h-4 w-20" /></TableCell>
                   </TableRow>
                 ))}
               </>
@@ -897,14 +897,14 @@ export default function Orders() {
                         : ""
                   }
                 >
-                  <TableCell>
+                  <TableCell className="sticky left-0 bg-background z-10">
                     <Checkbox
                       checked={selectedShipments.has(shipment.id)}
                       onCheckedChange={() => toggleSelectShipment(shipment.id)}
                       disabled={isBulkPrinting}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="sticky left-[50px] bg-background z-10">
                     <Input
                       value={editingUids[shipment.id] ?? shipment.uid ?? ''}
                       onChange={(e) => setEditingUids(prev => ({ 
@@ -933,11 +933,11 @@ export default function Orders() {
                       className="w-32 h-8 text-xs font-mono font-semibold"
                     />
                   </TableCell>
-                  <TableCell className="font-mono">{shipment.order_id}</TableCell>
-                  <TableCell className="font-mono text-xs max-w-[100px] truncate" title={shipment.order_group_id || ''}>
+                  <TableCell className="hidden md:table-cell font-mono">{shipment.order_id}</TableCell>
+                  <TableCell className="hidden xl:table-cell font-mono text-xs max-w-[100px] truncate" title={shipment.order_group_id || ''}>
                     {shipment.order_group_id ? shipment.order_group_id.slice(0, 8) : '-'}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden xl:table-cell">
                     <Input
                       value={editingLocationIds[shipment.id] ?? shipment.location_id ?? ''}
                       onChange={(e) => setEditingLocationIds(prev => ({ 
@@ -959,46 +959,71 @@ export default function Orders() {
                       className="w-24 h-8 text-xs"
                     />
                   </TableCell>
-                  <TableCell>{shipment.buyer}</TableCell>
+                  <TableCell className="hidden md:table-cell">{shipment.buyer}</TableCell>
                   <TableCell>{shipment.product_name}</TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="hidden lg:table-cell text-center">
                     {shipment.bundle ? (
                       <Badge variant="secondary" className="text-xs">Bundle</Badge>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell>{shipment.show_date ? format(new Date(shipment.show_date), 'MMM d, yyyy') : '-'}</TableCell>
-                  <TableCell>{shipment.price || '-'}</TableCell>
-                  <TableCell>{shipment.quantity || '-'}</TableCell>
-                  <TableCell className="font-mono text-xs">{shipment.tracking || '-'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate" title={shipment.address_full || ''}>{shipment.address_full || '-'}</TableCell>
-                  <TableCell>{shipment.cancelled || '-'}</TableCell>
-                  <TableCell>{shipment.printed ? format(new Date(shipment.printed_at!), 'MMM d, HH:mm') : '-'}</TableCell>
-                  <TableCell className="text-xs">{shipment.printed_by?.email || '-'}</TableCell>
-                  <TableCell>{shipment.group_id_printed ? format(new Date(shipment.group_id_printed_at!), 'MMM d, HH:mm') : '-'}</TableCell>
-                  <TableCell className="text-xs">{shipment.group_id_printed_by?.email || '-'}</TableCell>
-                  <TableCell>
-                    {!shipment.manifest_url ? (
-                      <Badge variant="destructive">
-                        <XCircle className="h-3 w-3 mr-1" />
-                        No Manifest
-                      </Badge>
-                    ) : settings.block_cancelled && shipment.cancelled ? (
-                      <Badge variant="destructive">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Cancelled
-                      </Badge>
-                    ) : shipment.printed ? (
-                      <Badge className="bg-success">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Printed
-                      </Badge>
+                  <TableCell className="hidden lg:table-cell">{shipment.show_date ? format(new Date(shipment.show_date), 'MMM d, yyyy') : '-'}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{shipment.price || '-'}</TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">{shipment.quantity || '-'}</TableCell>
+                  <TableCell className="hidden md:table-cell font-mono text-xs">{shipment.tracking || '-'}</TableCell>
+                  <TableCell className="hidden xl:table-cell max-w-[200px] truncate" title={shipment.address_full || ''}>{shipment.address_full || '-'}</TableCell>
+                  <TableCell className="hidden xl:table-cell">
+                    {shipment.cancelled ? (
+                      <Badge variant="destructive" className="text-xs">Cancelled</Badge>
                     ) : (
-                      <Badge variant="outline">Ready</Badge>
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {shipment.printed ? (
+                      <div className="flex items-center gap-1 text-success">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-xs">
+                          {shipment.printed_at ? format(new Date(shipment.printed_at), 'MMM d, HH:mm') : 'Yes'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <XCircle className="h-4 w-4" />
+                        <span className="text-xs">No</span>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-xs">{shipment.printed_by?.email || '-'}</TableCell>
+                  <TableCell className="hidden xl:table-cell">
+                    {shipment.group_id_printed ? (
+                      <div className="flex items-center gap-1 text-success">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-xs">
+                          {shipment.group_id_printed_at ? format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm') : 'Yes'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <XCircle className="h-4 w-4" />
+                        <span className="text-xs">No</span>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-xs">{shipment.group_id_printed_by?.email || '-'}</TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {!shipment.manifest_url ? (
+                      <Badge variant="destructive" className="text-xs">No Manifest</Badge>
+                    ) : settings.block_cancelled && shipment.cancelled ? (
+                      <Badge variant="destructive" className="text-xs">Cancelled</Badge>
+                    ) : shipment.printed ? (
+                      <Badge variant="default" className="text-xs bg-success">Printed</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">Ready</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="sticky right-0 bg-background z-10">
                     <div className="flex gap-2">
                       <Button
                         size="sm"
