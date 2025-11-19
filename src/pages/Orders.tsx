@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/useAppStore';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,7 @@ import { format } from 'date-fns';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
 
 export default function Orders() {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('all');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 600);
@@ -57,9 +59,7 @@ export default function Orders() {
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [showDateFilter, setShowDateFilter] = useState<string | undefined>(undefined);
-  const [recentShowDates, setRecentShowDates] = useState<Array<{ date: string; count: number }>>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(false);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
   const [editingUids, setEditingUids] = useState<{[key: string]: string}>({});
   const [selectedShipments, setSelectedShipments] = useState<Set<string>>(new Set());
@@ -70,118 +70,112 @@ export default function Orders() {
     unprinted: Shipment[];
   }>({ alreadyPrinted: [], unprinted: [] });
   const [pageSize, setPageSize] = useState(25);
-  const [totalRecords, setTotalRecords] = useState(0);
   
   const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
 
+  // Fetch app config and user settings (cached with React Query)
+  const { data: appConfig } = useQuery({
+    queryKey: ['app-config'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'printnode_api_key')
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data?.value || '';
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  const { data: userSettings } = useQuery({
+    queryKey: ['user-settings'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Parallel fetch of recent show dates and initial data
+  const { data: recentShowDates } = useQuery({
+    queryKey: ['recent-show-dates'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('show_date')
+        .not('show_date', 'is', null)
+        .order('show_date', { ascending: false });
+      
+      if (error) throw error;
+
+      // Count occurrences of each show_date
+      const dateCounts = (data || []).reduce((acc, { show_date }) => {
+        if (show_date) {
+          acc[show_date] = (acc[show_date] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Convert to array and sort by date descending
+      return Object.entries(dateCounts)
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5);
+    },
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
+  });
+
+  // Auto-select most recent show date on initial load
   useEffect(() => {
-    loadAppConfig();
-    loadUserSettings();
-  }, []);
+    if (recentShowDates && recentShowDates.length > 0 && !showDateFilter) {
+      setShowDateFilter(recentShowDates[0].date);
+    }
+  }, [recentShowDates]);
+
+  // Update settings when userSettings data loads
+  useEffect(() => {
+    if (userSettings) {
+      updateSettings({
+        default_printer_id: userSettings.default_printer_id,
+        auto_print: userSettings.auto_print,
+        block_cancelled: userSettings.block_cancelled
+      });
+    }
+  }, [userSettings, updateSettings]);
+
+  // Update API key when appConfig loads
+  useEffect(() => {
+    if (appConfig) {
+      setPrintnodeApiKey(appConfig);
+    }
+  }, [appConfig]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, debouncedSearch, showDateFilter]);
 
-  // Load shipments when page, filters, or search changes
-  useEffect(() => {
-    loadShipments();
-  }, [currentPage, filter, debouncedSearch, showDateFilter, pageSize]);
-
-  // Fetch recent show dates and set default to most recent
-  useEffect(() => {
-    const fetchRecentShowDates = async () => {
+  // React Query for shipments with caching and optimized column selection
+  const { data: shipmentsResponse, isLoading: loading } = useQuery({
+    queryKey: ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from('shipments')
-        .select('show_date')
-        .not('show_date', 'is', null)
-        .eq('user_id', user.id)
-        .order('show_date', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching recent show dates:', error);
-        return;
-      }
-      
-      if (data) {
-        const dateCounts = data.reduce((acc, row) => {
-          if (row.show_date) {
-            acc[row.show_date] = (acc[row.show_date] || 0) + 1;
-          }
-          return acc;
-        }, {} as Record<string, number>);
-        
-        const dates = Object.entries(dateCounts)
-          .map(([date, count]) => ({ date, count }))
-          .sort((a, b) => b.date.localeCompare(a.date))
-          .slice(0, 5);
-        
-        setRecentShowDates(dates);
-        
-        // Auto-select most recent show date by default
-        if (dates.length > 0 && !showDateFilter) {
-          setShowDateFilter(dates[0].date);
-        }
-      }
-    };
-    
-    fetchRecentShowDates();
-  }, []);
-
-  const loadAppConfig = async () => {
-    const { data, error } = await supabase
-      .from('app_config')
-      .select('value')
-      .eq('key', 'printnode_api_key')
-      .maybeSingle();
-
-    if (error) {
-      console.error('Failed to load app config:', error);
-      return;
-    }
-
-    if (data?.value) {
-      setPrintnodeApiKey(data.value);
-    }
-  };
-
-  const loadUserSettings = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Failed to load user settings:', error);
-      return;
-    }
-
-    if (data) {
-      updateSettings({
-        default_printer_id: data.default_printer_id,
-        auto_print: data.auto_print,
-        block_cancelled: data.block_cancelled
-      });
-    }
-  };
-
-  const loadShipments = async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    try {
       // Prevent extremely high page numbers that cause slow queries
       const MAX_OFFSET = 10000;
       const currentOffset = (currentPage - 1) * pageSize;
@@ -190,13 +184,38 @@ export default function Orders() {
           description: 'Please use search or filters to narrow down results.'
         });
         setCurrentPage(1);
-        setLoading(false);
-        return;
+        throw new Error('Page number too high');
       }
       
+      // Phase 1: Selective column fetching (exclude raw JSONB)
       let query = supabase
         .from('shipments')
-        .select('*')
+        .select(`
+          id,
+          order_id,
+          uid,
+          location_id,
+          buyer,
+          product_name,
+          quantity,
+          price,
+          tracking,
+          address_full,
+          show_date,
+          printed,
+          printed_at,
+          printed_by_user_id,
+          bundle,
+          cancelled,
+          order_group_id,
+          group_id_printed,
+          group_id_printed_at,
+          group_id_printed_by_user_id,
+          label_url,
+          manifest_url,
+          created_at,
+          user_id
+        `, { count: 'exact' }) // Phase 2: Add exact count for proper pagination
         .order('created_at', { ascending: false });
 
       // Apply tab filters to database query
@@ -215,9 +234,8 @@ export default function Orders() {
         const searchTerm = debouncedSearch.trim();
         const upperSearch = searchTerm.toUpperCase();
         
-        // Single optimized query with exact UID match priority
         query = query.or(
-          `uid.eq.${upperSearch},` + // Exact UID match (highest priority)
+          `uid.eq.${upperSearch},` +
           `uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,` +
           `buyer.ilike.%${searchTerm}%,` +
           `tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,` +
@@ -235,42 +253,131 @@ export default function Orders() {
       const endIndex = startIndex + pageSize - 1;
       query = query.range(startIndex, endIndex);
 
-      const { data: shipmentsData, error: shipmentsError } = await query;
+      const { data: shipmentsData, error: shipmentsError, count } = await query;
 
-      if (shipmentsError) {
-        toast.error('Failed to load shipments');
-        setLoading(false);
-        return;
-      }
+      if (shipmentsError) throw shipmentsError;
 
-      // Store shipments without enrichment for performance
-      setShipments(shipmentsData || []);
-      setTotalRecords(shipmentsData?.length || 0);
-    } catch (error: any) {
-      toast.error('Failed to load shipments', { description: error.message });
-    } finally {
-      setLoading(false);
+      return {
+        shipments: shipmentsData || [],
+        totalCount: count || 0
+      };
+    },
+    staleTime: 30000, // Cache for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+  });
+
+  // Update local state when query data changes
+  useEffect(() => {
+    if (shipmentsResponse) {
+      setShipments(shipmentsResponse.shipments);
     }
-  };
+  }, [shipmentsResponse, setShipments]);
+
+  // Phase 5: Optimistic mutation for location ID
+  const updateLocationMutation = useMutation({
+    mutationFn: async ({ shipmentId, newLocationId }: { shipmentId: string; newLocationId: string }) => {
+      const { error } = await supabase
+        .from('shipments')
+        .update({ location_id: newLocationId })
+        .eq('id', shipmentId);
+      
+      if (error) throw error;
+      return { shipmentId, newLocationId };
+    },
+    onMutate: async ({ shipmentId, newLocationId }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['shipments'] });
+      
+      // Optimistically update UI
+      const previousShipments = queryClient.getQueryData(['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize]);
+      
+      queryClient.setQueryData(
+        ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            shipments: old.shipments.map((s: Shipment) =>
+              s.id === shipmentId ? { ...s, location_id: newLocationId } : s
+            )
+          };
+        }
+      );
+      
+      // Also update local state
+      updateShipment(shipmentId, { location_id: newLocationId });
+      
+      return { previousShipments };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousShipments) {
+        queryClient.setQueryData(
+          ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
+          context.previousShipments
+        );
+      }
+      toast.error('Failed to update location');
+    },
+    onSuccess: () => {
+      toast.success('Location updated');
+    }
+  });
+
+  // Phase 5: Optimistic mutation for UID
+  const updateUidMutation = useMutation({
+    mutationFn: async ({ shipmentId, newUid }: { shipmentId: string; newUid: string }) => {
+      const { error } = await supabase
+        .from('shipments')
+        .update({ uid: newUid })
+        .eq('id', shipmentId);
+      
+      if (error) throw error;
+      return { shipmentId, newUid };
+    },
+    onMutate: async ({ shipmentId, newUid }) => {
+      await queryClient.cancelQueries({ queryKey: ['shipments'] });
+      
+      const previousShipments = queryClient.getQueryData(['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize]);
+      
+      queryClient.setQueryData(
+        ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            shipments: old.shipments.map((s: Shipment) =>
+              s.id === shipmentId ? { ...s, uid: newUid } : s
+            )
+          };
+        }
+      );
+      
+      updateShipment(shipmentId, { uid: newUid });
+      
+      return { previousShipments };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousShipments) {
+        queryClient.setQueryData(
+          ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
+          context.previousShipments
+        );
+      }
+      toast.error('Failed to update UID');
+    },
+    onSuccess: () => {
+      toast.success('UID updated');
+    }
+  });
 
   const handleLocationIdChange = async (shipmentId: string, newLocationId: string) => {
     // Clear editing state
     const { [shipmentId]: _, ...rest } = editingLocationIds;
     setEditingLocationIds(rest);
-
-    try {
-      const { error } = await supabase
-        .from('shipments')
-        .update({ location_id: newLocationId })
-        .eq('id', shipmentId);
-
-      if (error) throw error;
-
-      updateShipment(shipmentId, { location_id: newLocationId });
-      toast.success('Location ID updated');
-    } catch (error: any) {
-      toast.error('Failed to update location ID', { description: error.message });
-    }
+    
+    // Use optimistic mutation
+    updateLocationMutation.mutate({ shipmentId, newLocationId });
   };
 
   const handleUidChange = async (shipmentId: string, newUid: string) => {
@@ -285,23 +392,8 @@ export default function Orders() {
       return;
     }
 
-    try {
-      const { error } = await supabase
-        .from('shipments')
-        .update({ uid: trimmedUid })
-        .eq('id', shipmentId);
-
-      if (error) throw error;
-
-      updateShipment(shipmentId, { uid: trimmedUid });
-      
-      // Reload shipments to update the shipmentMap with new UID
-      await loadShipments();
-      
-      toast.success('UID updated');
-    } catch (error: any) {
-      toast.error('Failed to update UID', { description: error.message });
-    }
+    // Use optimistic mutation
+    updateUidMutation.mutate({ shipmentId, newUid: trimmedUid });
   };
 
   const handlePrint = async (shipment: Shipment) => {
@@ -633,7 +725,7 @@ export default function Orders() {
         });
 
         // Force a full reload to ensure UI reflects database state
-        await loadShipments();
+        await queryClient.invalidateQueries({ queryKey: ['shipments'] });
 
       } catch (error: any) {
         failCount++;
@@ -791,7 +883,7 @@ export default function Orders() {
         </div>
         <ShowDateFilter 
           selectedDate={showDateFilter}
-          recentDates={recentShowDates}
+          recentDates={recentShowDates || []}
           onDateSelect={setShowDateFilter}
         />
       </div>
