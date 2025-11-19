@@ -6,6 +6,7 @@ interface ColumnWidths {
 
 const DEFAULT_WIDTHS: ColumnWidths = {
   uid: 180,
+  bundleId: 200,
   product: 220,
   location: 180,
   shipping: 250,

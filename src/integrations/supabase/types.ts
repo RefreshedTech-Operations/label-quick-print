@@ -252,7 +252,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_show_date_counts: {
+        Args: { limit_rows?: number }
+        Returns: {
+          count: number
+          show_date: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
