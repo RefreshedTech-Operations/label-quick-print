@@ -1077,7 +1077,7 @@ export default function Orders() {
 
                   {/* Order Details Stack - UID (editable), Order ID, Group ID */}
                   <TableCell className="sticky left-[190px] bg-background z-10">
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 min-w-[200px]">
                       <Input
                         value={editingUids[shipment.id] ?? shipment.uid ?? ''}
                         onChange={(e) => setEditingUids(prev => ({ 
@@ -1106,10 +1106,10 @@ export default function Orders() {
                         className="h-7 text-xs font-mono font-semibold"
                       />
                       <div className="text-xs text-muted-foreground space-y-0.5">
-                        <div className="font-mono">Order: {shipment.order_id}</div>
+                        <div className="font-mono break-all">Order: {shipment.order_id}</div>
                         {shipment.order_group_id && (
-                          <div className="font-mono truncate max-w-[150px]" title={shipment.order_group_id}>
-                            Group: {shipment.order_group_id.slice(0, 8)}...
+                          <div className="font-mono break-all" title={shipment.order_group_id}>
+                            Group: {shipment.order_group_id}
                           </div>
                         )}
                       </div>
@@ -1118,7 +1118,7 @@ export default function Orders() {
 
                   {/* Location & Buyer Stack */}
                   <TableCell className="hidden md:table-cell">
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 min-w-[150px]">
                       <Input
                         value={editingLocationIds[shipment.id] ?? shipment.location_id ?? ''}
                         onChange={(e) => setEditingLocationIds(prev => ({ 
@@ -1143,7 +1143,7 @@ export default function Orders() {
                         placeholder="Location"
                         className="h-7 text-xs"
                       />
-                      <div className="text-xs text-muted-foreground truncate max-w-[140px]" title={shipment.buyer || ''}>
+                      <div className="text-xs text-muted-foreground break-words" title={shipment.buyer || ''}>
                         {shipment.buyer || '-'}
                       </div>
                     </div>
@@ -1151,19 +1151,19 @@ export default function Orders() {
 
                   {/* Product */}
                   <TableCell>
-                    <div className="max-w-[200px]">
-                      <div className="font-medium truncate text-sm" title={shipment.product_name}>{shipment.product_name}</div>
+                    <div className="max-w-[250px]">
+                      <div className="font-medium text-sm break-words" title={shipment.product_name}>{shipment.product_name}</div>
                       <div className="text-xs text-muted-foreground">Qty: {shipment.quantity || 1}</div>
                     </div>
                   </TableCell>
 
                   {/* Shipping Stack - Tracking + Address */}
                   <TableCell className="hidden md:table-cell">
-                    <div className="space-y-0.5 max-w-[180px]">
-                      <div className="font-mono text-xs truncate" title={shipment.tracking || ''}>
+                    <div className="space-y-0.5 min-w-[200px] max-w-[250px]">
+                      <div className="font-mono text-xs break-all" title={shipment.tracking || ''}>
                         {shipment.tracking || '-'}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate" title={shipment.address_full || ''}>
+                      <div className="text-xs text-muted-foreground break-words" title={shipment.address_full || ''}>
                         {shipment.address_full || '-'}
                       </div>
                     </div>
@@ -1204,17 +1204,17 @@ export default function Orders() {
 
                   {/* Print History Stack */}
                   <TableCell className="hidden xl:table-cell">
-                    <div className="space-y-0.5 text-xs text-muted-foreground max-w-[180px]">
+                    <div className="space-y-0.5 text-xs text-muted-foreground min-w-[200px]">
                       {shipment.printed_at && (
-                        <div className="truncate" title={`Printed: ${format(new Date(shipment.printed_at), 'MMM d, HH:mm')} by ${shipment.printed_by?.email || 'Unknown'}`}>
+                        <div className="break-words" title={`Printed: ${format(new Date(shipment.printed_at), 'MMM d, HH:mm')} by ${shipment.printed_by?.email || 'Unknown'}`}>
                           <span className="font-medium">Printed:</span> {format(new Date(shipment.printed_at), 'MMM d, HH:mm')}
-                          {shipment.printed_by?.email && <div className="truncate">by {shipment.printed_by.email}</div>}
+                          {shipment.printed_by?.email && <div className="break-words">by {shipment.printed_by.email}</div>}
                         </div>
                       )}
                       {shipment.group_id_printed_at && (
-                        <div className="truncate" title={`Group: ${format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')} by ${shipment.group_id_printed_by?.email || 'Unknown'}`}>
+                        <div className="break-words" title={`Group: ${format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')} by ${shipment.group_id_printed_by?.email || 'Unknown'}`}>
                           <span className="font-medium">Group:</span> {format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')}
-                          {shipment.group_id_printed_by?.email && <div className="truncate">by {shipment.group_id_printed_by.email}</div>}
+                          {shipment.group_id_printed_by?.email && <div className="break-words">by {shipment.group_id_printed_by.email}</div>}
                         </div>
                       )}
                       {!shipment.printed_at && !shipment.group_id_printed_at && '-'}
