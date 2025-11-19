@@ -141,13 +141,10 @@ export default function Orders() {
     }
 
     try {
-      // Determine if we're in search mode
-      const inSearchMode = forceSearchMode || isSearchMode || debouncedSearch.trim() !== '' || (dateRange?.from && dateRange?.to);
-      
       // Prevent extremely high page numbers that cause slow queries
       const MAX_OFFSET = 10000;
       const currentOffset = (currentPage - 1) * pageSize;
-      if (currentOffset > MAX_OFFSET && !inSearchMode) {
+      if (currentOffset > MAX_OFFSET) {
         toast.error('Page number too high', {
           description: 'Please use search or filters to narrow down results.'
         });
@@ -172,36 +169,32 @@ export default function Orders() {
         query = query.or('manifest_url.is.null,cancelled.not.is.null');
       }
 
-      // Apply search filter if present - optimized single query
-      if (inSearchMode) {
-        if (debouncedSearch.trim()) {
-          const searchTerm = debouncedSearch.trim();
-          const upperSearch = searchTerm.toUpperCase();
-          
-          // Single optimized query with exact UID match priority
-          query = query.or(
-            `uid.eq.${upperSearch},` + // Exact UID match (highest priority)
-            `uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,` +
-            `order_group_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,` +
-            `tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,` +
-            `location_id.ilike.%${searchTerm}%`
-          );
-        }
+      // Apply search filter if present
+      if (debouncedSearch.trim()) {
+        const searchTerm = debouncedSearch.trim();
+        const upperSearch = searchTerm.toUpperCase();
         
-        if (dateRange?.from && dateRange?.to) {
-          query = query
-            .gte('show_date', dateRange.from.toISOString().split('T')[0])
-            .lte('show_date', dateRange.to.toISOString().split('T')[0]);
-        }
-        
-        // In search mode, load reasonable amount of records
-        query = query.limit(1000);
-      } else {
-        // In pagination mode, only load current page
-        const startIndex = (currentPage - 1) * pageSize;
-        const endIndex = startIndex + pageSize - 1;
-        query = query.range(startIndex, endIndex);
+        // Single optimized query with exact UID match priority
+        query = query.or(
+          `uid.eq.${upperSearch},` + // Exact UID match (highest priority)
+          `uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,` +
+          `order_group_id.ilike.%${searchTerm}%,buyer.ilike.%${searchTerm}%,` +
+          `tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,` +
+          `location_id.ilike.%${searchTerm}%`
+        );
       }
+      
+      // Apply date range filter if present
+      if (dateRange?.from && dateRange?.to) {
+        query = query
+          .gte('show_date', dateRange.from.toISOString().split('T')[0])
+          .lte('show_date', dateRange.to.toISOString().split('T')[0]);
+      }
+      
+      // Always paginate
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize - 1;
+      query = query.range(startIndex, endIndex);
 
       const { data: shipmentsData, error: shipmentsError, count } = await query;
 
