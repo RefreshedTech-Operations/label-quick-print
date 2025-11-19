@@ -950,25 +950,25 @@ export default function Orders() {
       )}
 
       <div className="border rounded-lg overflow-x-auto">
-        <Table className="min-w-[1100px]">
+        <Table className="min-w-[1400px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[50px] sticky left-0 bg-background z-10">
+              <TableHead className="w-[60px] sticky left-0 bg-background z-20 border-r">
                 <Checkbox
                   checked={paginatedShipments.length > 0 && paginatedShipments.every(s => selectedShipments.has(s.id))}
                   onCheckedChange={toggleSelectAll}
                   disabled={isBulkPrinting}
                 />
               </TableHead>
-              <TableHead className="w-[140px] sticky left-[50px] bg-background z-10">Actions</TableHead>
-              <TableHead className="sticky left-[190px] bg-background z-10 relative group" style={{ width: columnWidths.uid }}>
+              <TableHead className="w-[100px] sticky left-[60px] bg-background z-20 border-r">Actions</TableHead>
+              <TableHead className="relative group" style={{ width: columnWidths.uid }}>
                 <span>Order Details</span>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 group-hover:bg-primary/30 transition-colors"
                   onMouseDown={(e) => handleResizeStart('uid', e.clientX)}
                 />
               </TableHead>
-              <TableHead className="hidden md:table-cell relative group" style={{ width: columnWidths.location }}>
+              <TableHead className="relative group" style={{ width: columnWidths.location }}>
                 <span>Location & Buyer</span>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 group-hover:bg-primary/30 transition-colors"
@@ -982,28 +982,28 @@ export default function Orders() {
                   onMouseDown={(e) => handleResizeStart('product', e.clientX)}
                 />
               </TableHead>
-              <TableHead className="hidden md:table-cell relative group" style={{ width: columnWidths.shipping }}>
+              <TableHead className="relative group" style={{ width: columnWidths.shipping }}>
                 <span>Shipping</span>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 group-hover:bg-primary/30 transition-colors"
                   onMouseDown={(e) => handleResizeStart('shipping', e.clientX)}
                 />
               </TableHead>
-              <TableHead className="hidden lg:table-cell relative group" style={{ width: columnWidths.status }}>
+              <TableHead className="relative group" style={{ width: columnWidths.status }}>
                 <span>Status</span>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 group-hover:bg-primary/30 transition-colors"
                   onMouseDown={(e) => handleResizeStart('status', e.clientX)}
                 />
               </TableHead>
-              <TableHead className="hidden lg:table-cell relative group" style={{ width: columnWidths.showDate }}>
+              <TableHead className="relative group" style={{ width: columnWidths.showDate }}>
                 <span>Show Date & Price</span>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 group-hover:bg-primary/30 transition-colors"
                   onMouseDown={(e) => handleResizeStart('showDate', e.clientX)}
                 />
               </TableHead>
-              <TableHead className="hidden xl:table-cell relative group" style={{ width: columnWidths.printHistory }}>
+              <TableHead className="relative group" style={{ width: columnWidths.printHistory }}>
                 <span>Print History</span>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 group-hover:bg-primary/30 transition-colors"
@@ -1017,47 +1017,52 @@ export default function Orders() {
               <>
                 {[...Array(10)].map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell className="sticky left-0 bg-background z-10"><Skeleton className="h-4 w-4" /></TableCell>
-                    <TableCell className="sticky left-[50px] bg-background z-10">
-                      <div className="flex flex-col gap-1">
-                        <Skeleton className="h-7 w-20" />
-                        <Skeleton className="h-7 w-20" />
+                    <TableCell className="sticky left-0 bg-background z-10 border-r"><Skeleton className="h-5 w-5" /></TableCell>
+                    <TableCell className="sticky left-[60px] bg-background z-10 border-r">
+                      <div className="flex flex-col gap-2">
+                        <Skeleton className="h-9 w-full" />
+                        <Skeleton className="h-9 w-full" />
                       </div>
                     </TableCell>
-                    <TableCell className="sticky left-[190px] bg-background z-10" style={{ width: columnWidths.uid }}>
-                      <div className="space-y-1">
-                        <Skeleton className="h-7 w-full" />
+                    <TableCell style={{ width: columnWidths.uid }}>
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-9 w-full" />
                         <Skeleton className="h-3 w-28" />
                         <Skeleton className="h-3 w-20" />
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell" style={{ width: columnWidths.location }}>
-                      <div className="space-y-1">
-                        <Skeleton className="h-7 w-full" />
+                    <TableCell style={{ width: columnWidths.location }}>
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-9 w-full" />
                         <Skeleton className="h-3 w-24" />
                       </div>
                     </TableCell>
-                    <TableCell style={{ width: columnWidths.product }}><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell className="hidden md:table-cell" style={{ width: columnWidths.shipping }}>
+                    <TableCell style={{ width: columnWidths.product }}>
                       <div className="space-y-1">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </TableCell>
+                    <TableCell style={{ width: columnWidths.shipping }}>
+                      <div className="space-y-1.5">
                         <Skeleton className="h-3 w-24" />
                         <Skeleton className="h-3 w-32" />
                       </div>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell" style={{ width: columnWidths.status }}>
-                      <div className="space-y-1">
+                    <TableCell style={{ width: columnWidths.status }}>
+                      <div className="space-y-1.5">
                         <Skeleton className="h-5 w-16" />
                         <Skeleton className="h-5 w-20" />
                       </div>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell" style={{ width: columnWidths.showDate }}>
-                      <div className="space-y-1">
+                    <TableCell style={{ width: columnWidths.showDate }}>
+                      <div className="space-y-1.5">
                         <Skeleton className="h-3 w-20" />
                         <Skeleton className="h-3 w-12" />
                       </div>
                     </TableCell>
-                    <TableCell className="hidden xl:table-cell" style={{ width: columnWidths.printHistory }}>
-                      <div className="space-y-1">
+                    <TableCell style={{ width: columnWidths.printHistory }}>
+                      <div className="space-y-1.5">
                         <Skeleton className="h-3 w-24" />
                         <Skeleton className="h-3 w-24" />
                       </div>
@@ -1084,24 +1089,25 @@ export default function Orders() {
                   }
                 >
                   {/* Checkbox */}
-                  <TableCell className="sticky left-0 bg-background z-10">
+                  <TableCell className="sticky left-0 bg-background z-10 border-r">
                     <Checkbox
                       checked={selectedShipments.has(shipment.id)}
                       onCheckedChange={() => toggleSelectShipment(shipment.id)}
                       disabled={isBulkPrinting}
+                      className="h-5 w-5"
                     />
                   </TableCell>
 
-                  {/* Actions - moved to left after checkbox */}
-                  <TableCell className="sticky left-[50px] bg-background z-10">
-                    <div className="flex flex-col gap-1">
+                  {/* Actions - Larger buttons for touchscreen */}
+                  <TableCell className="sticky left-[60px] bg-background z-10 border-r">
+                    <div className="flex flex-col gap-2">
                       <Button
                         size="sm"
                         onClick={() => handlePrint(shipment)}
                         disabled={!shipment.manifest_url || printing === shipment.id}
-                        className="h-7 text-xs px-2"
+                        className="h-9 text-sm px-3 touch-manipulation"
                       >
-                        <Printer className="h-3 w-3 mr-1" />
+                        <Printer className="h-4 w-4 mr-1.5" />
                         {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
                       </Button>
                       {shipment.order_group_id && (
@@ -1110,9 +1116,9 @@ export default function Orders() {
                           variant="outline"
                           onClick={() => handlePrintGroupLabel(shipment)}
                           disabled={!shipment.manifest_url || printingGroup === shipment.order_group_id}
-                          className="h-7 text-xs px-2"
+                          className="h-9 text-sm px-3 touch-manipulation"
                         >
-                          <Printer className="h-3 w-3 mr-1" />
+                          <Printer className="h-4 w-4 mr-1.5" />
                           {printingGroup === shipment.order_group_id ? 'Print...' : 'Group'}
                         </Button>
                       )}
@@ -1120,8 +1126,8 @@ export default function Orders() {
                   </TableCell>
 
                   {/* Order Details Stack - UID (editable), Order ID, Group ID */}
-                  <TableCell className="sticky left-[190px] bg-background z-10" style={{ width: columnWidths.uid }}>
-                    <div className="space-y-0.5">
+                  <TableCell style={{ width: columnWidths.uid }}>
+                    <div className="space-y-1">
                       <Input
                         value={editingUids[shipment.id] ?? shipment.uid ?? ''}
                         onChange={(e) => setEditingUids(prev => ({ 
@@ -1147,7 +1153,7 @@ export default function Orders() {
                           }
                         }}
                         placeholder="UID"
-                        className="h-7 text-xs font-mono font-semibold"
+                        className="h-9 text-sm font-mono font-semibold"
                       />
                       <div className="text-xs text-muted-foreground space-y-0.5">
                         <div className="font-mono break-all">Order: {shipment.order_id}</div>
@@ -1161,8 +1167,8 @@ export default function Orders() {
                   </TableCell>
 
                   {/* Location & Buyer Stack */}
-                  <TableCell className="hidden md:table-cell" style={{ width: columnWidths.location }}>
-                    <div className="space-y-0.5">
+                  <TableCell style={{ width: columnWidths.location }}>
+                    <div className="space-y-1">
                       <Input
                         value={editingLocationIds[shipment.id] ?? shipment.location_id ?? ''}
                         onChange={(e) => setEditingLocationIds(prev => ({ 
@@ -1185,7 +1191,7 @@ export default function Orders() {
                           }
                         }}
                         placeholder="Location"
-                        className="h-7 text-xs"
+                        className="h-9 text-sm"
                       />
                       <div className="text-xs text-muted-foreground break-words" title={shipment.buyer || ''}>
                         {shipment.buyer || '-'}
@@ -1202,8 +1208,8 @@ export default function Orders() {
                   </TableCell>
 
                   {/* Shipping Stack - Tracking + Address */}
-                  <TableCell className="hidden md:table-cell" style={{ width: columnWidths.shipping }}>
-                    <div className="space-y-0.5">
+                  <TableCell style={{ width: columnWidths.shipping }}>
+                    <div className="space-y-1">
                       <div className="font-mono text-xs break-all" title={shipment.tracking || ''}>
                         {shipment.tracking || '-'}
                       </div>
@@ -1214,8 +1220,8 @@ export default function Orders() {
                   </TableCell>
 
                   {/* Status Stack - Bundle, Cancelled, Printed status */}
-                  <TableCell className="hidden lg:table-cell" style={{ width: columnWidths.status }}>
-                    <div className="space-y-1">
+                  <TableCell style={{ width: columnWidths.status }}>
+                    <div className="space-y-1.5">
                       {shipment.bundle && (
                         <Badge variant="default" className="text-xs">Bundle</Badge>
                       )}
@@ -1239,16 +1245,16 @@ export default function Orders() {
                   </TableCell>
 
                   {/* Show Date & Price Stack */}
-                  <TableCell className="hidden lg:table-cell" style={{ width: columnWidths.showDate }}>
-                    <div className="space-y-0.5">
+                  <TableCell style={{ width: columnWidths.showDate }}>
+                    <div className="space-y-1">
                       <div className="text-xs">{shipment.show_date || '-'}</div>
                       <div className="text-xs text-muted-foreground">{shipment.price || '-'}</div>
                     </div>
                   </TableCell>
 
                   {/* Print History Stack */}
-                  <TableCell className="hidden xl:table-cell" style={{ width: columnWidths.printHistory }}>
-                    <div className="space-y-0.5 text-xs text-muted-foreground">
+                  <TableCell style={{ width: columnWidths.printHistory }}>
+                    <div className="space-y-1 text-xs text-muted-foreground">
                       {shipment.printed_at && (
                         <div className="break-words" title={`Printed: ${format(new Date(shipment.printed_at), 'MMM d, HH:mm')} by ${shipment.printed_by?.email || 'Unknown'}`}>
                           <span className="font-medium">Printed:</span> {format(new Date(shipment.printed_at), 'MMM d, HH:mm')}

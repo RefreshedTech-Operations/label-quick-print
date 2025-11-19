@@ -5,15 +5,15 @@ interface ColumnWidths {
 }
 
 const DEFAULT_WIDTHS: ColumnWidths = {
-  uid: 120,
-  product: 200,
-  location: 150,
-  shipping: 200,
+  uid: 180,
+  product: 220,
+  location: 180,
+  shipping: 250,
   quantity: 100,
   price: 100,
-  status: 150,
-  printHistory: 180,
-  showDate: 120,
+  status: 180,
+  printHistory: 220,
+  showDate: 140,
 };
 
 export function useColumnResize(storageKey: string = 'table-column-widths') {
