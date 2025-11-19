@@ -234,17 +234,23 @@ export default function Orders() {
         query = query.or('manifest_url.is.null,cancelled.not.is.null');
       }
 
-      // Apply search filter if present
+      // Apply search filter if present - now searches all fields
       if (debouncedSearch.trim()) {
         const searchTerm = debouncedSearch.trim();
         const upperSearch = searchTerm.toUpperCase();
         
         query = query.or(
           `uid.eq.${upperSearch},` +
-          `uid.ilike.%${searchTerm}%,order_id.ilike.%${searchTerm}%,` +
+          `uid.ilike.%${searchTerm}%,` +
+          `order_id.ilike.%${searchTerm}%,` +
+          `order_group_id.ilike.%${searchTerm}%,` +
           `buyer.ilike.%${searchTerm}%,` +
-          `tracking.ilike.%${searchTerm}%,product_name.ilike.%${searchTerm}%,` +
-          `location_id.ilike.%${searchTerm}%`
+          `tracking.ilike.%${searchTerm}%,` +
+          `product_name.ilike.%${searchTerm}%,` +
+          `location_id.ilike.%${searchTerm}%,` +
+          `address_full.ilike.%${searchTerm}%,` +
+          `price.ilike.%${searchTerm}%,` +
+          `cancelled.ilike.%${searchTerm}%`
         );
       }
       
