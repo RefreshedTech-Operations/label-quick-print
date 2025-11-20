@@ -50,6 +50,7 @@ import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { format } from 'date-fns';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
 import { useColumnResize } from '@/hooks/useColumnResize';
+import { HighlightText } from '@/components/HighlightText';
 
 export default function Orders() {
   const queryClient = useQueryClient();
@@ -1106,7 +1107,7 @@ export default function Orders() {
                         className="h-9 text-sm font-mono font-semibold"
                       />
                       <div className="text-xs text-muted-foreground">
-                        <div className="font-mono break-all">Order: {shipment.order_id}</div>
+                        <div className="font-mono break-all">Order: <HighlightText text={shipment.order_id} searchTerm={debouncedSearch} /></div>
                       </div>
                     </div>
                   </TableCell>
@@ -1115,7 +1116,7 @@ export default function Orders() {
                   <TableCell style={{ width: columnWidths.bundleId }}>
                     {shipment.order_group_id && (
                       <div className="font-mono text-sm break-all" title={shipment.order_group_id}>
-                        {shipment.order_group_id}
+                        <HighlightText text={shipment.order_group_id} searchTerm={debouncedSearch} />
                       </div>
                     )}
                     {shipment.bundle && (
@@ -1151,7 +1152,7 @@ export default function Orders() {
                         className="h-9 text-sm"
                       />
                       <div className="text-xs text-muted-foreground break-words" title={shipment.buyer || ''}>
-                        {shipment.buyer || '-'}
+                        <HighlightText text={shipment.buyer || '-'} searchTerm={debouncedSearch} />
                       </div>
                     </div>
                   </TableCell>
@@ -1159,7 +1160,7 @@ export default function Orders() {
                   {/* Product */}
                   <TableCell style={{ width: columnWidths.product }}>
                     <div>
-                      <div className="font-medium text-sm break-words" title={shipment.product_name}>{shipment.product_name}</div>
+                      <div className="font-medium text-sm break-words" title={shipment.product_name}><HighlightText text={shipment.product_name} searchTerm={debouncedSearch} /></div>
                       <div className="text-xs text-muted-foreground">Qty: {shipment.quantity || 1}</div>
                     </div>
                   </TableCell>
@@ -1168,10 +1169,10 @@ export default function Orders() {
                   <TableCell style={{ width: columnWidths.shipping }}>
                     <div className="space-y-1">
                       <div className="font-mono text-xs break-all" title={shipment.tracking || ''}>
-                        {shipment.tracking || '-'}
+                        <HighlightText text={shipment.tracking || '-'} searchTerm={debouncedSearch} />
                       </div>
                       <div className="text-xs text-muted-foreground break-words" title={shipment.address_full || ''}>
-                        {shipment.address_full || '-'}
+                        <HighlightText text={shipment.address_full || '-'} searchTerm={debouncedSearch} />
                       </div>
                     </div>
                   </TableCell>
