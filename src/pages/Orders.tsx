@@ -233,8 +233,8 @@ export default function Orders() {
           // For full UUID searches, use exact match (fast)
           query = query.eq('order_group_id', searchValue);
         } else {
-          // For partial searches, include bundle ID with text casting
-          query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},order_group_id::text.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
+          // For partial searches, search across text fields (excluding bundle ID due to UUID type constraints)
+          query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
         }
       }
 
