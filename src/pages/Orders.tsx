@@ -221,39 +221,18 @@ export default function Orders() {
         query = query.or('manifest_url.is.null,cancelled.not.is.null');
       }
 
-      const { data: allShipmentsData, error: shipmentsError } = await query;
-
-      if (shipmentsError) throw shipmentsError;
-
-      let shipmentsData = allShipmentsData || [];
-
-      // Apply search filter client-side - searches all fields
+      // Apply search at DATABASE level for all searches
       if (debouncedSearch.trim()) {
-        const searchTerm = debouncedSearch.trim().toLowerCase();
-        
-        shipmentsData = shipmentsData.filter(shipment => {
-          return (
-            shipment.uid?.toLowerCase().includes(searchTerm) ||
-            shipment.order_id?.toLowerCase().includes(searchTerm) ||
-            shipment.order_group_id?.toLowerCase().includes(searchTerm) ||
-            shipment.buyer?.toLowerCase().includes(searchTerm) ||
-            shipment.tracking?.toLowerCase().includes(searchTerm) ||
-            shipment.product_name?.toLowerCase().includes(searchTerm) ||
-            shipment.location_id?.toLowerCase().includes(searchTerm) ||
-            shipment.address_full?.toLowerCase().includes(searchTerm) ||
-            shipment.price?.toLowerCase().includes(searchTerm) ||
-            shipment.cancelled?.toLowerCase().includes(searchTerm)
-          );
-        });
+        const searchTerm = `%${debouncedSearch.trim()}%`;
+        query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},order_group_id.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
       }
 
-      // Calculate count after all filters
-      const count = shipmentsData.length;
-      
-      // Apply pagination client-side
+      // Apply pagination at DATABASE level
       const startIndex = (currentPage - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      shipmentsData = shipmentsData.slice(startIndex, endIndex);
+      const endIndex = startIndex + pageSize - 1;
+      query = query.range(startIndex, endIndex);
+
+      const { data: shipmentsData, error: shipmentsError, count } = await query;
 
       if (shipmentsError) throw shipmentsError;
 
