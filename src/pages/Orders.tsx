@@ -224,17 +224,17 @@ export default function Orders() {
       // Apply search at DATABASE level for all searches
       if (debouncedSearch.trim()) {
         const searchValue = debouncedSearch.trim();
+        const searchTerm = `%${searchValue}%`;
         
-        // Check if it's a UUID pattern (contains dashes in UUID format)
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchValue);
+        // Check if it's a full UUID pattern
+        const isFullUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchValue);
         
-        if (isUUID) {
-          // For UUID searches, use exact match on order_group_id
+        if (isFullUUID) {
+          // For full UUID searches, use exact match (fast)
           query = query.eq('order_group_id', searchValue);
         } else {
-          // For other searches, use wildcard pattern
-          const searchTerm = `%${searchValue}%`;
-          query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
+          // For partial searches, include bundle ID with text casting
+          query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},order_group_id::text.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
         }
       }
 
