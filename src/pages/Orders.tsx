@@ -224,7 +224,7 @@ export default function Orders() {
       // Apply search at DATABASE level for all searches
       if (debouncedSearch.trim()) {
         const searchTerm = `%${debouncedSearch.trim()}%`;
-        query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},order_group_id.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
+        query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},order_group_id::text.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
       }
 
       // Apply pagination at DATABASE level
