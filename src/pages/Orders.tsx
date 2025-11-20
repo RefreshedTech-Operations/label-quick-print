@@ -174,82 +174,32 @@ export default function Orders() {
         throw new Error('Page number too high');
       }
       
-      // Phase 1: Selective column fetching (exclude raw JSONB)
-      let query = supabase
-        .from('shipments')
-        .select(`
-          id,
-          order_id,
-          uid,
-          location_id,
-          buyer,
-          product_name,
-          quantity,
-          price,
-          tracking,
-          address_full,
-          show_date,
-          printed,
-          printed_at,
-          printed_by_user_id,
-          bundle,
-          cancelled,
-          order_group_id,
-          group_id_printed,
-          group_id_printed_at,
-          group_id_printed_by_user_id,
-          label_url,
-          manifest_url,
-          created_at,
-          user_id
-        `, { count: 'exact' }) // Phase 2: Add exact count for proper pagination
-        .order('created_at', { ascending: false });
+      // Use the new database function that supports UUID text searching
+      const { data: searchData, error: searchError, count } = await supabase
+        .rpc('search_shipments', {
+          search_term: debouncedSearch.trim() || null,
+          p_show_date: showDateFilter || null,
+          p_printed: filter === 'printed' ? true : filter === 'unprinted' ? false : null,
+          p_limit: pageSize,
+          p_offset: (currentPage - 1) * pageSize
+        }, {
+          count: 'exact'
+        });
 
-      // Apply show date filter first
-      if (showDateFilter) {
-        query = query.eq('show_date', showDateFilter);
-      }
+      if (searchError) throw searchError;
 
-      // Apply tab filters at database level for performance
-      if (filter === 'printed') {
-        query = query.eq('printed', true);
-      } else if (filter === 'unprinted') {
-        query = query.eq('printed', false);
-      } else if (filter === 'bundled') {
-        query = query.eq('bundle', true);
+      // If we need bundled or exceptions filter, apply post-query filtering
+      let finalData = searchData || [];
+      
+      if (filter === 'bundled') {
+        finalData = finalData.filter(s => s.bundle === true);
       } else if (filter === 'exceptions') {
-        query = query.or('manifest_url.is.null,cancelled.not.is.null');
+        finalData = finalData.filter(s => !s.manifest_url || s.cancelled);
       }
-
-      // Apply search at DATABASE level for all searches
-      if (debouncedSearch.trim()) {
-        const searchValue = debouncedSearch.trim();
-        const searchTerm = `%${searchValue}%`;
-        
-        // Check if it's a full UUID pattern
-        const isFullUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchValue);
-        
-        if (isFullUUID) {
-          // For full UUID searches, use exact match (fast)
-          query = query.eq('order_group_id', searchValue);
-        } else {
-          // For partial searches, search across text fields (excluding bundle ID due to UUID type constraints)
-          query = query.or(`uid.ilike.${searchTerm},order_id.ilike.${searchTerm},buyer.ilike.${searchTerm},tracking.ilike.${searchTerm},product_name.ilike.${searchTerm},location_id.ilike.${searchTerm},address_full.ilike.${searchTerm},price.ilike.${searchTerm},cancelled.ilike.${searchTerm}`);
-        }
-      }
-
-      // Apply pagination at DATABASE level
-      const startIndex = (currentPage - 1) * pageSize;
-      const endIndex = startIndex + pageSize - 1;
-      query = query.range(startIndex, endIndex);
-
-      const { data: shipmentsData, error: shipmentsError, count } = await query;
-
-      if (shipmentsError) throw shipmentsError;
 
       return {
-        shipments: shipmentsData || [],
-        totalCount: count || 0
+        shipments: finalData,
+        totalCount: filter === 'bundled' || filter === 'exceptions' ? finalData.length : (count || 0)
       };
     },
     staleTime: 30000, // Cache for 30 seconds
