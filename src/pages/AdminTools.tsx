@@ -114,29 +114,6 @@ export default function AdminTools() {
     loadUsersAndRoles();
   };
 
-  const makeCurrentUserAdmin = async () => {
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('user_roles')
-      .insert({
-        user_id: user.id,
-        role: 'admin'
-      });
-
-    if (error) {
-      if (error.code === '23505') {
-        toast.info('You are already an admin');
-      } else {
-        toast.error('Failed to assign admin role');
-        console.error(error);
-      }
-      return;
-    }
-
-    toast.success('Admin role assigned! Refreshing...');
-    setTimeout(() => window.location.reload(), 1000);
-  };
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
@@ -161,15 +138,11 @@ export default function AdminTools() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              If you're setting up the system for the first time, click the button below to make yourself an admin.
+              Contact an existing administrator to grant you admin access.
             </p>
-            <p className="text-xs text-muted-foreground mb-4">
+            <p className="text-xs text-muted-foreground">
               Your email: <strong>{user.email}</strong>
             </p>
-            <Button onClick={makeCurrentUserAdmin} className="w-full">
-              <Shield className="h-4 w-4 mr-2" />
-              Make Me Admin
-            </Button>
           </CardContent>
         </Card>
       </div>
@@ -274,17 +247,40 @@ export default function AdminTools() {
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle>All Users</CardTitle>
+          <CardDescription>Complete list of users in the system</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              To manually assign roles via the database, run:
-            </p>
-            <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto">
-{`INSERT INTO user_roles (user_id, role) 
-VALUES ('user-id-here', 'admin');`}
-            </pre>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {users.map((profile) => {
+              const roles = getUserRoles(profile.id);
+              return (
+                <div key={profile.id} className="border rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{profile.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Joined {new Date(profile.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {roles.length > 0 ? (
+                        roles.map((role) => (
+                          <Badge
+                            key={role}
+                            variant={role === 'admin' ? 'default' : 'secondary'}
+                          >
+                            {role}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge variant="outline">No roles</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
