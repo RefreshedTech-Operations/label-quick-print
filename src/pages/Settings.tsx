@@ -7,9 +7,29 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
-import { Upload, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download } from 'lucide-react';
+import { DateRangeFilter } from '@/components/analytics/DateRangeFilter';
+import { KPICard } from '@/components/analytics/KPICard';
+import { OrdersTimelineChart } from '@/components/analytics/OrdersTimelineChart';
+import { PrintStatusPieChart } from '@/components/analytics/PrintStatusPieChart';
+import { StatusStackedBarChart } from '@/components/analytics/StatusStackedBarChart';
+import { DailyActivityChart } from '@/components/analytics/DailyActivityChart';
+import { BundleBreakdownChart } from '@/components/analytics/BundleBreakdownChart';
+import { PrinterPerformanceChart } from '@/components/analytics/PrinterPerformanceChart';
+import { useAnalyticsData } from '@/hooks/useAnalyticsData';
+import { exportSummaryReport } from '@/lib/analyticsExport';
+import { DateRange } from 'react-day-picker';
+import { subDays, differenceInDays } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ProcessResult {
   successful: string[];
@@ -19,6 +39,9 @@ interface ProcessResult {
 }
 
 export default function Settings() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'config';
+  
   const { settings, updateSettings } = useAppStore();
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
@@ -32,6 +55,12 @@ export default function Settings() {
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [previewUids, setPreviewUids] = useState<string[]>([]);
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  
+  // Analytics state
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
 
   useEffect(() => {
     loadSettings();
@@ -423,12 +452,48 @@ export default function Settings() {
     setPreviewUids([]);
   };
 
+  const handleDateRangeChange = (newRange: DateRange | undefined) => {
+    if (!newRange?.from || !newRange?.to) {
+      setDateRange(newRange || { from: subDays(new Date(), 30), to: new Date() });
+      return;
+    }
+
+    const daysDiff = differenceInDays(newRange.to, newRange.from);
+    
+    if (daysDiff > 90) {
+      toast.error('Date range too large', {
+        description: 'Please select a date range of 90 days or less for optimal performance.',
+      });
+      return;
+    }
+
+    setDateRange(newRange);
+  };
+
+  const { isLoading, kpis, dailyData, printerData, printStatusData } = useAnalyticsData(dateRange);
+
+  const handleExport = () => {
+    exportSummaryReport(kpis, dateRange);
+  };
+
+  const handleTabChange = (value: string) => {
+    setSearchParams({ tab: value });
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       <div className="space-y-2">
         <h1 className="text-4xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Configure printer and scanning options</p>
+        <p className="text-muted-foreground">Configure application settings and view analytics</p>
       </div>
+
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="config" className="space-y-6">
 
       <Card>
         <CardHeader>
@@ -746,6 +811,156 @@ export default function Settings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Analytics & Reports</h2>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExport}>
+                  Export Summary Report
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <DateRangeFilter dateRange={dateRange} setDateRange={handleDateRangeChange} />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {isLoading ? (
+              <>
+                {[...Array(4)].map((_, i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardHeader className="pb-2">
+                      <div className="h-4 bg-muted rounded w-24" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-8 bg-muted rounded w-16" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            ) : (
+              <>
+                <KPICard
+                  title="Total Orders"
+                  value={kpis.totalOrders}
+                  description={`${kpis.printedPercentage}% printed`}
+                />
+                <KPICard
+                  title="Print Success Rate"
+                  value={`${kpis.printSuccessRate}%`}
+                  description={`${kpis.successfulPrints} of ${kpis.totalPrintJobs} jobs`}
+                />
+                <KPICard
+                  title="Bundle Orders"
+                  value={kpis.bundleOrders}
+                  description={`${kpis.bundlePercentage}% of total`}
+                />
+                <KPICard
+                  title="Cancelled Orders"
+                  value={kpis.cancelledOrders}
+                  description={`${kpis.cancelledPercentage}% of total`}
+                />
+              </>
+            )}
+          </div>
+
+          {isLoading ? (
+            <div className="space-y-6">
+              <p className="text-muted-foreground text-center">Loading charts...</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardHeader>
+                      <div className="h-5 bg-muted rounded w-32" />
+                      <div className="h-3 bg-muted rounded w-48 mt-2" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[300px] bg-muted rounded" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Orders Over Time</CardTitle>
+                    <CardDescription>Daily order volume and print status</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <OrdersTimelineChart dailyData={dailyData} />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Print Job Status</CardTitle>
+                    <CardDescription>Distribution of print job outcomes</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <PrintStatusPieChart printStatusData={printStatusData} />
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Orders by Status</CardTitle>
+                    <CardDescription>Daily breakdown of order status</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <StatusStackedBarChart dailyData={dailyData} />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Daily Print Activity</CardTitle>
+                    <CardDescription>Number of labels printed per day</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <DailyActivityChart dailyData={dailyData} />
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Bundle Distribution</CardTitle>
+                    <CardDescription>Bundled vs non-bundled orders</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <BundleBreakdownChart dailyData={dailyData} />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Printer Performance</CardTitle>
+                    <CardDescription>Top printers by volume</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <PrinterPerformanceChart printerData={printerData} />
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
