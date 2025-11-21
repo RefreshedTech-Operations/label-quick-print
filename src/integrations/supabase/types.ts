@@ -38,6 +38,45 @@ export type Database = {
         }
         Relationships: []
       }
+      batches: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          name: string
+          notes: string | null
+          package_count: number
+          shipped_at: string | null
+          show_date: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          package_count?: number
+          shipped_at?: string | null
+          show_date?: string | null
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          package_count?: number
+          shipped_at?: string | null
+          show_date?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       column_mappings: {
         Row: {
           created_at: string | null
@@ -133,6 +172,9 @@ export type Database = {
       shipments: {
         Row: {
           address_full: string | null
+          batch_id: string | null
+          batch_scanned_at: string | null
+          batch_scanned_by_user_id: string | null
           bundle: boolean | null
           buyer: string | null
           cancelled: string | null
@@ -161,6 +203,9 @@ export type Database = {
         }
         Insert: {
           address_full?: string | null
+          batch_id?: string | null
+          batch_scanned_at?: string | null
+          batch_scanned_by_user_id?: string | null
           bundle?: boolean | null
           buyer?: string | null
           cancelled?: string | null
@@ -189,6 +234,9 @@ export type Database = {
         }
         Update: {
           address_full?: string | null
+          batch_id?: string | null
+          batch_scanned_at?: string | null
+          batch_scanned_by_user_id?: string | null
           bundle?: boolean | null
           buyer?: string | null
           cancelled?: string | null
@@ -215,7 +263,15 @@ export type Database = {
           uid?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shipments_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_settings: {
         Row: {
@@ -266,6 +322,14 @@ export type Database = {
           total_print_jobs: number
         }[]
       }
+      get_batch_stats: {
+        Args: { batch_uuid: string }
+        Returns: {
+          remaining_packages: number
+          scanned_packages: number
+          total_packages: number
+        }[]
+      }
       get_daily_analytics: {
         Args: { end_date: string; start_date: string }
         Returns: {
@@ -290,6 +354,18 @@ export type Database = {
         Returns: {
           job_count: number
           printer_id: string
+        }[]
+      }
+      get_scan_eligible_shipments: {
+        Args: { p_batch_id?: string; p_limit?: number; p_show_date: string }
+        Returns: {
+          batch_id: string
+          buyer: string
+          id: string
+          order_id: string
+          printed: boolean
+          product_name: string
+          tracking: string
         }[]
       }
       get_shipments_stats:
@@ -322,6 +398,10 @@ export type Database = {
           count: number
           show_date: string
         }[]
+      }
+      increment_batch_count: {
+        Args: { batch_uuid: string }
+        Returns: undefined
       }
       search_shipments:
         | {

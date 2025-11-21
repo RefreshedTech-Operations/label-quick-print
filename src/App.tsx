@@ -10,6 +10,8 @@ import Orders from "./pages/Orders";
 import PrintJobs from "./pages/PrintJobs";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
+import BatchScanning from "./pages/BatchScanning";
+import BatchManagement from "./pages/BatchManagement";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +29,8 @@ const App = () => (
           <Route path="/upload" element={<Layout><Upload /></Layout>} />
           <Route path="/orders" element={<Layout><Orders /></Layout>} />
           <Route path="/print-jobs" element={<Layout><PrintJobs /></Layout>} />
+          <Route path="/batch-scanning" element={<Layout><BatchScanning /></Layout>} />
+          <Route path="/batch-management" element={<Layout><BatchManagement /></Layout>} />
           <Route path="/analytics" element={<Layout><Analytics /></Layout>} />
           <Route path="/settings" element={<Layout><Settings /></Layout>} />
           <Route path="*" element={<NotFound />} />

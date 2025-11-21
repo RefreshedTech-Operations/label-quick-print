@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Package, Upload, List, Settings, Printer, LogOut, BarChart3 } from 'lucide-react';
+import { Package, Upload, List, Settings, Printer, LogOut, BarChart3, ScanBarcode, Package2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -76,6 +76,28 @@ export default function Layout({ children }: LayoutProps) {
                 <Link to="/print-jobs">
                   <Printer className="h-4 w-4" />
                   Print Jobs
+                </Link>
+              </Button>
+
+              <Button
+                variant={isActive('/batch-scanning') ? 'default' : 'ghost'}
+                asChild
+                className="gap-2"
+              >
+                <Link to="/batch-scanning">
+                  <ScanBarcode className="h-4 w-4" />
+                  Batch Scan
+                </Link>
+              </Button>
+
+              <Button
+                variant={isActive('/batch-management') ? 'default' : 'ghost'}
+                asChild
+                className="gap-2"
+              >
+                <Link to="/batch-management">
+                  <Package2 className="h-4 w-4" />
+                  Batches
                 </Link>
               </Button>
 
