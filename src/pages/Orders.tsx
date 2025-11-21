@@ -189,22 +189,28 @@ export default function Orders() {
 
       if (searchError) throw searchError;
 
-      // If we need bundled or exceptions filter, apply post-query filtering
-      let finalData = searchData || [];
-      
-      if (filter === 'bundled') {
-        finalData = finalData.filter(s => s.bundle === true);
-      } else if (filter === 'exceptions') {
-        finalData = finalData.filter(s => !s.manifest_url || s.cancelled);
-      }
-
-      return {
-        shipments: finalData,
-        totalCount: filter === 'bundled' || filter === 'exceptions' ? finalData.length : (count || 0)
-      };
+      return { shipments: searchData || [], totalCount: count || 0 };
     },
-    staleTime: 30000, // Cache for 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    staleTime: 30000,
+    gcTime: 5 * 60 * 1000,
+  });
+
+  // Separate query for aggregate stats (counts all records, not just current page)
+  const { data: statsData } = useQuery({
+    queryKey: ['shipments-stats', showDateFilter, debouncedSearch],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc('get_shipments_stats', {
+          search_term: debouncedSearch.trim() || null,
+          p_show_date: showDateFilter || null,
+        })
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 30000,
+    gcTime: 5 * 60 * 1000,
   });
 
   // Update local state when query data changes
@@ -768,8 +774,18 @@ export default function Orders() {
     });
   }, [shipments, filter, settings.block_cancelled]);
 
-  // Optimized stats calculation - single pass through array
+  // Stats calculation using aggregate query for all records
   const stats = useMemo(() => {
+    if (statsData) {
+      return {
+        total: Number(statsData.total) || 0,
+        printed: Number(statsData.printed) || 0,
+        unprinted: Number(statsData.unprinted) || 0,
+        exceptions: Number(statsData.exceptions) || 0,
+      };
+    }
+    
+    // Fallback to local calculation if query hasn't loaded yet
     return shipments.reduce((acc, s) => {
       acc.total++;
       if (s.printed) acc.printed++;
@@ -777,7 +793,7 @@ export default function Orders() {
       if (!s.manifest_url || (settings.block_cancelled && s.cancelled)) acc.exceptions++;
       return acc;
     }, { total: 0, printed: 0, unprinted: 0, exceptions: 0 });
-  }, [shipments, settings.block_cancelled]);
+  }, [statsData, shipments, settings.block_cancelled]);
 
   // Pagination - simplified without search mode
   const totalPages = Math.max(1, Math.ceil(filteredShipments.length / pageSize));
