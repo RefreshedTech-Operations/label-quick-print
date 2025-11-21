@@ -1067,29 +1067,15 @@ export default function Orders() {
 
                   {/* Actions - Larger buttons for touchscreen */}
                   <TableCell className="sticky left-[60px] bg-background z-10 border-r">
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handlePrint(shipment)}
-                        disabled={!shipment.manifest_url || printing === shipment.id}
-                        className="h-9 text-sm px-3 touch-manipulation"
-                      >
-                        <Printer className="h-4 w-4 mr-1.5" />
-                        {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
-                      </Button>
-                      {shipment.order_group_id && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handlePrintGroupLabel(shipment)}
-                          disabled={!shipment.manifest_url || printingGroup === shipment.order_group_id}
-                          className="h-9 text-sm px-3 touch-manipulation"
-                        >
-                          <Printer className="h-4 w-4 mr-1.5" />
-                          {printingGroup === shipment.order_group_id ? 'Print...' : 'Group'}
-                        </Button>
-                      )}
-                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handlePrint(shipment)}
+                      disabled={!shipment.manifest_url || printing === shipment.id}
+                      className="h-9 text-sm px-3 touch-manipulation"
+                    >
+                      <Printer className="h-4 w-4 mr-1.5" />
+                      {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
+                    </Button>
                   </TableCell>
 
                   {/* Order Details - UID (editable) and Order ID only */}
