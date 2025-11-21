@@ -289,6 +289,15 @@ export type Database = {
           printer_id: string
         }[]
       }
+      get_shipments_stats: {
+        Args: { p_show_date?: string; search_term?: string }
+        Returns: {
+          exceptions: number
+          printed: number
+          total: number
+          unprinted: number
+        }[]
+      }
       get_show_date_counts: {
         Args: { limit_rows?: number }
         Returns: {
