@@ -75,16 +75,64 @@ export function useAnalyticsData(dateRange: DateRange | undefined) {
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null
   const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : null
 
-  // Use optimized combined query (60-70% faster than 4 separate queries)
+  // Try optimized combined query first, fallback to individual queries if function doesn't exist
   const { data: combinedData, isLoading, error } = useQuery({
     queryKey: ['analytics-combined', startDate, endDate],
     queryFn: async () => {
       if (!startDate || !endDate) return null
 
+      // Try the optimized function first
       const { data, error } = await supabase.rpc('get_all_analytics' as any, {
         start_date: startDate,
         end_date: endDate,
       })
+
+      // If optimized function doesn't exist (PGRST202), fall back to individual queries
+      if (error && error.code === 'PGRST202') {
+        console.log('Optimized function not available, using fallback queries')
+        
+        // Fallback: Run the 4 separate queries
+        const [kpisResult, dailyResult, printerResult, statusResult] = await Promise.all([
+          supabase.rpc('get_analytics_kpis', { start_date: startDate, end_date: endDate }),
+          supabase.rpc('get_daily_analytics', { start_date: startDate, end_date: endDate }),
+          supabase.rpc('get_printer_performance', { start_date: startDate, end_date: endDate }),
+          supabase.rpc('get_print_status_breakdown', { start_date: startDate, end_date: endDate }),
+        ])
+
+        if (kpisResult.error) throw kpisResult.error
+        if (dailyResult.error) throw dailyResult.error
+        if (printerResult.error) throw printerResult.error
+        if (statusResult.error) throw statusResult.error
+
+        // Transform fallback data to match CombinedAnalyticsResponse format
+        const kpisData = kpisResult.data?.[0] as any || {}
+        const statusData = (statusResult.data || []).reduce((acc: any, item: any) => {
+          acc[item.status] = item.count
+          return acc
+        }, {})
+
+        return {
+          kpis: {
+            total_orders: kpisData.total_orders || 0,
+            printed_orders: kpisData.printed_orders || 0,
+            unprinted_orders: (kpisData.total_orders || 0) - (kpisData.printed_orders || 0),
+            bundle_orders: kpisData.bundle_orders || 0,
+            cancelled_orders: kpisData.cancelled_orders || 0,
+            total_print_jobs: kpisData.total_print_jobs || 0,
+            successful_prints: kpisData.successful_prints || 0,
+            print_success_rate: kpisData.total_print_jobs > 0 
+              ? ((kpisData.successful_prints || 0) / kpisData.total_print_jobs) * 100 
+              : 0,
+          },
+          daily_data: dailyResult.data || [],
+          printer_performance: printerResult.data || [],
+          print_status: {
+            done: statusData.done || 0,
+            queued: statusData.queued || 0,
+            error: statusData.error || 0,
+          },
+        } as CombinedAnalyticsResponse
+      }
 
       if (error) {
         console.error('Analytics query error:', error)
@@ -93,7 +141,7 @@ export function useAnalyticsData(dateRange: DateRange | undefined) {
 
       return data as unknown as CombinedAnalyticsResponse | null
     },
-    staleTime: 15 * 60 * 1000, // 15 minutes (increased from 5 minutes)
+    staleTime: 15 * 60 * 1000, // 15 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes cache
     enabled: !!startDate && !!endDate,
   })
