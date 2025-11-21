@@ -7,13 +7,36 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Package2, CalendarIcon, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Package2, CalendarIcon, Clock, AlertCircle, CheckCircle2, Trash2, Edit2, MoreVertical } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Batch } from '@/types/batch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 export default function BatchManagement() {
   const navigate = useNavigate();
@@ -24,6 +47,13 @@ export default function BatchManagement() {
   const [loading, setLoading] = useState(true);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [batchToDelete, setBatchToDelete] = useState<Batch | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [batchToEdit, setBatchToEdit] = useState<Batch | null>(null);
+  const [editBatchName, setEditBatchName] = useState('');
+  const [editBatchStatus, setEditBatchStatus] = useState('');
   
   // Scanning state
   const [currentBatch, setCurrentBatch] = useState<string | null>(null);
@@ -56,6 +86,11 @@ export default function BatchManagement() {
       return;
     }
     setUser(user);
+    
+    // Check if user is admin
+    const { data: adminCheck } = await supabase.rpc('is_admin');
+    setIsAdmin(adminCheck || false);
+    
     setLoading(false);
   };
 
@@ -262,6 +297,56 @@ export default function BatchManagement() {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
+  const handleDeleteBatch = async () => {
+    if (!batchToDelete) return;
+
+    const { error } = await supabase
+      .from('batches')
+      .delete()
+      .eq('id', batchToDelete.id);
+
+    if (error) {
+      toast.error('Failed to delete batch');
+      console.error(error);
+      return;
+    }
+
+    toast.success('Batch deleted successfully');
+    setDeleteDialogOpen(false);
+    setBatchToDelete(null);
+    loadBatches();
+  };
+
+  const openEditDialog = (batch: Batch) => {
+    setBatchToEdit(batch);
+    setEditBatchName(batch.name);
+    setEditBatchStatus(batch.status);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditBatch = async () => {
+    if (!batchToEdit) return;
+
+    const { error } = await supabase
+      .from('batches')
+      .update({
+        name: editBatchName,
+        status: editBatchStatus
+      })
+      .eq('id', batchToEdit.id);
+
+    if (error) {
+      toast.error('Failed to update batch');
+      console.error(error);
+      return;
+    }
+
+    toast.success('Batch updated successfully');
+    setEditDialogOpen(false);
+    setBatchToEdit(null);
+    loadBatches();
+  };
+
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });
   };
@@ -457,9 +542,36 @@ export default function BatchManagement() {
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-lg line-clamp-2">{batch.name}</CardTitle>
-                      <Badge className={getStatusColor(batch.status)}>
-                        {getStatusLabel(batch.status)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusColor(batch.status)}>
+                          {getStatusLabel(batch.status)}
+                        </Badge>
+                        {(batch.created_by_user_id === user.id || isAdmin) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditDialog(batch)}>
+                                <Edit2 className="h-4 w-4 mr-2" />
+                                Edit Batch
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setBatchToDelete(batch);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Batch
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -508,6 +620,69 @@ export default function BatchManagement() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{batchToDelete?.name}"? This action cannot be undone.
+              {batchToDelete && batchToDelete.package_count > 0 && (
+                <span className="block mt-2 font-semibold text-destructive">
+                  Warning: This batch contains {batchToDelete.package_count} packages. Deleting will remove the batch association from all packages.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteBatch} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Batch Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Batch</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-batch-name">Batch Name</Label>
+              <Input
+                id="edit-batch-name"
+                value={editBatchName}
+                onChange={(e) => setEditBatchName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-batch-status">Status</Label>
+              <select
+                id="edit-batch-status"
+                value={editBatchStatus}
+                onChange={(e) => setEditBatchStatus(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+              >
+                <option value="scanning">Scanning</option>
+                <option value="complete">Complete</option>
+                <option value="shipped">Shipped</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditBatch}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

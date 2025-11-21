@@ -10,6 +10,7 @@ import Orders from "./pages/Orders";
 import PrintJobs from "./pages/PrintJobs";
 import Settings from "./pages/Settings";
 import BatchManagement from "./pages/BatchManagement";
+import AdminTools from "./pages/AdminTools";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/print-jobs" element={<Layout><PrintJobs /></Layout>} />
           <Route path="/batches" element={<Layout><BatchManagement /></Layout>} />
           <Route path="/settings" element={<Layout><Settings /></Layout>} />
+          <Route path="/admin" element={<Layout><AdminTools /></Layout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
