@@ -351,31 +351,18 @@ export type Database = {
           total_packages: number
         }[]
       }
-      get_daily_analytics:
-        | {
-            Args: { end_date: string; start_date: string }
-            Returns: {
-              bundle_orders: number
-              cancelled_orders: number
-              date: string
-              print_jobs_count: number
-              printed_orders: number
-              total_orders: number
-              unprinted_orders: number
-            }[]
-          }
-        | {
-            Args: { end_date: string; start_date: string }
-            Returns: {
-              bundle_orders: number
-              cancelled_orders: number
-              date: string
-              print_jobs_count: number
-              printed_orders: number
-              total_orders: number
-              unprinted_orders: number
-            }[]
-          }
+      get_daily_analytics: {
+        Args: { end_date: string; start_date: string }
+        Returns: {
+          bundle_orders: number
+          cancelled_orders: number
+          date: string
+          print_jobs_count: number
+          printed_orders: number
+          total_orders: number
+          unprinted_orders: number
+        }[]
+      }
       get_print_status_breakdown: {
         Args: { end_date: string; start_date: string }
         Returns: {
