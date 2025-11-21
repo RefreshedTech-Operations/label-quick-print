@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useAdaptiveDebounce } from '@/hooks/useAdaptiveDebounce';
 import {
   Table,
   TableBody,
@@ -56,7 +56,7 @@ export default function Orders() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('unprinted');
   const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 600);
+  const debouncedSearch = useAdaptiveDebounce(search, 600);
   const [printing, setPrinting] = useState<string | null>(null);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
@@ -175,12 +175,13 @@ export default function Orders() {
         throw new Error('Page number too high');
       }
       
-      // Use the new database function that supports UUID text searching
+      // Use the new database function with p_filter parameter
       const { data: searchData, error: searchError, count } = await supabase
         .rpc('search_shipments', {
           search_term: debouncedSearch.trim() || null,
           p_show_date: showDateFilter || null,
-          p_printed: filter === 'printed' ? true : filter === 'unprinted' ? false : null,
+          p_printed: null, // Keep for backward compatibility
+          p_filter: filter, // NEW: Pass filter to SQL for server-side filtering
           p_limit: pageSize,
           p_offset: (currentPage - 1) * pageSize
         }, {
@@ -191,26 +192,28 @@ export default function Orders() {
 
       return { shipments: searchData || [], totalCount: count || 0 };
     },
-    staleTime: 30000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 60000, // Increased from 30s to 60s
+    gcTime: 15 * 60 * 1000, // Increased from 5min to 15min
   });
 
   // Separate query for aggregate stats (counts all records, not just current page)
   const { data: statsData } = useQuery({
-    queryKey: ['shipments-stats', showDateFilter, debouncedSearch],
+    queryKey: ['shipments-stats', showDateFilter, debouncedSearch, filter], // Added filter to key
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc('get_shipments_stats', {
           search_term: debouncedSearch.trim() || null,
           p_show_date: showDateFilter || null,
+          p_printed: null,
+          p_filter: filter, // NEW: Pass filter to SQL to match displayed data
         })
         .single();
 
       if (error) throw error;
       return data;
     },
-    staleTime: 30000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 120000, // 2 minutes (stats change less frequently)
+    gcTime: 30 * 60 * 1000, // 30 minutes
   });
 
   // Update local state when query data changes
@@ -759,20 +762,7 @@ export default function Orders() {
     }
   };
 
-  const filteredShipments = useMemo(() => {
-    if (!shipments) return [];
-    
-    // Only apply status tab filter - search is already handled by database query
-    return shipments.filter((s) => {
-      if (filter === 'printed') return s.printed;
-      if (filter === 'unprinted') return !s.printed;
-      if (filter === 'bundled') return s.bundle;
-      if (filter === 'exceptions') {
-        return !s.manifest_url || (settings.block_cancelled && s.cancelled);
-      }
-      return true;
-    });
-  }, [shipments, filter, settings.block_cancelled]);
+  // REMOVED: Client-side filtering now handled in SQL via p_filter parameter
 
   // Stats calculation using aggregate query for all records
   const stats = useMemo(() => {
@@ -795,11 +785,11 @@ export default function Orders() {
     }, { total: 0, printed: 0, unprinted: 0, exceptions: 0 });
   }, [statsData, shipments, settings.block_cancelled]);
 
-  // Pagination - simplified without search mode
-  const totalPages = Math.max(1, Math.ceil(filteredShipments.length / pageSize));
+  // Pagination - uses shipments directly (already filtered by SQL)
+  const totalPages = Math.max(1, Math.ceil((shipments?.length || 0) / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedShipments = filteredShipments;
+  const paginatedShipments = shipments || [];
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -1240,7 +1230,7 @@ export default function Orders() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(endIndex, filteredShipments.length)} of {filteredShipments.length} orders
+            Showing {startIndex + 1} to {Math.min(endIndex, shipments?.length || 0)} of {shipments?.length || 0} orders
           </div>
           <Pagination>
             <PaginationContent>
