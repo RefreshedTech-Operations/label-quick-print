@@ -204,12 +204,12 @@ export default function BatchManagement() {
       return;
     }
 
-    if (batchDetails?.show_date && shipment.show_date !== batchDetails.show_date) {
-      toast.error('Show date mismatch', {
-        description: `Package show date (${shipment.show_date}) doesn't match batch (${batchDetails.show_date})`
+    // Show warning if show dates don't match, but don't block the scan
+    if (batchDetails?.show_date && shipment.show_date && shipment.show_date !== batchDetails.show_date) {
+      toast.warning('Show date difference', {
+        description: `Package show date is ${shipment.show_date} (batch: ${batchDetails.show_date})`,
+        duration: 2000
       });
-      setTrackingNumber('');
-      return;
     }
 
     const { error: updateError } = await supabase
