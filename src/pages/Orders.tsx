@@ -770,14 +770,14 @@ export default function Orders() {
 
   // Optimized stats calculation - single pass through array
   const stats = useMemo(() => {
-    return filteredShipments.reduce((acc, s) => {
+    return shipments.reduce((acc, s) => {
       acc.total++;
       if (s.printed) acc.printed++;
       if (!s.printed) acc.unprinted++;
       if (!s.manifest_url || (settings.block_cancelled && s.cancelled)) acc.exceptions++;
       return acc;
     }, { total: 0, printed: 0, unprinted: 0, exceptions: 0 });
-  }, [filteredShipments, settings.block_cancelled]);
+  }, [shipments, settings.block_cancelled]);
 
   // Pagination - simplified without search mode
   const totalPages = Math.max(1, Math.ceil(filteredShipments.length / pageSize));
