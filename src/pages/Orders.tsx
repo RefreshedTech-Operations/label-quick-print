@@ -73,6 +73,7 @@ export default function Orders() {
   }>({ alreadyPrinted: [], unprinted: [] });
   const [pageSize, setPageSize] = useState(25);
   const [statsEnabled, setStatsEnabled] = useState(true); // PHASE 2: Lazy stats loading
+  const [allowAllShows, setAllowAllShows] = useState(false); // Prevent "All Shows" query on initial load
   
   const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
   const { columnWidths, handleResizeStart, resizingColumn } = useColumnResize('orders-table-widths');
@@ -161,6 +162,7 @@ export default function Orders() {
   // React Query for shipments with caching and optimized column selection
   // PHASE 2 VERIFICATION: Query cancellation is automatic via React Query's AbortSignal
   // React Query automatically cancels in-flight requests when queryKey changes
+  // GUARD: Wait for show date to be auto-selected OR user explicitly enables "All Shows"
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
     queryKey: ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
     queryFn: async ({ signal }) => { // signal is automatically provided by React Query
@@ -197,6 +199,7 @@ export default function Orders() {
 
       return { shipments: searchData || [], totalCount: count || 0 };
     },
+    enabled: showDateFilter !== undefined || allowAllShows, // Wait for auto-selected date OR explicit "All Shows"
     staleTime: 60000, // Increased from 30s to 60s
     gcTime: 15 * 60 * 1000, // Increased from 5min to 15min
   });
@@ -218,7 +221,7 @@ export default function Orders() {
       if (error) throw error;
       return data;
     },
-    enabled: statsEnabled, // PHASE 2: Only fetch when enabled
+    enabled: (showDateFilter !== undefined || allowAllShows) && statsEnabled, // Wait for date + manual enable
     staleTime: 600000, // 10 minutes (5x longer cache)
     gcTime: 60 * 60 * 1000, // 60 minutes (2x longer retention)
   });
@@ -890,11 +893,12 @@ export default function Orders() {
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
           )}
         </div>
-        <ShowDateFilter 
-          selectedDate={showDateFilter}
-          recentDates={recentShowDates || []}
-          onDateSelect={setShowDateFilter}
-        />
+          <ShowDateFilter
+            selectedDate={showDateFilter}
+            recentDates={recentShowDates || []}
+            onDateSelect={setShowDateFilter}
+            onAllShowsEnable={() => setAllowAllShows(true)}
+          />
       </div>
 
       <div className="flex gap-4 items-center flex-wrap">
