@@ -19,7 +19,7 @@ export default function Upload() {
   const [preview, setPreview] = useState<any[]>([]);
   const [showDate, setShowDate] = useState<Date>();
   
-  const { columnMap, setShipments, settings } = useAppStore();
+  const { columnMap, settings } = useAppStore();
   const navigate = useNavigate();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,7 +124,7 @@ export default function Upload() {
 
       if (error) throw error;
 
-      setShipments(insertedData || []);
+      // No need to set local state - Orders page will fetch from database
 
       const printable = shipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
       const printed = insertedData?.filter(s => s.printed).length || 0;
