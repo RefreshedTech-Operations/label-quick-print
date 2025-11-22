@@ -12,10 +12,12 @@ interface ShowDateFilterProps {
   selectedDate?: string; // 'yyyy-MM-dd' format
   recentDates: Array<{ date: string; count: number }>;
   onDateSelect: (date: string | undefined) => void;
+  onAllShowsEnable?: () => void; // Callback to enable "All Shows" mode
 }
 
-export function ShowDateFilter({ selectedDate, recentDates, onDateSelect }: ShowDateFilterProps) {
+export function ShowDateFilter({ selectedDate, recentDates, onDateSelect, onAllShowsEnable }: ShowDateFilterProps) {
   const handleAllDatesClick = () => {
+    onAllShowsEnable?.(); // Enable "All Shows" mode
     onDateSelect(undefined);
   };
   const handleDateSelect = (date: Date | undefined) => {
