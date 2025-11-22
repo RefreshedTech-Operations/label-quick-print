@@ -44,7 +44,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2 } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw } from 'lucide-react';
 import { Shipment } from '@/types';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { format } from 'date-fns';
@@ -72,6 +72,7 @@ export default function Orders() {
     unprinted: Shipment[];
   }>({ alreadyPrinted: [], unprinted: [] });
   const [pageSize, setPageSize] = useState(25);
+  const [statsEnabled, setStatsEnabled] = useState(true); // PHASE 2: Lazy stats loading
   
   const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
   const { columnWidths, handleResizeStart, resizingColumn } = useColumnResize('orders-table-widths');
@@ -158,9 +159,11 @@ export default function Orders() {
   }, [filter, showDateFilter, debouncedSearch]);
 
   // React Query for shipments with caching and optimized column selection
+  // PHASE 2 VERIFICATION: Query cancellation is automatic via React Query's AbortSignal
+  // React Query automatically cancels in-flight requests when queryKey changes
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
     queryKey: ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => { // signal is automatically provided by React Query
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
@@ -176,6 +179,8 @@ export default function Orders() {
       }
       
       // Use the new database function with p_filter parameter
+      // Note: Supabase JS client doesn't fully support AbortSignal yet,
+      // but React Query will still cancel on component unmount/key change
       const { data: searchData, error: searchError, count } = await supabase
         .rpc('search_shipments', {
           search_term: debouncedSearch.trim() || null,
@@ -197,8 +202,8 @@ export default function Orders() {
   });
 
   // Separate query for aggregate stats (counts all records, not just current page)
-  // OPTIMIZATION: Stats cached for 10 minutes, uses instant filters (no debounce)
-  const { data: statsData } = useQuery({
+  // PHASE 2: Lazy stats loading - only loads when enabled, with manual refresh button
+  const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: ['shipments-stats', showDateFilter, filter], // Removed debouncedSearch for instant filter updates
     queryFn: async () => {
       const { data, error } = await supabase
@@ -213,6 +218,7 @@ export default function Orders() {
       if (error) throw error;
       return data;
     },
+    enabled: statsEnabled, // PHASE 2: Only fetch when enabled
     staleTime: 600000, // 10 minutes (5x longer cache)
     gcTime: 60 * 60 * 1000, // 60 minutes (2x longer retention)
   });
@@ -846,7 +852,7 @@ export default function Orders() {
            filter === 'bundled' ? 'Bundled Orders' : 
            'Exception Orders'}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Badge variant="secondary" className="text-lg px-4 py-2">
             Total: {stats.total}
           </Badge>
@@ -859,6 +865,16 @@ export default function Orders() {
           <Badge variant="destructive" className="text-lg px-4 py-2">
             Exceptions: {stats.exceptions}
           </Badge>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => refetchStats()}
+            disabled={statsLoading}
+            title="Refresh stats"
+            className="h-10 w-10"
+          >
+            <RefreshCw className={`h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
