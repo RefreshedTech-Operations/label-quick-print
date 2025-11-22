@@ -152,10 +152,10 @@ export default function Orders() {
     }
   }, [appConfig]);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters change (instant for filters, debounced for search)
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, debouncedSearch, showDateFilter]);
+  }, [filter, showDateFilter, debouncedSearch]);
 
   // React Query for shipments with caching and optimized column selection
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
@@ -197,23 +197,24 @@ export default function Orders() {
   });
 
   // Separate query for aggregate stats (counts all records, not just current page)
+  // OPTIMIZATION: Stats cached for 10 minutes, uses instant filters (no debounce)
   const { data: statsData } = useQuery({
-    queryKey: ['shipments-stats', showDateFilter, debouncedSearch, filter], // Added filter to key
+    queryKey: ['shipments-stats', showDateFilter, filter], // Removed debouncedSearch for instant filter updates
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc('get_shipments_stats', {
-          search_term: debouncedSearch.trim() || null,
+          search_term: search.trim() || null, // Use instant search (no debounce) for filters
           p_show_date: showDateFilter || null,
           p_printed: null,
-          p_filter: filter, // NEW: Pass filter to SQL to match displayed data
+          p_filter: filter,
         })
         .single();
 
       if (error) throw error;
       return data;
     },
-    staleTime: 120000, // 2 minutes (stats change less frequently)
-    gcTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 600000, // 10 minutes (5x longer cache)
+    gcTime: 60 * 60 * 1000, // 60 minutes (2x longer retention)
   });
 
   // Update local state when query data changes
@@ -222,6 +223,44 @@ export default function Orders() {
       setShipments(shipmentsResponse.shipments);
     }
   }, [shipmentsResponse, setShipments]);
+
+  // OPTIMIZATION: Prefetch next page for instant pagination
+  useEffect(() => {
+    if (!shipmentsResponse) return;
+    
+    const totalPages = Math.max(1, Math.ceil((shipmentsResponse.totalCount || 0) / pageSize));
+    const nextPage = currentPage + 1;
+    
+    // Only prefetch if there's a next page
+    if (nextPage <= totalPages) {
+      queryClient.prefetchQuery({
+        queryKey: ['shipments', nextPage, filter, showDateFilter, debouncedSearch, pageSize],
+        queryFn: async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('Not authenticated');
+
+          const currentOffset = (nextPage - 1) * pageSize;
+          
+          const { data: searchData, error: searchError, count } = await supabase
+            .rpc('search_shipments', {
+              search_term: debouncedSearch.trim() || null,
+              p_show_date: showDateFilter || null,
+              p_printed: null,
+              p_filter: filter,
+              p_limit: pageSize,
+              p_offset: currentOffset
+            }, {
+              count: 'exact'
+            });
+
+          if (searchError) throw searchError;
+
+          return { shipments: searchData || [], totalCount: count || 0 };
+        },
+        staleTime: 60000,
+      });
+    }
+  }, [shipmentsResponse, currentPage, filter, showDateFilter, debouncedSearch, pageSize, queryClient]);
 
   // Phase 5: Optimistic mutation for location ID
   const updateLocationMutation = useMutation({
@@ -785,8 +824,9 @@ export default function Orders() {
     }, { total: 0, printed: 0, unprinted: 0, exceptions: 0 });
   }, [statsData, shipments, settings.block_cancelled]);
 
-  // Pagination - uses shipments directly (already filtered by SQL)
-  const totalPages = Math.max(1, Math.ceil((shipments?.length || 0) / pageSize));
+  // Pagination - FIXED: Use totalCount from database, not local array length
+  const totalCount = shipmentsResponse?.totalCount || 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const paginatedShipments = shipments || [];
@@ -1230,7 +1270,7 @@ export default function Orders() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(endIndex, shipments?.length || 0)} of {shipments?.length || 0} orders
+            Showing {startIndex + 1} to {Math.min(endIndex, totalCount)} of {totalCount} total
           </div>
           <Pagination>
             <PaginationContent>
