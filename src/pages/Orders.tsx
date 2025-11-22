@@ -75,7 +75,7 @@ export default function Orders() {
   const [statsEnabled, setStatsEnabled] = useState(true); // PHASE 2: Lazy stats loading
   const [allowAllShows, setAllowAllShows] = useState(false); // Prevent "All Shows" query on initial load
   
-  const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
+  const { settings, updateSettings } = useAppStore();
 
   // Reset "All Shows" mode when a specific date is selected
   useEffect(() => {
@@ -233,12 +233,7 @@ export default function Orders() {
     gcTime: 60 * 60 * 1000, // 60 minutes (2x longer retention)
   });
 
-  // Update local state when query data changes
-  useEffect(() => {
-    if (shipmentsResponse) {
-      setShipments(shipmentsResponse.shipments);
-    }
-  }, [shipmentsResponse, setShipments]);
+  // No local state needed - data comes from React Query cache only
 
   // OPTIMIZATION: Prefetch next page for instant pagination
   useEffect(() => {
@@ -309,9 +304,6 @@ export default function Orders() {
         }
       );
       
-      // Also update local state
-      updateShipment(shipmentId, { location_id: newLocationId });
-      
       return { previousShipments };
     },
     onError: (error, variables, context) => {
@@ -357,8 +349,6 @@ export default function Orders() {
           };
         }
       );
-      
-      updateShipment(shipmentId, { uid: newUid });
       
       return { previousShipments };
     },
@@ -454,11 +444,8 @@ export default function Orders() {
           });
       }
 
-      updateShipment(shipment.id, { 
-        printed: true, 
-        printed_at: new Date().toISOString(),
-        printed_by_user_id: user.id
-      });
+      // Invalidate cache to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
       
       toast.success(`Printed label for ${shipment.uid}`);
     } catch (error: any) {
@@ -526,16 +513,8 @@ export default function Orders() {
           status: 'queued'
         });
 
-      // Update local state for all shipments in this group
-      shipments.forEach(s => {
-        if (s.order_group_id === shipment.order_group_id) {
-          updateShipment(s.id, {
-            group_id_printed: true,
-            group_id_printed_at: new Date().toISOString(),
-            group_id_printed_by_user_id: user.id
-          });
-        }
-      });
+      // Invalidate cache to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
 
       toast.success(`Printed group label for ${shipment.order_group_id.slice(0, 8)}`);
     } catch (error: any) {
@@ -573,7 +552,7 @@ export default function Orders() {
     if (selectedShipments.size === 0) return;
 
     const selectedShipmentsList = Array.from(selectedShipments)
-      .map(id => shipments.find(s => s.id === id))
+      .map(id => shipmentsResponse?.shipments.find(s => s.id === id))
       .filter(Boolean) as Shipment[];
 
     const alreadyPrinted = selectedShipmentsList.filter(s => s.printed);
@@ -720,16 +699,7 @@ export default function Orders() {
           })
           .in('id', shipmentIds);
 
-        // Update local state for all items
-        shipmentsInGroup.forEach(shipment => {
-          updateShipment(shipment.id, { 
-            printed: true, 
-            printed_at: new Date().toISOString(),
-            printed_by_user_id: user.id
-          });
-        });
-
-        // Force a full reload to ensure UI reflects database state
+        // Invalidate cache to refetch updated data
         await queryClient.invalidateQueries({ queryKey: ['shipments'] });
 
       } catch (error: any) {
@@ -775,7 +745,7 @@ export default function Orders() {
     if (selectedShipments.size === 0) return;
 
     const selectedShipmentsList = Array.from(selectedShipments)
-      .map(id => shipments.find(s => s.id === id))
+      .map(id => shipmentsResponse?.shipments.find(s => s.id === id))
       .filter(Boolean) as Shipment[];
 
     setIsBulkPrinting(true);
@@ -799,14 +769,8 @@ export default function Orders() {
         })
         .in('id', shipmentIds);
 
-      // Update local state
-      selectedShipmentsList.forEach(shipment => {
-        updateShipment(shipment.id, { 
-          printed: true, 
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        });
-      });
+      // Invalidate cache to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
 
       toast.success(`Marked ${selectedShipments.size} item${selectedShipments.size !== 1 ? 's' : ''} as shipped`);
       setSelectedShipments(new Set());
@@ -819,7 +783,7 @@ export default function Orders() {
 
   // REMOVED: Client-side filtering now handled in SQL via p_filter parameter
 
-  // Stats calculation using aggregate query for all records
+  // Stats calculation using aggregate query from database
   const stats = useMemo(() => {
     if (statsData) {
       return {
@@ -830,22 +794,16 @@ export default function Orders() {
       };
     }
     
-    // Fallback to local calculation if query hasn't loaded yet
-    return shipments.reduce((acc, s) => {
-      acc.total++;
-      if (s.printed) acc.printed++;
-      if (!s.printed) acc.unprinted++;
-      if (!s.manifest_url || (settings.block_cancelled && s.cancelled)) acc.exceptions++;
-      return acc;
-    }, { total: 0, printed: 0, unprinted: 0, exceptions: 0 });
-  }, [statsData, shipments, settings.block_cancelled]);
+    // Default empty stats if query hasn't loaded yet
+    return { total: 0, printed: 0, unprinted: 0, exceptions: 0 };
+  }, [statsData]);
 
-  // Pagination - FIXED: Use totalCount from database, not local array length
+  // Pagination - Use totalCount from database and current page's shipments
   const totalCount = shipmentsResponse?.totalCount || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedShipments = shipments || [];
+  const paginatedShipments = shipmentsResponse?.shipments || [];
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -1269,19 +1227,16 @@ export default function Orders() {
                     </div>
                   </TableCell>
 
-                  {/* Print History Stack */}
                   <TableCell style={{ width: columnWidths.printHistory }}>
                     <div className="space-y-1 text-xs text-muted-foreground">
                       {shipment.printed_at && (
-                        <div className="break-words" title={`Printed: ${format(new Date(shipment.printed_at), 'MMM d, HH:mm')} by ${shipment.printed_by?.email || 'Unknown'}`}>
+                        <div className="break-words" title={`Printed: ${format(new Date(shipment.printed_at), 'MMM d, HH:mm')}`}>
                           <span className="font-medium">Printed:</span> {format(new Date(shipment.printed_at), 'MMM d, HH:mm')}
-                          {shipment.printed_by?.email && <div className="break-words">by {shipment.printed_by.email}</div>}
                         </div>
                       )}
                       {shipment.group_id_printed_at && (
-                        <div className="break-words" title={`Group: ${format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')} by ${shipment.group_id_printed_by?.email || 'Unknown'}`}>
+                        <div className="break-words" title={`Group: ${format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')}`}>
                           <span className="font-medium">Group:</span> {format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')}
-                          {shipment.group_id_printed_by?.email && <div className="break-words">by {shipment.group_id_printed_by.email}</div>}
                         </div>
                       )}
                       {!shipment.printed_at && !shipment.group_id_printed_at && '-'}
