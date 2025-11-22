@@ -76,6 +76,13 @@ export default function Orders() {
   const [allowAllShows, setAllowAllShows] = useState(false); // Prevent "All Shows" query on initial load
   
   const { shipments, updateShipment, settings, setShipments, updateSettings } = useAppStore();
+
+  // Reset "All Shows" mode when a specific date is selected
+  useEffect(() => {
+    if (showDateFilter !== undefined && allowAllShows) {
+      setAllowAllShows(false);
+    }
+  }, [showDateFilter, allowAllShows]);
   const { columnWidths, handleResizeStart, resizingColumn } = useColumnResize('orders-table-widths');
 
   // Fetch app config and user settings (cached with React Query)
@@ -134,7 +141,7 @@ export default function Orders() {
     if (recentShowDates && recentShowDates.length > 0 && !showDateFilter) {
       setShowDateFilter(recentShowDates[0].date);
     }
-  }, [recentShowDates]);
+  }, [recentShowDates, showDateFilter]);
 
   // Update settings when userSettings data loads
   useEffect(() => {

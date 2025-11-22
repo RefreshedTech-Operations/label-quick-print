@@ -435,6 +435,7 @@ export type Database = {
       search_shipments:
         | {
             Args: {
+              p_filter?: string
               p_limit?: number
               p_offset?: number
               p_printed?: boolean
@@ -470,7 +471,6 @@ export type Database = {
           }
         | {
             Args: {
-              p_filter?: string
               p_limit?: number
               p_offset?: number
               p_printed?: boolean

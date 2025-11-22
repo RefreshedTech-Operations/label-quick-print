@@ -4,7 +4,7 @@ export function useAdaptiveDebounce(value: string, baseDelay: number = 600): str
   // PHASE 2 OPTIMIZATION: Smart debounce thresholds
   // - Empty: 0ms (instant clear)
   // - Long (>10 chars): 200ms (specific searches are fast)
-  // - Short (1-10 chars): 800ms (ambiguous, wait for more input)
+  // - Short (1-10 chars): 300ms (faster feel for UIDs/SKUs)
   let debounceTime: number;
   
   if (value.length === 0) {
@@ -12,7 +12,7 @@ export function useAdaptiveDebounce(value: string, baseDelay: number = 600): str
   } else if (value.length > 10) {
     debounceTime = 200; // Fast for specific searches
   } else {
-    debounceTime = 800; // Slower for short searches (wait for more input)
+    debounceTime = 300; // Faster for short searches (UIDs, SKUs, etc)
   }
   
   return useDebounce(value, debounceTime);
