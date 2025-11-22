@@ -24,17 +24,13 @@ export default function Scan() {
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
-    findShipmentByUid, 
-    updateShipment, 
     settings,
     addRecentScan,
-    setShipments,
     updateSettings
   } = useAppStore();
 
-  // Load shipments and API key from database on mount
+  // Load API key and settings on mount
   useEffect(() => {
-    loadShipments();
     loadAppConfig();
     loadUserSettings();
   }, []);
@@ -68,8 +64,6 @@ export default function Scan() {
         .eq('id', shipmentId);
 
       if (error) throw error;
-
-      updateShipment(shipmentId, { location_id: newLocationId });
       
       // Update the groupItems array if the item is in it
       setGroupItems(prev => prev.map(item => 
@@ -112,38 +106,22 @@ export default function Scan() {
     }
   };
 
-  const loadShipments = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+  const findShipmentByUid = async (uid: string): Promise<Shipment | null> => {
+    const upperUid = uid.toUpperCase();
+    
+    const { data, error } = await supabase
+      .from('shipments')
+      .select('*')
+      .or(`uid.ilike.${upperUid},uid.ilike.%${upperUid}%`)
+      .limit(1)
+      .maybeSingle();
 
-    // Fetch all shipments with pagination (1000 rows at a time)
-    let allShipments: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data: shipmentsData, error: shipmentsError } = await supabase
-        .from('shipments')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (shipmentsError) {
-        console.error('Failed to load shipments:', shipmentsError);
-        return;
-      }
-
-      if (shipmentsData && shipmentsData.length > 0) {
-        allShipments = [...allShipments, ...shipmentsData];
-        hasMore = shipmentsData.length === pageSize;
-        page++;
-      } else {
-        hasMore = false;
-      }
+    if (error) {
+      console.error('Failed to find shipment:', error);
+      return null;
     }
 
-    setShipments(allShipments);
+    return data;
   };
 
   // Load printer ID from cookie on mount
@@ -186,7 +164,7 @@ export default function Scan() {
     
     if (!trimmedUid) return;
 
-    const shipment = findShipmentByUid(trimmedUid);
+    const shipment = await findShipmentByUid(trimmedUid);
 
     if (!shipment) {
       toast.error('UID not found', {
@@ -356,11 +334,7 @@ export default function Scan() {
           status: 'done'
         });
 
-      updateShipment(shipment.id, { 
-        printed: true, 
-        printed_at: new Date().toISOString(),
-        printed_by_user_id: user.id
-      });
+      // Shipment updated in database, no need for local state update
       
       toast.success('Label printed!', {
         description: `Printed label for ${shipment.uid}`
@@ -460,21 +434,10 @@ export default function Scan() {
           status: 'done'
         });
 
-      // Update local state for all group items
-      groupItems.forEach(item => {
-        updateShipment(item.id, { 
-          printed: true, 
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        });
-      });
-
       toast.success('All items marked as printed!', {
         description: `Printed manifest for group`
       });
 
-      // Reload the group items
-      await loadShipments();
       setSelectedShipment(null);
       setGroupItems([]);
     } catch (error: any) {
@@ -558,15 +521,6 @@ export default function Scan() {
           label_url: `group_id_${shipment.order_group_id}`,
           status: 'done'
         });
-
-      updateShipment(shipment.id, { 
-        group_id_printed: true, 
-        group_id_printed_at: new Date().toISOString(),
-        group_id_printed_by_user_id: user.id,
-        printed: true,
-        printed_at: new Date().toISOString(),
-        printed_by_user_id: user.id
-      });
       
       toast.success('Group ID label printed!', {
         description: `Printed group ID for bundle ${shipment.uid}`
