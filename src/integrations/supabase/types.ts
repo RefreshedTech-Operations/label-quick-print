@@ -363,6 +363,13 @@ export type Database = {
           unprinted_orders: number
         }[]
       }
+      get_hourly_print_rate: {
+        Args: { end_date: string; start_date: string }
+        Returns: {
+          hour: number
+          print_count: number
+        }[]
+      }
       get_print_status_breakdown: {
         Args: { end_date: string; start_date: string }
         Returns: {

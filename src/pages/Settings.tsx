@@ -19,6 +19,7 @@ import { StatusStackedBarChart } from '@/components/analytics/StatusStackedBarCh
 import { DailyActivityChart } from '@/components/analytics/DailyActivityChart';
 import { BundleBreakdownChart } from '@/components/analytics/BundleBreakdownChart';
 import { PrinterPerformanceChart } from '@/components/analytics/PrinterPerformanceChart';
+import { HourlyPrintRateChart } from '@/components/analytics/HourlyPrintRateChart';
 import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 import { exportSummaryReport } from '@/lib/analyticsExport';
 import { DateRange } from 'react-day-picker';
@@ -470,7 +471,7 @@ export default function Settings() {
     setDateRange(newRange);
   };
 
-  const { isLoading, kpis, dailyData, printerData, printStatusData } = useAnalyticsData(dateRange);
+  const { isLoading, kpis, dailyData, printerData, printStatusData, hourlyData } = useAnalyticsData(dateRange);
 
   const handleExport = () => {
     exportSummaryReport(kpis, dateRange);
@@ -870,8 +871,18 @@ export default function Settings() {
                   description={`${kpis.cancelledPercentage}% of total`}
                 />
               </>
-            )}
+          )}
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Hourly Print Rate</CardTitle>
+              <CardDescription>Labels printed by hour of day</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <HourlyPrintRateChart hourlyData={hourlyData} />
+            </CardContent>
+          </Card>
 
           {isLoading ? (
             <div className="space-y-6">
