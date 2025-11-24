@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
 import { DateRange } from 'react-day-picker'
-import { format } from 'date-fns'
+import { format, endOfDay } from 'date-fns'
 import { useMemo } from 'react'
 
 interface AnalyticsKPIs {
@@ -79,7 +79,7 @@ const defaultKpis: AnalyticsKPIs = {
 export function useAnalyticsData(dateRange: DateRange | undefined) {
   // Convert DateRange to date strings
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null
-  const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : null
+  const endDate = dateRange?.to ? format(endOfDay(dateRange.to), "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null
 
   // Try optimized combined query first, fallback to individual queries if function doesn't exist
   const { data: combinedData, isLoading, error } = useQuery({
