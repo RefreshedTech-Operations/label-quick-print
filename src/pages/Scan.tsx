@@ -554,38 +554,40 @@ export default function Scan() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="text-center space-y-2">
-        <h1 className="text-4xl font-bold">Scan Label</h1>
-        <p className="text-muted-foreground">Scan barcode with handheld scanner</p>
+    <div className="w-full px-6 py-4 space-y-4">
+      {/* Top Header with Printer ID */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium whitespace-nowrap">Printer ID:</label>
+          <Input
+            type="number"
+            value={printerId}
+            onChange={(e) => handlePrinterIdChange(e.target.value)}
+            placeholder="Enter printer ID..."
+            className="w-32 h-9"
+          />
+        </div>
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">SCAN LABEL</h1>
+          <p className="text-sm text-muted-foreground">Scan barcode with handheld scanner</p>
+        </div>
+        <div className="w-32"></div> {/* Spacer for balance */}
       </div>
 
-      <Card>
+      {/* UID Input Section */}
+      <Card className="max-w-2xl mx-auto">
         <CardContent className="pt-6">
           <form onSubmit={handleScan} className="space-y-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">PrintNode Printer ID</label>
-                <Input
-                  type="number"
-                  value={printerId}
-                  onChange={(e) => handlePrinterIdChange(e.target.value)}
-                  placeholder="Enter printer ID..."
-                  className="h-12"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">UID</label>
-                <Input
-                  ref={inputRef}
-                  value={uid}
-                  onChange={(e) => setUid(e.target.value)}
-                  placeholder="Scan or enter UID..."
-                  className="text-2xl h-16 text-center font-mono"
-                  autoFocus
-                />
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">UID</label>
+              <Input
+                ref={inputRef}
+                value={uid}
+                onChange={(e) => setUid(e.target.value)}
+                placeholder="Scan or enter UID..."
+                className="text-2xl h-16 text-center font-mono"
+                autoFocus
+              />
             </div>
             <Button type="submit" className="w-full h-12 text-lg">
               Lookup
@@ -594,262 +596,253 @@ export default function Scan() {
         </CardContent>
       </Card>
 
+      {/* Two-Column Layout: Shipment Details (Left) + Group Items (Right) */}
       {selectedShipment && (
-        <Card className={selectedShipment.bundle ? "border-4 border-primary bg-primary/10" : "border-2 border-primary"}>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span>Shipment Found</span>
-                {selectedShipment.bundle && (
-                  <>
-                    <Badge variant="secondary" className="text-sm">
-                      Bundle Item
-                    </Badge>
-                    <Badge variant="outline" className="text-sm">
-                      {totalGroupItems} items in group
-                    </Badge>
-                    {isLastInGroup && (
-                      <Badge className="bg-warning text-warning-foreground text-sm">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Last in Group
+        <div className="grid lg:grid-cols-[40%_60%] gap-4">
+          {/* Left Column - Shipment Details */}
+          <Card className={selectedShipment.bundle ? "border-4 border-primary bg-primary/10" : "border-2 border-primary"}>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>Shipment Found</span>
+                  {selectedShipment.bundle && (
+                    <>
+                      <Badge variant="secondary" className="text-sm">
+                        Bundle Item
                       </Badge>
-                    )}
-                  </>
+                      <Badge variant="outline" className="text-sm">
+                        {totalGroupItems} items
+                      </Badge>
+                      {isLastInGroup && (
+                        <Badge className="bg-warning text-warning-foreground text-sm">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Last in Group
+                        </Badge>
+                      )}
+                    </>
+                  )}
+                </div>
+                {selectedShipment.manifest_url ? (
+                  <Badge className="bg-success text-success-foreground">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Manifest Ready
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive">
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Missing Manifest URL
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">UID</p>
+                  <p className="font-mono font-bold text-sm">{selectedShipment.uid}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Order ID</p>
+                  <p className="font-mono text-sm">{selectedShipment.order_id}</p>
+                </div>
+                {selectedShipment.order_group_id && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-muted-foreground">Group ID</p>
+                    <p className="font-mono text-xs break-all" title={selectedShipment.order_group_id}>
+                      {selectedShipment.order_group_id}
+                    </p>
+                  </div>
+                )}
+                {selectedShipment.bundle && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-muted-foreground">Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}</p>
+                    <Input
+                      value={editingLocationIds[selectedShipment.id] ?? selectedShipment.location_id ?? ''}
+                      onChange={(e) => setEditingLocationIds(prev => ({ 
+                        ...prev, 
+                        [selectedShipment.id]: e.target.value 
+                      }))}
+                      onBlur={(e) => {
+                        if (editingLocationIds[selectedShipment.id] !== undefined) {
+                          handleLocationIdChange(selectedShipment.id, e.target.value);
+                          setSelectedShipment({ ...selectedShipment, location_id: e.target.value });
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleLocationIdChange(selectedShipment.id, e.currentTarget.value);
+                          setSelectedShipment({ ...selectedShipment, location_id: e.currentTarget.value });
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder="Enter location..."
+                      className="h-9 mt-1"
+                    />
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Buyer</p>
+                  <p className="font-semibold text-sm">{selectedShipment.buyer}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Product</p>
+                  <p className="text-sm">{selectedShipment.product_name}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground">Shipping Address</p>
+                  <p className="text-sm">{selectedShipment.address_full}</p>
+                </div>
+                {selectedShipment.tracking && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-muted-foreground">Tracking</p>
+                    <p className="font-mono text-sm">{selectedShipment.tracking}</p>
+                  </div>
                 )}
               </div>
-              {selectedShipment.manifest_url ? (
-                <Badge className="bg-success text-success-foreground">
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  Manifest Ready
-                </Badge>
-              ) : (
-                <Badge variant="destructive">
-                  <XCircle className="h-4 w-4 mr-1" />
-                  Missing Manifest URL
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-lg">
-              <div>
-                <p className="text-muted-foreground">UID</p>
-                <p className="font-mono font-bold">{selectedShipment.uid}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Order ID</p>
-                <p className="font-mono">{selectedShipment.order_id}</p>
-              </div>
-              {selectedShipment.order_group_id && (
-                <div>
-                  <p className="text-muted-foreground">Group ID</p>
-                  <p className="font-mono text-xs" title={selectedShipment.order_group_id}>
-                    {selectedShipment.order_group_id.slice(0, 12)}...
-                  </p>
-                </div>
-              )}
-              {selectedShipment.bundle && (
-                <div>
-                  <p className="text-muted-foreground">Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}</p>
-                  <Input
-                    value={editingLocationIds[selectedShipment.id] ?? selectedShipment.location_id ?? ''}
-                    onChange={(e) => setEditingLocationIds(prev => ({ 
-                      ...prev, 
-                      [selectedShipment.id]: e.target.value 
-                    }))}
-                    onBlur={(e) => {
-                      if (editingLocationIds[selectedShipment.id] !== undefined) {
-                        handleLocationIdChange(selectedShipment.id, e.target.value);
-                        setSelectedShipment({ ...selectedShipment, location_id: e.target.value });
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleLocationIdChange(selectedShipment.id, e.currentTarget.value);
-                        setSelectedShipment({ ...selectedShipment, location_id: e.currentTarget.value });
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder="Enter location..."
-                    className="h-9 mt-1"
-                  />
-                </div>
-              )}
-              <div>
-                <p className="text-muted-foreground">Buyer</p>
-                <p className="font-semibold">{selectedShipment.buyer}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Product</p>
-                <p>{selectedShipment.product_name}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-muted-foreground">Shipping Address</p>
-                <p>{selectedShipment.address_full}</p>
-              </div>
-              {selectedShipment.tracking && (
-                <div className="col-span-2">
-                  <p className="text-muted-foreground">Tracking</p>
-                  <p className="font-mono">{selectedShipment.tracking}</p>
-                </div>
-              )}
-            </div>
 
-            {(selectedShipment.manifest_url || selectedShipment.bundle) && (
-              <Button
-                onClick={() => handlePrint(selectedShipment)}
-                disabled={
-                  printing || 
-                  (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
-                  (selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === ''))
-                }
-                size="lg"
-                className="w-full"
-              >
-                <Printer className="h-5 w-5 mr-2" />
-                {printing ? 'Printing...' : (selectedShipment.bundle && !isLastInGroup) ? 'Print Group ID Label' : 'Print Label'}
-              </Button>
-            )}
-            
-            {selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
-              <p className="text-sm text-destructive text-center">
-                Location ID is required to print group labels
-              </p>
-            )}
-            
-            {selectedShipment.bundle && selectedShipment.group_id_printed && (
-              <div className="text-sm text-muted-foreground text-center">
-                Group ID printed on {new Date(selectedShipment.group_id_printed_at!).toLocaleString()}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {(selectedShipment.manifest_url || selectedShipment.bundle) && (
+                <Button
+                  onClick={() => handlePrint(selectedShipment)}
+                  disabled={
+                    printing || 
+                    (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
+                    (selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === ''))
+                  }
+                  size="lg"
+                  className="w-full"
+                >
+                  <Printer className="h-5 w-5 mr-2" />
+                  {printing ? 'Printing...' : (selectedShipment.bundle && !isLastInGroup) ? 'Print Group ID Label' : 'Print Label'}
+                </Button>
+              )}
+              
+              {selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
+                <p className="text-xs text-destructive text-center">
+                  Location ID is required to print group labels
+                </p>
+              )}
+              
+              {selectedShipment.bundle && selectedShipment.group_id_printed && (
+                <div className="text-xs text-muted-foreground text-center">
+                  Group ID printed on {new Date(selectedShipment.group_id_printed_at!).toLocaleString()}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {selectedShipment?.bundle && groupItems.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
-              <Button
-                onClick={handlePrintAllGroupManifests}
-                disabled={printing || groupItems.every(item => item.printed)}
-                variant="default"
-              >
-                <Printer className="h-4 w-4 mr-2" />
-                Mark All Printed & Print Manifest
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>UID</TableHead>
-                    <TableHead>Location ID</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Buyer</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead>Tracking</TableHead>
-                    <TableHead className="text-center">Manifest</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupItems.map((item) => {
-                    const unprintedInGroup = groupItems.filter(s => !s.printed).length;
-                    const isItemLastInGroup = unprintedInGroup === 1 && !item.printed;
-                    
-                    return (
-                      <TableRow 
-                        key={item.id}
-                        className={
-                          item.id === selectedShipment.id 
-                            ? "bg-primary/20 font-semibold" 
-                            : item.printed 
-                              ? "bg-success/10" 
-                              : ""
-                        }
-                      >
-                        <TableCell className="font-mono text-xs">{item.uid}</TableCell>
-                        <TableCell>
-                          <Input
-                            value={editingLocationIds[item.id] ?? item.location_id ?? ''}
-                            onChange={(e) => setEditingLocationIds(prev => ({ 
-                              ...prev, 
-                              [item.id]: e.target.value 
-                            }))}
-                            onBlur={(e) => {
-                              if (editingLocationIds[item.id] !== undefined) {
-                                handleLocationIdChange(item.id, e.target.value);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleLocationIdChange(item.id, e.currentTarget.value);
-                                e.currentTarget.blur();
-                              }
-                            }}
-                            placeholder="Location"
-                            className="w-24 h-8 text-xs"
-                          />
-                        </TableCell>
-                        <TableCell>{item.product_name}</TableCell>
-                        <TableCell>{item.buyer}</TableCell>
-                        <TableCell className="max-w-[250px] truncate" title={item.address_full}>
-                          {item.address_full}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{item.tracking || '-'}</TableCell>
-                        <TableCell className="text-center">
-                          {item.manifest_url ? (
-                            <Badge variant="outline" className="bg-success/10">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Ready
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-destructive/10">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Missing
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {item.printed ? (
-                            <Badge className="bg-success text-success-foreground">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Printed
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">Pending</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {!item.printed && (item.manifest_url || item.bundle) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handlePrint(item)}
-                              disabled={
-                                printing || 
-                                (item.group_id_printed && !isItemLastInGroup) ||
-                                (!isItemLastInGroup && item.bundle && (!item.location_id || item.location_id.trim() === ''))
-                              }
-                            >
-                              <Printer className="h-4 w-4 mr-1" />
-                              {isItemLastInGroup ? 'Manifest' : item.group_id_printed ? 'Printed' : 'Group ID'}
-                            </Button>
-                          )}
-                        </TableCell>
+          {/* Right Column - Group Items */}
+          {selectedShipment?.bundle && groupItems.length > 0 ? (
+            <Card className="flex flex-col">
+              <CardHeader className="flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
+                  <Button
+                    onClick={handlePrintAllGroupManifests}
+                    disabled={printing || groupItems.every(item => item.printed)}
+                    variant="default"
+                    size="sm"
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Mark All Printed
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-hidden">
+                <div className="h-[calc(100vh-280px)] overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead>UID</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Buyer</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {groupItems.map((item) => {
+                        const unprintedInGroup = groupItems.filter(s => !s.printed).length;
+                        const isItemLastInGroup = unprintedInGroup === 1 && !item.printed;
+                        
+                        return (
+                          <TableRow 
+                            key={item.id}
+                            className={
+                              item.id === selectedShipment.id 
+                                ? "bg-primary/20 font-semibold" 
+                                : item.printed 
+                                  ? "bg-success/10" 
+                                  : ""
+                            }
+                          >
+                            <TableCell className="font-mono text-xs">{item.uid}</TableCell>
+                            <TableCell>
+                              <Input
+                                value={editingLocationIds[item.id] ?? item.location_id ?? ''}
+                                onChange={(e) => setEditingLocationIds(prev => ({ 
+                                  ...prev, 
+                                  [item.id]: e.target.value 
+                                }))}
+                                onBlur={(e) => {
+                                  if (editingLocationIds[item.id] !== undefined) {
+                                    handleLocationIdChange(item.id, e.target.value);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleLocationIdChange(item.id, e.currentTarget.value);
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                                placeholder="Location"
+                                className="w-24 h-8 text-xs"
+                              />
+                            </TableCell>
+                            <TableCell className="text-xs">{item.product_name}</TableCell>
+                            <TableCell className="text-xs">{item.buyer}</TableCell>
+                            <TableCell className="text-center">
+                              {item.printed ? (
+                                <Badge className="bg-success text-success-foreground text-xs">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Printed
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">Pending</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {!item.printed && (item.manifest_url || item.bundle) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handlePrint(item)}
+                                  disabled={
+                                    printing || 
+                                    (item.group_id_printed && !isItemLastInGroup) ||
+                                    (!isItemLastInGroup && item.bundle && (!item.location_id || item.location_id.trim() === ''))
+                                  }
+                                  className="h-7 text-xs"
+                                >
+                                  <Printer className="h-3 w-3 mr-1" />
+                                  {isItemLastInGroup ? 'Manifest' : item.group_id_printed ? 'Printed' : 'Group ID'}
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex items-center justify-center text-muted-foreground">
+              {selectedShipment?.bundle ? 'Loading group items...' : ''}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
     </div>
   );
