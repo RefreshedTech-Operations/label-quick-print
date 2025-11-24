@@ -598,7 +598,7 @@ export default function Scan() {
 
       {/* Two-Column Layout: Shipment Details (Left) + Group Items (Right) */}
       {selectedShipment && (
-        <div className="grid lg:grid-cols-[40%_60%] gap-4">
+        <div className="grid lg:grid-cols-[40%_60%] gap-4 items-start">
           {/* Left Column - Shipment Details */}
           <Card className={selectedShipment.bundle ? "border-4 border-primary bg-primary/10" : "border-2 border-primary"}>
             <CardHeader>
@@ -732,8 +732,8 @@ export default function Scan() {
 
           {/* Right Column - Group Items */}
           {selectedShipment?.bundle && groupItems.length > 0 ? (
-            <Card className="flex flex-col">
-              <CardHeader className="flex-shrink-0">
+            <Card>
+              <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
                   <Button
@@ -747,8 +747,8 @@ export default function Scan() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-hidden">
-                <div className="h-[calc(100vh-280px)] overflow-y-auto">
+              <CardContent>
+                <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
