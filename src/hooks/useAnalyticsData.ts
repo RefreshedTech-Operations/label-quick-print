@@ -39,6 +39,11 @@ interface PrintStatus {
   error: number
 }
 
+interface HourlyPrintRate {
+  hour: number
+  print_count: number
+}
+
 interface CombinedAnalyticsResponse {
   kpis: {
     total_orders: number
@@ -53,6 +58,7 @@ interface CombinedAnalyticsResponse {
   daily_data: DailyAnalytics[]
   printer_performance: PrinterPerformance[]
   print_status: PrintStatus
+  hourly_data: HourlyPrintRate[]
 }
 
 // Default KPI values for loading state
@@ -91,18 +97,20 @@ export function useAnalyticsData(dateRange: DateRange | undefined) {
       if (error && error.code === 'PGRST202') {
         console.log('Optimized function not available, using fallback queries')
         
-        // Fallback: Run the 4 separate queries
-        const [kpisResult, dailyResult, printerResult, statusResult] = await Promise.all([
+        // Fallback: Run the 5 separate queries
+        const [kpisResult, dailyResult, printerResult, statusResult, hourlyResult] = await Promise.all([
           supabase.rpc('get_analytics_kpis', { start_date: startDate, end_date: endDate }),
           supabase.rpc('get_daily_analytics', { start_date: startDate, end_date: endDate }),
           supabase.rpc('get_printer_performance', { start_date: startDate, end_date: endDate }),
           supabase.rpc('get_print_status_breakdown', { start_date: startDate, end_date: endDate }),
+          supabase.rpc('get_hourly_print_rate', { start_date: startDate, end_date: endDate }),
         ])
 
         if (kpisResult.error) throw kpisResult.error
         if (dailyResult.error) throw dailyResult.error
         if (printerResult.error) throw printerResult.error
         if (statusResult.error) throw statusResult.error
+        if (hourlyResult.error) throw hourlyResult.error
 
         // Transform fallback data to match CombinedAnalyticsResponse format
         const kpisData = kpisResult.data?.[0] as any || {}
@@ -131,6 +139,7 @@ export function useAnalyticsData(dateRange: DateRange | undefined) {
             queued: statusData.queued || 0,
             error: statusData.error || 0,
           },
+          hourly_data: hourlyResult.data || [],
         } as CombinedAnalyticsResponse
       }
 
@@ -201,6 +210,10 @@ export function useAnalyticsData(dateRange: DateRange | undefined) {
     ]
   }, [combinedData])
 
+  const hourlyData = useMemo(() => {
+    return combinedData?.hourly_data || []
+  }, [combinedData])
+
   return {
     isLoading,
     error,
@@ -208,5 +221,6 @@ export function useAnalyticsData(dateRange: DateRange | undefined) {
     dailyData,
     printerData,
     printStatusData,
+    hourlyData,
   }
 }
