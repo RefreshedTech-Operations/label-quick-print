@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
@@ -48,6 +49,9 @@ export default function Settings() {
   const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
   const [loading, setLoading] = useState(false);
   const [appConfigId, setAppConfigId] = useState<string>('');
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+  const [originalApiKey, setOriginalApiKey] = useState('');
+  const [originalPrinterId, setOriginalPrinterId] = useState('');
   
   // Administrative tools state
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -81,7 +85,9 @@ export default function Settings() {
     }
 
     if (data) {
-      setPrintnodeApiKey(data.value || '');
+      const apiKey = data.value || '';
+      setPrintnodeApiKey(apiKey);
+      setOriginalApiKey(apiKey);
       setAppConfigId(data.id);
     }
   };
@@ -107,11 +113,26 @@ export default function Settings() {
         auto_print: data.auto_print,
         block_cancelled: data.block_cancelled
       });
-      setDefaultPrinterId(data.default_printer_id || '');
+      const printerId = data.default_printer_id || '';
+      setDefaultPrinterId(printerId);
+      setOriginalPrinterId(printerId);
     }
   };
 
   const handleSaveSettings = async () => {
+    // Check if critical fields are being cleared
+    const isApiKeyCleared = originalApiKey && !printnodeApiKey.trim();
+    const isPrinterIdCleared = originalPrinterId && !defaultPrinterId.trim();
+    
+    if (isApiKeyCleared || isPrinterIdCleared) {
+      setShowClearConfirmation(true);
+      return;
+    }
+    
+    await savePrintnodeConfig();
+  };
+
+  const savePrintnodeConfig = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -156,6 +177,11 @@ export default function Settings() {
       updateSettings({ 
         default_printer_id: defaultPrinterId 
       });
+      
+      // Update original values after successful save
+      setOriginalApiKey(printnodeApiKey);
+      setOriginalPrinterId(defaultPrinterId);
+      
       toast.success('Settings saved');
     } catch (error: any) {
       toast.error('Failed to save settings', {
@@ -510,7 +536,14 @@ export default function Settings() {
               value={printnodeApiKey}
               onChange={(e) => setPrintnodeApiKey(e.target.value)}
               placeholder="Enter PrintNode API key"
+              className={originalApiKey && !printnodeApiKey.trim() ? 'border-destructive' : ''}
             />
+            {originalApiKey && !printnodeApiKey.trim() && (
+              <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                <AlertCircle className="h-4 w-4" />
+                Warning: Clearing this will affect all users
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -521,7 +554,14 @@ export default function Settings() {
               value={defaultPrinterId}
               onChange={(e) => setDefaultPrinterId(e.target.value)}
               placeholder="Enter PrintNode printer ID"
+              className={originalPrinterId && !defaultPrinterId.trim() ? 'border-destructive' : ''}
             />
+            {originalPrinterId && !defaultPrinterId.trim() && (
+              <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                <AlertCircle className="h-4 w-4" />
+                Warning: Clearing this will remove your default printer
+              </p>
+            )}
           </div>
 
           <Button onClick={handleSaveSettings} disabled={loading}>
@@ -972,6 +1012,39 @@ export default function Settings() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Clear Configuration Confirmation Dialog */}
+      <AlertDialog open={showClearConfirmation} onOpenChange={setShowClearConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Clearing Configuration</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>You are about to clear critical PrintNode configuration:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                {originalApiKey && !printnodeApiKey.trim() && (
+                  <li className="text-destructive font-medium">PrintNode API Key (affects all users)</li>
+                )}
+                {originalPrinterId && !defaultPrinterId.trim() && (
+                  <li className="text-destructive font-medium">Default Printer ID</li>
+                )}
+              </ul>
+              <p className="mt-3">This action will save empty values. Are you sure you want to continue?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowClearConfirmation(false);
+                savePrintnodeConfig();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Clear Configuration
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
