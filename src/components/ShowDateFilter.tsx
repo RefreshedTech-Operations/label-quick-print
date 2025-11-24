@@ -10,7 +10,7 @@ const EST_TIMEZONE = "America/New_York";
 
 interface ShowDateFilterProps {
   selectedDate?: string; // 'yyyy-MM-dd' format
-  recentDates: Array<{ date: string; count: number }>;
+  recentDates: Array<{ date: string; count: number; unprintedCount: number }>;
   onDateSelect: (date: string | undefined) => void;
   onAllShowsEnable?: () => void; // Callback to enable "All Shows" mode
 }
@@ -65,14 +65,14 @@ export function ShowDateFilter({ selectedDate, recentDates, onDateSelect, onAllS
       </Button>
 
       {/* Recent Show Dates */}
-      {recentDates.map(({ date, count }) => (
+      {recentDates.map(({ date, count, unprintedCount }) => (
         <Button
           key={date}
           variant={selectedDate === date ? "default" : "outline"}
           size="sm"
           onClick={() => onDateSelect(date)}
         >
-          {format(parse(date, "yyyy-MM-dd", new Date()), "MMM d")} ({count.toLocaleString()})
+          {format(parse(date, "yyyy-MM-dd", new Date()), "MMM d")} ({unprintedCount.toLocaleString()}/{count.toLocaleString()})
         </Button>
       ))}
 

@@ -128,9 +128,10 @@ export default function Orders() {
       
       if (error) throw error;
       
-      return data?.map(({ show_date, count }) => ({ 
+      return data?.map(({ show_date, count, unprinted_count }) => ({ 
         date: show_date, 
-        count: Number(count) 
+        count: Number(count),
+        unprintedCount: Number(unprinted_count)
       })) || [];
     },
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
