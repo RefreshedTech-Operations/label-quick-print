@@ -425,6 +425,7 @@ export type Database = {
         Returns: {
           count: number
           show_date: string
+          unprinted_count: number
         }[]
       }
       has_role: {
