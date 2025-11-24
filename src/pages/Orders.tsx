@@ -44,8 +44,9 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download } from 'lucide-react';
 import { Shipment } from '@/types';
+import { exportOrders } from '@/lib/analyticsExport';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
 import { format } from 'date-fns';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
@@ -74,6 +75,8 @@ export default function Orders() {
   const [pageSize, setPageSize] = useState(25);
   const [statsEnabled, setStatsEnabled] = useState(true); // PHASE 2: Lazy stats loading
   const [allowAllShows, setAllowAllShows] = useState(false); // Prevent "All Shows" query on initial load
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   const { settings, updateSettings } = useAppStore();
 
@@ -782,6 +785,65 @@ export default function Orders() {
     }
   };
 
+  // Export handlers
+  const handleExportAll = async () => {
+    setIsExporting(true);
+    try {
+      const { data, error } = await supabase
+        .rpc('search_shipments', {
+          search_term: '',
+          p_show_date: showDateFilter || null,
+          p_filter: 'all',
+          p_limit: 999999,
+          p_offset: 0,
+        });
+
+      if (error) throw error;
+
+      exportOrders(data || [], {
+        showDate: showDateFilter,
+        filter: 'all',
+        isFiltered: false,
+      });
+
+      toast.success(`Successfully exported ${data?.length || 0} orders`);
+    } catch (error: any) {
+      toast.error('Failed to export orders', { description: error.message });
+    } finally {
+      setIsExporting(false);
+      setShowExportDialog(false);
+    }
+  };
+
+  const handleExportFiltered = async () => {
+    setIsExporting(true);
+    try {
+      const { data, error } = await supabase
+        .rpc('search_shipments', {
+          search_term: debouncedSearch || '',
+          p_show_date: showDateFilter || null,
+          p_filter: filter,
+          p_limit: 999999,
+          p_offset: 0,
+        });
+
+      if (error) throw error;
+
+      exportOrders(data || [], {
+        showDate: showDateFilter,
+        filter: filter,
+        isFiltered: true,
+      });
+
+      toast.success(`Successfully exported ${data?.length || 0} filtered orders`);
+    } catch (error: any) {
+      toast.error('Failed to export orders', { description: error.message });
+    } finally {
+      setIsExporting(false);
+      setShowExportDialog(false);
+    }
+  };
+
   // REMOVED: Client-side filtering now handled in SQL via p_filter parameter
 
   // Stats calculation using aggregate query from database
@@ -843,6 +905,19 @@ export default function Orders() {
             className="h-10 w-10"
           >
             <RefreshCw className={`h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowExportDialog(true)}
+            disabled={isExporting || loading}
+            className="gap-2"
+          >
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Export
           </Button>
         </div>
       </div>
@@ -1332,6 +1407,55 @@ export default function Orders() {
               disabled={isBulkPrinting}
             >
               Print Unprinted Only ({bulkPrintData.unprinted.length})
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Export Confirmation Dialog */}
+      <AlertDialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export Orders</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <div>
+                <p className="font-medium mb-2">Current Filters:</p>
+                <div className="bg-muted p-3 rounded space-y-1 text-sm">
+                  <div><strong>Show Date:</strong> {showDateFilter || 'All Shows'}</div>
+                  <div><strong>Status Filter:</strong> {filter.charAt(0).toUpperCase() + filter.slice(1)}</div>
+                  {debouncedSearch && <div><strong>Search:</strong> "{debouncedSearch}"</div>}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="font-medium">Choose export option:</p>
+                <div className="bg-muted/50 p-3 rounded space-y-2 text-sm">
+                  <div>
+                    <strong>Export All Orders:</strong> All orders for selected date ({stats.total} orders)
+                  </div>
+                  <div>
+                    <strong>Export Filtered Orders:</strong> Only orders matching current filters ({totalCount} orders)
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isExporting}>Cancel</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={handleExportAll}
+              disabled={isExporting}
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Export All ({stats.total})
+            </Button>
+            <AlertDialogAction 
+              onClick={handleExportFiltered}
+              disabled={isExporting}
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Export Filtered ({totalCount})
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -76,6 +76,49 @@ export function exportSummaryReport(kpis: any, dateRange: DateRange) {
   downloadCSV(csv, `summary_report_${dateRangeStr}.csv`);
 }
 
+export function exportOrders(
+  shipments: Shipment[], 
+  metadata: { 
+    showDate?: string; 
+    filter?: string; 
+    isFiltered: boolean;
+  }
+) {
+  const csvData = shipments.map(shipment => ({
+    'UID': shipment.uid || '-',
+    'Order ID': shipment.order_id || '-',
+    'Group ID': shipment.order_group_id || '-',
+    'Buyer': shipment.buyer || '-',
+    'Product Name': shipment.product_name || '-',
+    'Quantity': shipment.quantity || '-',
+    'Price': shipment.price || '-',
+    'Tracking': shipment.tracking || '-',
+    'Address': shipment.address_full || '-',
+    'Location ID': shipment.location_id || '-',
+    'Printed': shipment.printed ? 'Yes' : 'No',
+    'Printed At': shipment.printed_at ? format(new Date(shipment.printed_at), 'yyyy-MM-dd HH:mm') : '-',
+    'Printed By': shipment.printed_by?.email || '-',
+    'Cancelled': shipment.cancelled || 'No',
+    'Group Label Printed': shipment.group_id_printed ? 'Yes' : 'No',
+    'Group Label Printed At': shipment.group_id_printed_at ? format(new Date(shipment.group_id_printed_at), 'yyyy-MM-dd HH:mm') : '-',
+    'Group Label Printed By': shipment.group_id_printed_by?.email || '-',
+    'Bundle': shipment.bundle ? 'Yes' : 'No',
+    'Show Date': shipment.show_date || '-',
+    'Created At': format(new Date(shipment.created_at), 'yyyy-MM-dd HH:mm'),
+    'Label URL': shipment.label_url || '-',
+    'Manifest URL': shipment.manifest_url || '-',
+  }));
+
+  const csv = Papa.unparse(csvData);
+  
+  const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
+  const filterType = metadata.isFiltered ? `filtered_${metadata.filter}` : 'all';
+  const showDateStr = metadata.showDate || 'all_dates';
+  const filename = `orders_${filterType}_${showDateStr}_${timestamp}.csv`;
+  
+  downloadCSV(csv, filename);
+}
+
 function downloadCSV(csv: string, filename: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
