@@ -5,7 +5,8 @@ import { X, Activity, Target, TrendingUp, Package, Clock, Zap } from 'lucide-rea
 import { useNavigate } from 'react-router-dom';
 import { useTVDashboardData } from '@/hooks/useTVDashboardData';
 import { Progress } from '@/components/ui/progress';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import {
   BarChart,
   Bar,
@@ -19,12 +20,15 @@ import {
 
 export default function TVDashboard() {
   const navigate = useNavigate();
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const EST_TIMEZONE = 'America/New_York';
+  const [currentTime, setCurrentTime] = useState(() => toZonedTime(new Date(), EST_TIMEZONE));
   const { data, isLoading } = useTVDashboardData(undefined, 30000); // 30 second refresh
 
-  // Update current time every second
+  // Update current time every second in EST
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => {
+      setCurrentTime(toZonedTime(new Date(), EST_TIMEZONE));
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -46,10 +50,17 @@ export default function TVDashboard() {
     : data.total_printed;
   
   const timeSinceLastPrint = data.last_print_time
-    ? formatDistanceToNow(new Date(data.last_print_time), { addSuffix: true })
+    ? formatDistanceToNow(toZonedTime(new Date(data.last_print_time), EST_TIMEZONE), { addSuffix: true })
     : 'No prints yet';
 
   const isActive = data.last_hour_count > 0;
+
+  // Format peak hour in 12-hour format with AM/PM
+  const formatHour = (hour: number) => {
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:00 ${period}`;
+  };
 
   const chartData = data.hourly_breakdown.map(h => ({
     hour: h.hour,
@@ -66,9 +77,10 @@ export default function TVDashboard() {
         <div>
           <h1 className="text-5xl font-bold text-foreground">Label Printing Dashboard</h1>
           <p className="text-2xl text-muted-foreground mt-2">
-            {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {format(currentTime, 'EEEE, MMMM d, yyyy')}
             {' • '}
-            {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            {format(currentTime, 'hh:mm:ss a')}
+            {' EST'}
           </p>
         </div>
         <Button 
@@ -219,7 +231,7 @@ export default function TVDashboard() {
               <div>
                 <p className="text-lg text-muted-foreground">Peak Hour</p>
                 <p className="text-4xl font-bold text-foreground">
-                  {data.peak_hour.hour.toString().padStart(2, '0')}:00
+                  {formatHour(data.peak_hour.hour)}
                 </p>
                 <p className="text-lg text-muted-foreground">{data.peak_hour.count} labels</p>
               </div>
