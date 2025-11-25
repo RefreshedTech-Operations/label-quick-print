@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Package, Upload, List, Settings, Printer, LogOut, Package2 } from 'lucide-react';
+import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -87,6 +87,17 @@ export default function Layout({ children }: LayoutProps) {
                 <Link to="/batches">
                   <Package2 className="h-4 w-4" />
                   Batches
+                </Link>
+              </Button>
+
+              <Button
+                variant={isActive('/tv-dashboard') ? 'default' : 'ghost'}
+                asChild
+                className="gap-2"
+              >
+                <Link to="/tv-dashboard">
+                  <Monitor className="h-4 w-4" />
+                  TV Dashboard
                 </Link>
               </Button>
 
