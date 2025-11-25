@@ -428,6 +428,7 @@ export type Database = {
           unprinted_count: number
         }[]
       }
+      get_tv_dashboard_stats: { Args: { target_date?: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
