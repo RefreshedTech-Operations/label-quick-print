@@ -50,7 +50,7 @@ export default function TVDashboard() {
     : data.total_printed;
   
   const timeSinceLastPrint = data.last_print_time
-    ? formatDistanceToNow(toZonedTime(new Date(data.last_print_time), EST_TIMEZONE), { addSuffix: true })
+    ? formatDistanceToNow(new Date(data.last_print_time), { addSuffix: true })
     : 'No prints yet';
 
   const isActive = data.last_hour_count > 0;
