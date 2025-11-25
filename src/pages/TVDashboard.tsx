@@ -65,7 +65,7 @@ export default function TVDashboard() {
   const chartData = data.hourly_breakdown.map(h => ({
     hour: h.hour,
     count: h.count,
-    name: `${h.hour.toString().padStart(2, '0')}:00`,
+    name: formatHour(h.hour),
   }));
 
   const averageCount = data.avg_per_hour;
