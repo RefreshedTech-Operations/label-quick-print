@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
+import { ChargerWarning } from '@/components/ChargerWarning';
 
 export default function Scan() {
   const [uid, setUid] = useState('');
@@ -634,6 +635,13 @@ export default function Scan() {
                   </Badge>
                 )}
               </CardTitle>
+              
+              {/* Charger Warning - Main Display */}
+              {selectedShipment.bundle && groupItems.length > 0 && (
+                <div className="mt-4">
+                  <ChargerWarning items={groupItems} />
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -699,6 +707,11 @@ export default function Scan() {
                   </div>
                 )}
               </div>
+
+              {/* Compact Charger Warning - Right before Print Button */}
+              {selectedShipment.bundle && !isLastInGroup && groupItems.length > 0 && (
+                <ChargerWarning items={groupItems} compact />
+              )}
 
               {(selectedShipment.manifest_url || selectedShipment.bundle) && (
                 <Button

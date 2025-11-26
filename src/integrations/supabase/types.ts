@@ -77,6 +77,33 @@ export type Database = {
         }
         Relationships: []
       }
+      bundle_locations: {
+        Row: {
+          category: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          location_code: string
+          sort_order: number
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          location_code: string
+          sort_order: number
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          location_code?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       column_mappings: {
         Row: {
           created_at: string | null
@@ -332,6 +359,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_location_to_bundle: {
+        Args: { p_location_code: string; p_order_group_id: string }
+        Returns: undefined
+      }
       get_analytics_kpis: {
         Args: { end_date: string; start_date: string }
         Returns: {
@@ -370,6 +401,7 @@ export type Database = {
           print_count: number
         }[]
       }
+      get_next_available_location: { Args: never; Returns: string }
       get_print_status_breakdown: {
         Args: { end_date: string; start_date: string }
         Returns: {
