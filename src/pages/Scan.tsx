@@ -248,10 +248,15 @@ export default function Scan() {
         return;
       }
       
-      // Query all shipments in the same group
+      // ALWAYS print Group ID first if not already printed
+      if (!shipment.group_id_printed) {
+        return handlePrintGroupId(shipment);
+      }
+      
+      // Group ID already printed - check if ready for manifest
       const { data: groupShipments, error } = await supabase
         .from('shipments')
-        .select('id, printed')
+        .select('id, printed, group_id_printed')
         .eq('order_group_id', shipment.order_group_id);
 
       if (error) {
@@ -260,23 +265,20 @@ export default function Scan() {
         return;
       }
 
-      // Count unprinted items (including this one)
+      const allHaveGroupId = groupShipments?.every(s => s.group_id_printed) ?? false;
       const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
 
-      // If this is the last unprinted item, print manifest instead
-      if (unprintedCount === 1) {
-        toast.info('Last item in group - printing manifest');
-        // Fall through to manifest printing logic below
+      if (!allHaveGroupId) {
+        toast.info('Other items in group still need Group ID labels');
+        return;
+      }
+      
+      if (unprintedCount <= 1) {
+        toast.info('All Group IDs printed - printing manifest');
+        // Fall through to manifest printing
       } else {
-        // Not the last item, print group ID
-        if (shipment.group_id_printed) {
-          toast.error('Group ID already printed', {
-            description: `This bundle's group ID was already printed${shipment.group_id_printed_at ? ` on ${new Date(shipment.group_id_printed_at).toLocaleString()}` : ''}`
-          });
-          return;
-        }
-        
-        return handlePrintGroupId(shipment);
+        toast.error('Group ID already printed for this item');
+        return;
       }
     }
 
@@ -721,7 +723,7 @@ export default function Scan() {
               </div>
 
               {/* Compact Charger Warning - Right before Print Button */}
-              {selectedShipment.bundle && !isLastInGroup && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && (
+              {selectedShipment.bundle && !selectedShipment.group_id_printed && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && (
                 <ChargerWarning items={groupItems} compact channel={selectedShipment.channel} />
               )}
 
@@ -731,18 +733,18 @@ export default function Scan() {
                   disabled={
                     printing || 
                     (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
-                    (selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
+                    (selectedShipment.bundle && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
                     (selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && !chargersAcknowledged)
                   }
                   size="lg"
                   className="w-full"
                 >
                   <Printer className="h-5 w-5 mr-2" />
-                  {printing ? 'Printing...' : (selectedShipment.bundle && !isLastInGroup) ? 'Print Group ID Label' : 'Print Label'}
+                  {printing ? 'Printing...' : (selectedShipment.bundle && !selectedShipment.group_id_printed) ? 'Print Group ID Label' : 'Print Label'}
                 </Button>
               )}
               
-              {selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
+              {selectedShipment.bundle && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
                 <p className="text-xs text-destructive text-center">
                   Location ID is required to print group labels
                 </p>
