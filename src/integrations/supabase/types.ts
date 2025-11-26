@@ -205,6 +205,7 @@ export type Database = {
           bundle: boolean | null
           buyer: string | null
           cancelled: string | null
+          channel: string | null
           created_at: string | null
           group_id_printed: boolean | null
           group_id_printed_at: string | null
@@ -236,6 +237,7 @@ export type Database = {
           bundle?: boolean | null
           buyer?: string | null
           cancelled?: string | null
+          channel?: string | null
           created_at?: string | null
           group_id_printed?: boolean | null
           group_id_printed_at?: string | null
@@ -267,6 +269,7 @@ export type Database = {
           bundle?: boolean | null
           buyer?: string | null
           cancelled?: string | null
+          channel?: string | null
           created_at?: string | null
           group_id_printed?: boolean | null
           group_id_printed_at?: string | null
