@@ -21,8 +21,6 @@ export default function Scan() {
   const [totalGroupItems, setTotalGroupItems] = useState(0);
   const [groupItems, setGroupItems] = useState<Shipment[]>([]);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
-  const [suggestedLocation, setSuggestedLocation] = useState<string | null>(null);
-  const [showLocationSuggestion, setShowLocationSuggestion] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -51,37 +49,6 @@ export default function Scan() {
 
     if (data?.value) {
       setPrintnodeApiKey(data.value);
-    }
-  };
-
-  const handleConfirmSuggestedLocation = async () => {
-    if (!suggestedLocation || !selectedShipment?.order_group_id) return;
-
-    try {
-      // Assign location to entire bundle group
-      const { error } = await supabase.rpc('assign_location_to_bundle', {
-        p_order_group_id: selectedShipment.order_group_id,
-        p_location_code: suggestedLocation
-      });
-
-      if (error) throw error;
-
-      // Update local state
-      setSelectedShipment(prev => prev ? { ...prev, location_id: suggestedLocation } : null);
-      
-      // Update all group items
-      setGroupItems(prev => prev.map(item => ({
-        ...item,
-        location_id: suggestedLocation
-      })));
-
-      setShowLocationSuggestion(false);
-      setSuggestedLocation(null);
-      
-      toast.success(`Location ${suggestedLocation} assigned to bundle`);
-    } catch (error) {
-      console.error('Error assigning location:', error);
-      toast.error('Failed to assign location');
     }
   };
 
@@ -252,23 +219,6 @@ export default function Scan() {
       groupTotal = allGroupItems.length;
       const unprintedCount = allGroupItems.filter(s => !s.printed).length;
       lastInGroup = unprintedCount === 1;
-
-      // Check if group needs a location suggestion
-      const groupLocation = allGroupItems.find(s => s.location_id)?.location_id;
-      
-      if (!groupLocation) {
-        // Get next available location
-        const { data: nextLocation, error: locationError } = await supabase.rpc('get_next_available_location');
-        
-        if (locationError) {
-          console.error('Error getting next location:', locationError);
-        } else if (nextLocation) {
-          setSuggestedLocation(nextLocation);
-          setShowLocationSuggestion(true);
-        } else {
-          toast.warning('All locations are currently in use - please enter manually');
-        }
-      }
     }
 
     setSelectedShipment(shipment);
@@ -707,7 +657,6 @@ export default function Scan() {
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}</p>
                     <Input
-                      id="location-id"
                       value={editingLocationIds[selectedShipment.id] ?? selectedShipment.location_id ?? ''}
                       onChange={(e) => setEditingLocationIds(prev => ({ 
                         ...prev, 
@@ -729,40 +678,6 @@ export default function Scan() {
                       placeholder="Enter location..."
                       className="h-9 mt-1"
                     />
-                    
-                    {showLocationSuggestion && suggestedLocation && (
-                      <div className="mt-3 p-4 border border-primary/30 rounded-lg bg-primary/5">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">📍</span>
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">Suggested Location</p>
-                              <p className="text-lg font-bold text-foreground">{suggestedLocation}</p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={handleConfirmSuggestedLocation}
-                              className="bg-primary hover:bg-primary/90"
-                              size="sm"
-                            >
-                              ✓ Confirm {suggestedLocation}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setShowLocationSuggestion(false);
-                                setSuggestedLocation(null);
-                                document.getElementById('location-id')?.focus();
-                              }}
-                            >
-                              Change
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
                 <div>
