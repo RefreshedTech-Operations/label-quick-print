@@ -22,6 +22,7 @@ export default function Scan() {
   const [totalGroupItems, setTotalGroupItems] = useState(0);
   const [groupItems, setGroupItems] = useState<Shipment[]>([]);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
+  const [chargersAcknowledged, setChargersAcknowledged] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -154,6 +155,11 @@ export default function Scan() {
       setCookie('selected_printer_id', value);
     }
   };
+
+  // Reset charger acknowledgment when shipment changes
+  useEffect(() => {
+    setChargersAcknowledged(false);
+  }, [selectedShipment?.id]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -637,9 +643,15 @@ export default function Scan() {
               </CardTitle>
               
               {/* Charger Warning - Main Display */}
-              {selectedShipment.bundle && groupItems.length > 0 && (
+              {selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && (
                 <div className="mt-4">
-                  <ChargerWarning items={groupItems} />
+                  <ChargerWarning 
+                    items={groupItems}
+                    channel={selectedShipment.channel}
+                    requireAcknowledgment={true}
+                    acknowledged={chargersAcknowledged}
+                    onAcknowledge={setChargersAcknowledged}
+                  />
                 </div>
               )}
             </CardHeader>
@@ -709,8 +721,8 @@ export default function Scan() {
               </div>
 
               {/* Compact Charger Warning - Right before Print Button */}
-              {selectedShipment.bundle && !isLastInGroup && groupItems.length > 0 && (
-                <ChargerWarning items={groupItems} compact />
+              {selectedShipment.bundle && !isLastInGroup && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && (
+                <ChargerWarning items={groupItems} compact channel={selectedShipment.channel} />
               )}
 
               {(selectedShipment.manifest_url || selectedShipment.bundle) && (
@@ -719,7 +731,8 @@ export default function Scan() {
                   disabled={
                     printing || 
                     (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
-                    (selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === ''))
+                    (selectedShipment.bundle && !isLastInGroup && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
+                    (selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && !chargersAcknowledged)
                   }
                   size="lg"
                   className="w-full"

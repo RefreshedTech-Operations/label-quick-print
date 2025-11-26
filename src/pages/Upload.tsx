@@ -12,12 +12,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 export default function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<any[]>([]);
   const [showDate, setShowDate] = useState<Date>();
+  const [channel, setChannel] = useState<string>('regular');
   
   const { columnMap, settings } = useAppStore();
   const navigate = useNavigate();
@@ -112,6 +115,7 @@ export default function Upload() {
       const shipmentsWithUser = shipmentsWithGroups.map(s => ({
         ...s,
         user_id: user.id,
+        channel: channel,
         show_date: showDate 
           ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
           : null
@@ -185,6 +189,26 @@ export default function Upload() {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Channel <span className="text-destructive">*</span>
+              </label>
+              <RadioGroup value={channel} onValueChange={setChannel}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="regular" id="regular" />
+                  <Label htmlFor="regular" className="font-normal cursor-pointer">
+                    Regular Channel (chargers required)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="misfits" id="misfits" />
+                  <Label htmlFor="misfits" className="font-normal cursor-pointer">
+                    Misfits Channel (no chargers needed)
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
 
             <div className="flex items-center gap-4">
