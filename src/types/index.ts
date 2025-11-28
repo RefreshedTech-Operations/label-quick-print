@@ -67,16 +67,16 @@ export interface AppSettings {
 
 export const DEFAULT_COLUMN_MAP: ColumnMap = {
   uid: 'sku',
-  order_id: 'order_id',
-  buyer: 'buyer_username',
-  label_url: 'label_only',
-  tracking: 'tracking_code',
-  address_full: 'shipping_address',
-  product_name: 'product_name',
-  product_description: 'product_description',
-  quantity: 'product_quantity',
-  price: 'original_item_price',
-  cancelled: 'cancelled_or_failed',
-  manifest_url: 'shipment_manifest',
-  bundle: 'bundled'
+  order_id: 'order id',
+  buyer: 'buyer',
+  label_url: 'label only',
+  tracking: 'tracking',
+  address_full: 'shipping address',
+  product_name: 'product name',
+  product_description: 'product description',
+  quantity: 'product quantity',
+  price: 'sold price',
+  cancelled: 'cancelled or failed',
+  manifest_url: 'shipment manifest',
+  bundle: 'bundled in show'
 };
