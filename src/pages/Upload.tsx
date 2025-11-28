@@ -119,25 +119,55 @@ export default function Upload() {
         }
       });
 
-      // Extract all order_ids from the file
-      const orderIds = shipmentsWithGroups.map(s => s.order_id).filter(Boolean);
+      // Phase 1: Deduplicate within the file itself
+      const seenOrderIds = new Set<string>();
+      const deduplicatedShipments: any[] = [];
+      let inFileDuplicates = 0;
 
-      // Query existing order_ids from database
-      const { data: existingShipments } = await supabase
-        .from('shipments')
-        .select('order_id')
-        .in('order_id', orderIds);
+      shipmentsWithGroups.forEach(shipment => {
+        const orderId = shipment.order_id;
+        if (orderId && seenOrderIds.has(orderId)) {
+          inFileDuplicates++;
+        } else {
+          if (orderId) seenOrderIds.add(orderId);
+          deduplicatedShipments.push(shipment);
+        }
+      });
 
-      const existingOrderIds = new Set(existingShipments?.map(s => s.order_id) || []);
+      if (inFileDuplicates > 0) {
+        console.log(`Found ${inFileDuplicates} duplicate order IDs within the file`);
+      }
 
-      // Filter out duplicates
-      const newShipments = shipmentsWithGroups.filter(s => !existingOrderIds.has(s.order_id));
-      const duplicateCount = shipmentsWithGroups.length - newShipments.length;
+      // Phase 2: Check database for existing order_ids (batched for large files)
+      const orderIdsToCheck = deduplicatedShipments
+        .map(s => s.order_id)
+        .filter(Boolean);
+
+      // Batch the .in() query to handle large files (Supabase limit ~1000)
+      const BATCH_SIZE = 500;
+      const existingOrderIds = new Set<string>();
+
+      for (let i = 0; i < orderIdsToCheck.length; i += BATCH_SIZE) {
+        const batch = orderIdsToCheck.slice(i, i + BATCH_SIZE);
+        const { data: existingBatch } = await supabase
+          .from('shipments')
+          .select('order_id')
+          .in('order_id', batch);
+        
+        existingBatch?.forEach(s => existingOrderIds.add(s.order_id));
+      }
+
+      // Filter out DB duplicates
+      const newShipments = deduplicatedShipments.filter(
+        s => !existingOrderIds.has(s.order_id)
+      );
+      const dbDuplicateCount = deduplicatedShipments.length - newShipments.length;
+      const totalSkipped = inFileDuplicates + dbDuplicateCount;
 
       // Early return if ALL are duplicates
       if (newShipments.length === 0) {
         toast.warning('No new shipments to upload', {
-          description: `All ${duplicateCount} shipments already exist in the database`
+          description: `Skipped ${inFileDuplicates} file duplicates, ${dbDuplicateCount} already in database`
         });
         setUploading(false);
         return;
@@ -167,12 +197,12 @@ export default function Upload() {
       const exceptions = newShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
       toast.success('Upload complete!', {
-        description: `Imported: ${newShipments.length} | Skipped duplicates: ${duplicateCount} | Printable: ${printable} | Exceptions: ${exceptions}`
+        description: `Imported: ${newShipments.length} | File duplicates: ${inFileDuplicates} | DB duplicates: ${dbDuplicateCount} | Printable: ${printable}`
       });
 
-      if (duplicateCount > 0) {
-        toast.info(`Skipped ${duplicateCount} duplicate shipment(s)`, {
-          description: 'These order IDs already exist in the database'
+      if (totalSkipped > 0) {
+        toast.info(`Skipped ${totalSkipped} duplicate shipment(s)`, {
+          description: `${inFileDuplicates} duplicates within file, ${dbDuplicateCount} already in database`
         });
       }
 
