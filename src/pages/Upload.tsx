@@ -119,8 +119,32 @@ export default function Upload() {
         }
       });
 
-      // Insert shipments into database
-      const shipmentsWithUser = shipmentsWithGroups.map(s => ({
+      // Extract all order_ids from the file
+      const orderIds = shipmentsWithGroups.map(s => s.order_id).filter(Boolean);
+
+      // Query existing order_ids from database
+      const { data: existingShipments } = await supabase
+        .from('shipments')
+        .select('order_id')
+        .in('order_id', orderIds);
+
+      const existingOrderIds = new Set(existingShipments?.map(s => s.order_id) || []);
+
+      // Filter out duplicates
+      const newShipments = shipmentsWithGroups.filter(s => !existingOrderIds.has(s.order_id));
+      const duplicateCount = shipmentsWithGroups.length - newShipments.length;
+
+      // Early return if ALL are duplicates
+      if (newShipments.length === 0) {
+        toast.warning('No new shipments to upload', {
+          description: `All ${duplicateCount} shipments already exist in the database`
+        });
+        setUploading(false);
+        return;
+      }
+
+      // Insert only NEW shipments into database
+      const shipmentsWithUser = newShipments.map(s => ({
         ...s,
         user_id: user.id,
         channel: channel,
@@ -138,13 +162,19 @@ export default function Upload() {
 
       // No need to set local state - Orders page will fetch from database
 
-      const printable = shipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
+      const printable = newShipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
       const printed = insertedData?.filter(s => s.printed).length || 0;
-      const exceptions = shipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
+      const exceptions = newShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
       toast.success('Upload complete!', {
-        description: `Total: ${shipments.length} | Printable: ${printable} | Printed: ${printed} | Exceptions: ${exceptions}`
+        description: `Imported: ${newShipments.length} | Skipped duplicates: ${duplicateCount} | Printable: ${printable} | Exceptions: ${exceptions}`
       });
+
+      if (duplicateCount > 0) {
+        toast.info(`Skipped ${duplicateCount} duplicate shipment(s)`, {
+          description: 'These order IDs already exist in the database'
+        });
+      }
 
       navigate('/orders');
     } catch (error: any) {
