@@ -2,19 +2,27 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ColumnMap } from '@/types';
 
+// Helper function to get column value by trying multiple possible column names
+function getColumnValue(row: any, ...possibleNames: string[]): string {
+  for (const name of possibleNames) {
+    if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+      return row[name].toString().trim();
+    }
+  }
+  return '';
+}
+
 export function extractUid(
   row: any,
   map: ColumnMap
 ): string | null {
   // First try SKU column
-  const sku = (row[map.uid] ?? '').toString().trim();
+  const sku = getColumnValue(row, 'sku', 'SKU');
   if (sku) return sku.toUpperCase();
   
   // Fallback: use product description directly
-  if (map.product_description) {
-    const desc = (row[map.product_description] ?? '').toString().trim();
-    if (desc) return desc.toUpperCase();
-  }
+  const desc = getColumnValue(row, 'product description', 'product_description');
+  if (desc) return desc.toUpperCase();
   
   return null;
 }
@@ -98,21 +106,23 @@ export function parseFile(file: File): Promise<any[]> {
 
 export function normalizeShipmentData(row: any, map: ColumnMap) {
   const uid = extractUid(row, map);
-  const bundleValue = map.bundle ? (row[map.bundle] ?? '').toString().trim().toLowerCase() : '';
+  
+  // Check for bundle in both CSV (spaces) and Excel (underscores) formats
+  const bundleValue = getColumnValue(row, 'bundled in show', 'bundled', 'bundle').toLowerCase();
   const bundle = bundleValue === 'true' || bundleValue === '1' || bundleValue === 'yes' || bundleValue === 't';
   
   return {
     uid: uid || '',
-    order_id: (row[map.order_id] ?? '').toString().trim(),
-    buyer: (row[map.buyer] ?? '').toString().trim(),
-    label_url: (row[map.label_url] ?? '').toString().trim(),
-    tracking: (row[map.tracking] ?? '').toString().trim(),
-    address_full: (row[map.address_full] ?? '').toString().trim(),
-    product_name: (row[map.product_name] ?? '').toString().trim(),
-    quantity: parseInt((row[map.quantity] ?? '').toString()) || 0,
-    price: (row[map.price] ?? '').toString().trim(),
-    cancelled: (row[map.cancelled] ?? '').toString().trim(),
-    manifest_url: (row[map.manifest_url] ?? '').toString().trim(),
+    order_id: getColumnValue(row, 'order id', 'order_id'),
+    buyer: getColumnValue(row, 'buyer', 'buyer_username'),
+    label_url: getColumnValue(row, 'label only', 'label_only'),
+    tracking: getColumnValue(row, 'tracking', 'tracking_code'),
+    address_full: getColumnValue(row, 'shipping address', 'shipping_address'),
+    product_name: getColumnValue(row, 'product name', 'product_name'),
+    quantity: parseInt(getColumnValue(row, 'product quantity', 'product_quantity')) || 0,
+    price: getColumnValue(row, 'sold price', 'original_item_price'),
+    cancelled: getColumnValue(row, 'cancelled or failed', 'cancelled_or_failed'),
+    manifest_url: getColumnValue(row, 'shipment manifest', 'shipment_manifest'),
     bundle,
     raw: row
   };
