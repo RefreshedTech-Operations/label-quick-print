@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Upload as UploadIcon, FileSpreadsheet, CalendarIcon } from 'lucide-react';
-import { parseCSV, normalizeShipmentData } from '@/lib/csv';
+import { parseFile, normalizeShipmentData } from '@/lib/csv';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -29,19 +29,27 @@ export default function Upload() {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (!selectedFile.name.endsWith('.csv')) {
-      toast.error('Please upload a CSV file');
+    const fileName = selectedFile.name.toLowerCase();
+    const isValidFormat = fileName.endsWith('.csv') || 
+                          fileName.endsWith('.xlsx') || 
+                          fileName.endsWith('.xls');
+    
+    if (!isValidFormat) {
+      toast.error('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
       return;
     }
 
     setFile(selectedFile);
 
     try {
-      const data = await parseCSV(selectedFile);
+      const data = await parseFile(selectedFile);
       setPreview(data.slice(0, 5));
-      toast.success(`Loaded ${data.length} rows`);
+      const fileType = fileName.endsWith('.csv') ? 'CSV' : 'Excel';
+      toast.success(`Loaded ${data.length} rows from ${fileType} file`);
     } catch (error: any) {
-      toast.error('Failed to parse CSV');
+      toast.error('Failed to parse file', {
+        description: error.message
+      });
     }
   };
 
@@ -62,7 +70,7 @@ export default function Upload() {
         return;
       }
 
-      const data = await parseCSV(file);
+      const data = await parseFile(file);
       
       const shipments = data
         .map(row => normalizeShipmentData(row, columnMap))
@@ -152,13 +160,13 @@ export default function Upload() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="space-y-2">
         <h1 className="text-4xl font-bold">Upload Shipments</h1>
-        <p className="text-muted-foreground">Import Whatnot shipment CSV</p>
+        <p className="text-muted-foreground">Import Whatnot shipment CSV or Excel file</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Select CSV File</CardTitle>
-          <CardDescription>Choose a Whatnot shipment export CSV file</CardDescription>
+          <CardTitle>Select CSV or Excel File</CardTitle>
+          <CardDescription>Choose a Whatnot shipment export file (CSV or Excel)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
@@ -214,7 +222,7 @@ export default function Upload() {
             <div className="flex items-center gap-4">
               <Input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileChange}
                 className="flex-1"
               />
