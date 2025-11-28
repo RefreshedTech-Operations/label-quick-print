@@ -67,9 +67,19 @@ export default function Settings() {
     to: new Date(),
   });
 
+  // Upload management state
+  const [recentUploads, setRecentUploads] = useState<Array<{
+    created_at: string;
+    count: number;
+    user_id: string;
+  }>>([]);
+  const [loadingUploads, setLoadingUploads] = useState(false);
+  const [deletingUpload, setDeletingUpload] = useState<string | null>(null);
+
   useEffect(() => {
     loadSettings();
     loadAppConfig();
+    loadRecentUploads();
   }, []);
 
   const loadAppConfig = async () => {
@@ -507,6 +517,91 @@ export default function Settings() {
     setSearchParams({ tab: value });
   };
 
+  const loadRecentUploads = async () => {
+    setLoadingUploads(true);
+    try {
+      // Get distinct upload batches (grouped by created_at timestamp)
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('created_at, user_id')
+        .order('created_at', { ascending: false })
+        .limit(1000); // Get recent records to group
+
+      if (error) throw error;
+
+      // Group by created_at timestamp (uploads are batched with same timestamp)
+      const uploadMap = new Map<string, { created_at: string; count: number; user_id: string }>();
+      
+      data?.forEach(shipment => {
+        const timestamp = shipment.created_at;
+        if (uploadMap.has(timestamp)) {
+          uploadMap.get(timestamp)!.count++;
+        } else {
+          uploadMap.set(timestamp, {
+            created_at: timestamp,
+            count: 1,
+            user_id: shipment.user_id || 'unknown'
+          });
+        }
+      });
+
+      // Convert to array and sort by date (newest first)
+      const uploads = Array.from(uploadMap.values())
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 20); // Show last 20 uploads
+
+      setRecentUploads(uploads);
+    } catch (error: any) {
+      console.error('Failed to load recent uploads:', error);
+      toast.error('Failed to load recent uploads');
+    } finally {
+      setLoadingUploads(false);
+    }
+  };
+
+  const handleDeleteUpload = async (createdAt: string, count: number) => {
+    if (!confirm(`Are you sure you want to delete this upload batch of ${count} shipments? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingUpload(createdAt);
+    try {
+      // First delete related print jobs
+      const { data: shipmentIds } = await supabase
+        .from('shipments')
+        .select('id')
+        .eq('created_at', createdAt);
+
+      if (shipmentIds && shipmentIds.length > 0) {
+        await supabase
+          .from('print_jobs')
+          .delete()
+          .in('shipment_id', shipmentIds.map(s => s.id));
+      }
+
+      // Then delete the shipments
+      const { error } = await supabase
+        .from('shipments')
+        .delete()
+        .eq('created_at', createdAt);
+
+      if (error) throw error;
+
+      toast.success('Upload deleted successfully', {
+        description: `Removed ${count} shipments and their print jobs`
+      });
+
+      // Reload the uploads list
+      loadRecentUploads();
+    } catch (error: any) {
+      toast.error('Failed to delete upload', {
+        description: error.message
+      });
+    } finally {
+      setDeletingUpload(null);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="space-y-2">
@@ -761,6 +856,90 @@ export default function Settings() {
                 <Button onClick={clearResults} variant="outline" className="flex-1">
                   Clear Results
                 </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Management</CardTitle>
+          <CardDescription>View and remove recent shipment uploads to fix conflicts or errors</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loadingUploads ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading recent uploads...
+            </div>
+          ) : recentUploads.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No recent uploads found
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Upload Date & Time</th>
+                      <th className="text-center p-3 font-medium">Shipments</th>
+                      <th className="text-right p-3 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentUploads.map((upload, idx) => (
+                      <tr key={idx} className="border-t hover:bg-muted/50">
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {new Date(upload.created_at).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {upload.created_at}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-primary/10 text-primary font-medium">
+                            {upload.count}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteUpload(upload.created_at, upload.count)}
+                            disabled={deletingUpload === upload.created_at}
+                          >
+                            {deletingUpload === upload.created_at ? (
+                              'Deleting...'
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Delete
+                              </>
+                            )}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Warning: Deletion is permanent</p>
+                  <p className="text-xs">Deleting an upload will remove all shipments from that batch and their associated print jobs. This action cannot be undone.</p>
+                </div>
               </div>
             </div>
           )}
