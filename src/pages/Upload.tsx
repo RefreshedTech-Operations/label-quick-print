@@ -71,10 +71,14 @@ export default function Upload() {
       }
 
       const data = await parseFile(file);
+      console.log('Total rows:', data.length);
       
       const shipments = data
         .map(row => normalizeShipmentData(row, columnMap))
-        .filter(s => !s.cancelled || s.cancelled.trim() === '');
+        .filter(s => !s.cancelled || s.cancelled.trim() === '')
+        .filter(s => s.order_id && s.order_id.trim() !== ''); // Skip empty order_ids
+      
+      console.log('After cancelled and empty order_id filter:', shipments.length);
 
       // Group shipments by tracking number
       const groupedByTracking = new Map<string, any[]>();
@@ -137,6 +141,7 @@ export default function Upload() {
       if (inFileDuplicates > 0) {
         console.log(`Found ${inFileDuplicates} duplicate order IDs within the file`);
       }
+      console.log('After dedup:', deduplicatedShipments.length);
 
       // Phase 2: Check database for existing order_ids (batched for large files)
       const orderIdsToCheck = deduplicatedShipments
@@ -157,12 +162,16 @@ export default function Upload() {
         existingBatch?.forEach(s => existingOrderIds.add(s.order_id));
       }
 
+      console.log('Existing in DB:', existingOrderIds.size);
+
       // Filter out DB duplicates
       const newShipments = deduplicatedShipments.filter(
         s => !existingOrderIds.has(s.order_id)
       );
       const dbDuplicateCount = deduplicatedShipments.length - newShipments.length;
       const totalSkipped = inFileDuplicates + dbDuplicateCount;
+      
+      console.log('New to insert:', newShipments.length);
 
       // Early return if ALL are duplicates
       if (newShipments.length === 0) {
@@ -185,7 +194,10 @@ export default function Upload() {
 
       const { data: insertedData, error } = await supabase
         .from('shipments')
-        .insert(shipmentsWithUser)
+        .upsert(shipmentsWithUser, { 
+          onConflict: 'order_id',
+          ignoreDuplicates: true
+        })
         .select();
 
       if (error) throw error;
