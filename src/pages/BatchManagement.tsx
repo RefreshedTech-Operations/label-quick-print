@@ -163,7 +163,15 @@ export default function BatchManagement() {
   const scanPackage = async () => {
     if (!trackingNumber.trim() || !currentBatch) return;
 
-    const trackingUpper = trackingNumber.trim().toUpperCase();
+    let trackingUpper = trackingNumber.trim().toUpperCase();
+
+    // If scanned input is longer than expected (has routing prefix), 
+    // strip the first 12 characters to get the actual tracking number
+    if (trackingUpper.length > 22) {
+      const originalInput = trackingUpper;
+      trackingUpper = trackingUpper.substring(12);
+      console.log(`Stripped prefix: ${originalInput} → ${trackingUpper}`);
+    }
 
     const { data: shipments, error: searchError } = await supabase
       .from('shipments')
