@@ -44,7 +44,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2 } from 'lucide-react';
 import { Shipment } from '@/types';
 import { exportOrders } from '@/lib/analyticsExport';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
@@ -77,6 +77,8 @@ export default function Orders() {
   const [allowAllShows, setAllowAllShows] = useState(false); // Prevent "All Shows" query on initial load
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showDeleteNoManifestDialog, setShowDeleteNoManifestDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const { settings, updateSettings } = useAppStore();
 
@@ -844,6 +846,35 @@ export default function Orders() {
     }
   };
 
+  const handleDeleteNoManifest = async () => {
+    setIsDeleting(true);
+    try {
+      let query = supabase
+        .from('shipments')
+        .delete()
+        .or('manifest_url.is.null,manifest_url.eq.');
+      
+      if (showDateFilter) {
+        query = query.eq('show_date', showDateFilter);
+      }
+      
+      const { error } = await query;
+      if (error) throw error;
+      
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-show-dates'] });
+      
+      toast.success('Successfully deleted orders without manifests');
+    } catch (error: any) {
+      toast.error('Failed to delete orders', { description: error.message });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteNoManifestDialog(false);
+    }
+  };
+
   // REMOVED: Client-side filtering now handled in SQL via p_filter parameter
 
   // Stats calculation using aggregate query from database
@@ -919,6 +950,17 @@ export default function Orders() {
             )}
             Export
           </Button>
+          {stats.exceptions > 0 && (
+            <Button
+              variant="destructive"
+              onClick={() => setShowDeleteNoManifestDialog(true)}
+              disabled={isDeleting}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete No Manifest ({stats.exceptions})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1456,6 +1498,31 @@ export default function Orders() {
             >
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Export Filtered ({totalCount})
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete No Manifest Confirmation Dialog */}
+      <AlertDialog open={showDeleteNoManifestDialog} onOpenChange={setShowDeleteNoManifestDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Orders Without Manifest?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {stats.exceptions} order{stats.exceptions !== 1 ? 's' : ''} 
+              that have no manifest URL{showDateFilter ? ` for the ${format(new Date(showDateFilter), 'MMM d, yyyy')} show` : ''}.
+              <br /><br />
+              <strong className="text-destructive">This action cannot be undone.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteNoManifest}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Orders'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
