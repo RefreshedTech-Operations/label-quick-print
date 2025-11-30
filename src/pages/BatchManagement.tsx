@@ -392,7 +392,7 @@ export default function BatchManagement() {
     }
     
     // Search for the tracking number
-    const { data: shipment, error } = await supabase
+    const { data: shipments, error } = await supabase
       .from('shipments')
       .select(`
         id,
@@ -405,7 +405,10 @@ export default function BatchManagement() {
         show_date
       `)
       .ilike('tracking', trackingUpper)
-      .maybeSingle();
+      .order('batch_id', { ascending: true, nullsFirst: true })
+      .limit(1);
+    
+    const shipment = shipments?.[0] || null;
     
     if (error) {
       toast.error('Search failed');
