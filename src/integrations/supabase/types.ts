@@ -210,7 +210,10 @@ export type Database = {
           group_id_printed: boolean | null
           group_id_printed_at: string | null
           group_id_printed_by_user_id: string | null
+          has_issue: boolean | null
           id: string
+          issue_marked_at: string | null
+          issue_marked_by_user_id: string | null
           label_url: string | null
           location_id: string | null
           manifest_url: string | null
@@ -242,7 +245,10 @@ export type Database = {
           group_id_printed?: boolean | null
           group_id_printed_at?: string | null
           group_id_printed_by_user_id?: string | null
+          has_issue?: boolean | null
           id?: string
+          issue_marked_at?: string | null
+          issue_marked_by_user_id?: string | null
           label_url?: string | null
           location_id?: string | null
           manifest_url?: string | null
@@ -274,7 +280,10 @@ export type Database = {
           group_id_printed?: boolean | null
           group_id_printed_at?: string | null
           group_id_printed_by_user_id?: string | null
+          has_issue?: boolean | null
           id?: string
+          issue_marked_at?: string | null
+          issue_marked_by_user_id?: string | null
           label_url?: string | null
           location_id?: string | null
           manifest_url?: string | null
