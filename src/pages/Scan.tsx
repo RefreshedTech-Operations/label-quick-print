@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, MapPin } from 'lucide-react';
 import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
 import { ChargerWarning } from '@/components/ChargerWarning';
@@ -23,6 +24,11 @@ export default function Scan() {
   const [groupItems, setGroupItems] = useState<Shipment[]>([]);
   const [editingLocationIds, setEditingLocationIds] = useState<{[key: string]: string}>({});
   const [chargersAcknowledged, setChargersAcknowledged] = useState(false);
+  const [recommendedLocation, setRecommendedLocation] = useState<string | null>(null);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [locationAcknowledged, setLocationAcknowledged] = useState(false);
+  const [overrideLocation, setOverrideLocation] = useState(false);
+  const [customLocation, setCustomLocation] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { 
@@ -226,6 +232,22 @@ export default function Scan() {
       groupTotal = allGroupItems.length;
       const unprintedCount = allGroupItems.filter(s => !s.printed).length;
       lastInGroup = unprintedCount === 1;
+      
+      // Check for existing location in bundle
+      const existingLocation = allGroupItems.find(s => s.location_id)?.location_id || null;
+      setRecommendedLocation(existingLocation);
+      setLocationAcknowledged(false);
+      setOverrideLocation(false);
+      setCustomLocation('');
+      
+      // Auto-show dialog if subsequent device without location
+      if (existingLocation && !shipment.location_id) {
+        setLocationDialogOpen(true);
+      }
+    } else {
+      // Not a bundle, reset location states
+      setRecommendedLocation(null);
+      setLocationAcknowledged(false);
     }
 
     setSelectedShipment(shipment);
@@ -677,29 +699,53 @@ export default function Scan() {
                 )}
                 {selectedShipment.bundle && (
                   <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}</p>
-                    <Input
-                      value={editingLocationIds[selectedShipment.id] ?? selectedShipment.location_id ?? ''}
-                      onChange={(e) => setEditingLocationIds(prev => ({ 
-                        ...prev, 
-                        [selectedShipment.id]: e.target.value 
-                      }))}
-                      onBlur={(e) => {
-                        if (editingLocationIds[selectedShipment.id] !== undefined) {
-                          handleLocationIdChange(selectedShipment.id, e.target.value);
-                          setSelectedShipment({ ...selectedShipment, location_id: e.target.value });
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleLocationIdChange(selectedShipment.id, e.currentTarget.value);
-                          setSelectedShipment({ ...selectedShipment, location_id: e.currentTarget.value });
-                          e.currentTarget.blur();
-                        }
-                      }}
-                      placeholder="Enter location..."
-                      className="h-9 mt-1"
-                    />
+                    <p className="text-sm text-muted-foreground">
+                      Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}
+                      {!recommendedLocation && <span className="text-xs ml-2 text-muted-foreground">(First item - choose location)</span>}
+                      {recommendedLocation && selectedShipment.location_id && (
+                        <span className="text-xs ml-2 text-success">✓ Confirmed</span>
+                      )}
+                    </p>
+                    {recommendedLocation && !selectedShipment.location_id ? (
+                      <Button 
+                        onClick={() => setLocationDialogOpen(true)}
+                        variant="outline"
+                        className="w-full h-9 mt-1 border-primary text-primary hover:bg-primary/10"
+                      >
+                        <MapPin className="h-4 w-4 mr-2" />
+                        Confirm Bundle Location
+                      </Button>
+                    ) : (
+                      <Input
+                        value={editingLocationIds[selectedShipment.id] ?? selectedShipment.location_id ?? ''}
+                        onChange={(e) => setEditingLocationIds(prev => ({ 
+                          ...prev, 
+                          [selectedShipment.id]: e.target.value 
+                        }))}
+                        onBlur={(e) => {
+                          if (editingLocationIds[selectedShipment.id] !== undefined) {
+                            handleLocationIdChange(selectedShipment.id, e.target.value);
+                            setSelectedShipment({ ...selectedShipment, location_id: e.target.value });
+                            if (recommendedLocation) {
+                              setLocationAcknowledged(true);
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleLocationIdChange(selectedShipment.id, e.currentTarget.value);
+                            setSelectedShipment({ ...selectedShipment, location_id: e.currentTarget.value });
+                            if (recommendedLocation) {
+                              setLocationAcknowledged(true);
+                            }
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="Enter location..."
+                        className="h-9 mt-1"
+                        disabled={recommendedLocation && !locationAcknowledged}
+                      />
+                    )}
                   </div>
                 )}
                 <div>
@@ -734,7 +780,8 @@ export default function Scan() {
                     printing || 
                     (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
                     (selectedShipment.bundle && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
-                    (selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && !chargersAcknowledged)
+                    (selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && !chargersAcknowledged) ||
+                    (selectedShipment.bundle && recommendedLocation && !locationAcknowledged)
                   }
                   size="lg"
                   className="w-full"
@@ -747,6 +794,12 @@ export default function Scan() {
               {selectedShipment.bundle && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
                 <p className="text-xs text-destructive text-center">
                   Location ID is required to print group labels
+                </p>
+              )}
+              
+              {selectedShipment.bundle && recommendedLocation && !locationAcknowledged && (
+                <p className="text-xs text-warning text-center">
+                  Please confirm bundle location before printing
                 </p>
               )}
               
@@ -806,26 +859,33 @@ export default function Scan() {
                           >
                             <TableCell className="font-mono text-xs">{item.uid}</TableCell>
                             <TableCell>
-                              <Input
-                                value={editingLocationIds[item.id] ?? item.location_id ?? ''}
-                                onChange={(e) => setEditingLocationIds(prev => ({ 
-                                  ...prev, 
-                                  [item.id]: e.target.value 
-                                }))}
-                                onBlur={(e) => {
-                                  if (editingLocationIds[item.id] !== undefined) {
-                                    handleLocationIdChange(item.id, e.target.value);
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    handleLocationIdChange(item.id, e.currentTarget.value);
-                                    e.currentTarget.blur();
-                                  }
-                                }}
-                                placeholder="Location"
-                                className="w-24 h-8 text-xs"
-                              />
+                              {recommendedLocation && !item.location_id ? (
+                                <Badge variant="outline" className="text-xs">
+                                  → {recommendedLocation}
+                                </Badge>
+                              ) : (
+                                <Input
+                                  value={editingLocationIds[item.id] ?? item.location_id ?? ''}
+                                  onChange={(e) => setEditingLocationIds(prev => ({ 
+                                    ...prev, 
+                                    [item.id]: e.target.value 
+                                  }))}
+                                  onBlur={(e) => {
+                                    if (editingLocationIds[item.id] !== undefined) {
+                                      handleLocationIdChange(item.id, e.target.value);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleLocationIdChange(item.id, e.currentTarget.value);
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  placeholder="Location"
+                                  className="w-24 h-8 text-xs"
+                                  disabled={!!recommendedLocation && !item.location_id}
+                                />
+                              )}
                             </TableCell>
                             <TableCell className="text-xs">{item.product_name}</TableCell>
                             <TableCell className="text-xs">{item.buyer}</TableCell>
@@ -872,6 +932,101 @@ export default function Scan() {
           )}
         </div>
       )}
+
+      {/* Location Confirmation Dialog */}
+      <Dialog open={locationDialogOpen} onOpenChange={setLocationDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Bundle Location
+            </DialogTitle>
+            <DialogDescription>
+              This bundle already has items at an existing location
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="text-center p-6 bg-primary/10 rounded-lg border-2 border-primary">
+              <p className="text-sm text-muted-foreground">Recommended Location</p>
+              <p className="text-4xl font-bold text-primary">{recommendedLocation}</p>
+            </div>
+          </div>
+          
+          {!overrideLocation ? (
+            <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+              <Button 
+                onClick={() => {
+                  if (selectedShipment && recommendedLocation) {
+                    handleLocationIdChange(selectedShipment.id, recommendedLocation);
+                    setSelectedShipment({...selectedShipment, location_id: recommendedLocation});
+                    setLocationAcknowledged(true);
+                    setLocationDialogOpen(false);
+                  }
+                }}
+                className="w-full"
+                size="lg"
+              >
+                <CheckCircle className="h-5 w-5 mr-2" />
+                Use Location {recommendedLocation}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setOverrideLocation(true)}
+                className="w-full"
+              >
+                Use Different Location
+              </Button>
+            </DialogFooter>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
+                <p className="text-sm text-destructive font-medium">
+                  ⚠️ Warning: Using a different location may cause bundle items to be misplaced
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Input 
+                  value={customLocation}
+                  onChange={(e) => setCustomLocation(e.target.value)}
+                  placeholder="Enter location..."
+                  className="flex-1"
+                  autoFocus
+                />
+              </div>
+              <DialogFooter className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setOverrideLocation(false);
+                    setCustomLocation('');
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={() => {
+                    if (selectedShipment && customLocation.trim()) {
+                      handleLocationIdChange(selectedShipment.id, customLocation);
+                      setSelectedShipment({...selectedShipment, location_id: customLocation});
+                      setLocationAcknowledged(true);
+                      setLocationDialogOpen(false);
+                      setOverrideLocation(false);
+                      setCustomLocation('');
+                    }
+                  }}
+                  disabled={!customLocation.trim()}
+                  className="flex-1"
+                >
+                  Confirm Override
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
