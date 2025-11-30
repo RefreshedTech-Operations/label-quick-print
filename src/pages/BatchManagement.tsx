@@ -215,6 +215,14 @@ export default function BatchManagement() {
 
     const shipment = shipments[0];
 
+    // Check if package was marked as having an issue
+    if (shipment.has_issue) {
+      setIssuePackage(shipment);
+      setIssueDialogOpen(true);
+      setTrackingNumber('');
+      return;
+    }
+
     if (shipment.batch_id === currentBatch) {
       toast.error('Already scanned', {
         description: 'This package is already in the current batch'
@@ -447,7 +455,10 @@ export default function BatchManagement() {
       .update({
         batch_id: selectedBatchForIssue,
         batch_scanned_at: new Date().toISOString(),
-        batch_scanned_by_user_id: user.id
+        batch_scanned_by_user_id: user.id,
+        has_issue: false,
+        issue_marked_at: null,
+        issue_marked_by_user_id: null
       })
       .eq('id', issuePackage.id);
 
@@ -717,7 +728,23 @@ export default function BatchManagement() {
                       </div>
                       <Button 
                         variant="destructive" 
-                        onClick={() => {
+                        onClick={async () => {
+                          // Persist issue state to database
+                          const { error } = await supabase
+                            .from('shipments')
+                            .update({
+                              has_issue: true,
+                              issue_marked_at: new Date().toISOString(),
+                              issue_marked_by_user_id: user.id
+                            })
+                            .eq('id', searchResult.id);
+                          
+                          if (error) {
+                            toast.error('Failed to mark issue');
+                            console.error(error);
+                            return;
+                          }
+                          
                           setIssuePackage(searchResult);
                           setIssueDialogOpen(true);
                         }}
