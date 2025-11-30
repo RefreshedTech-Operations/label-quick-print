@@ -681,9 +681,9 @@ export default function BatchManagement() {
               {searchPerformed && (
                 <div className="border rounded-lg p-4">
         {searchResult === null ? (
-          <div className="flex items-center gap-2 text-blue-600">
-            <Package2 className="h-5 w-5" />
-            <span>Not scanned in batches</span>
+          <div className="flex items-center gap-2 text-amber-600">
+            <AlertCircle className="h-5 w-5" />
+            <span>Not in system</span>
           </div>
         ) : searchResult.batch_id ? (
                     <div className="space-y-2">
