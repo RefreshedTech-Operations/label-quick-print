@@ -791,16 +791,25 @@ export default function Scan() {
                 </Button>
               )}
               
-              {selectedShipment.bundle && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
-                <p className="text-xs text-destructive text-center">
-                  Location ID is required to print group labels
-                </p>
-              )}
-              
-              {selectedShipment.bundle && recommendedLocation && !locationAcknowledged && (
-                <p className="text-xs text-warning text-center">
-                  Please confirm bundle location before printing
-                </p>
+              {/* Show blocking reasons */}
+              {selectedShipment.bundle && !selectedShipment.group_id_printed && (
+                <div className="space-y-1 text-xs text-center">
+                  {(!selectedShipment.location_id || selectedShipment.location_id.trim() === '') && (
+                    <p className="text-destructive">
+                      ⚠️ Location ID is required
+                    </p>
+                  )}
+                  {recommendedLocation && !locationAcknowledged && selectedShipment.location_id && (
+                    <p className="text-warning">
+                      ⚠️ Please confirm bundle location
+                    </p>
+                  )}
+                  {selectedShipment.channel !== 'misfits' && groupItems.length > 0 && !chargersAcknowledged && (
+                    <p className="text-destructive">
+                      ⚠️ Please acknowledge charger requirements
+                    </p>
+                  )}
+                </div>
               )}
               
               {selectedShipment.bundle && selectedShipment.group_id_printed && (
