@@ -37,6 +37,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function BatchManagement() {
   const navigate = useNavigate();
@@ -68,6 +75,12 @@ export default function BatchManagement() {
   const [searchResult, setSearchResult] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
+  
+  // Issue dialog state
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [issuePackage, setIssuePackage] = useState<any>(null);
+  const [selectedBatchForIssue, setSelectedBatchForIssue] = useState<string>('');
+  const [isResolvingIssue, setIsResolvingIssue] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -417,6 +430,50 @@ export default function BatchManagement() {
     setIsSearching(false);
   };
 
+  const handleIssueResolved = async () => {
+    if (!issuePackage || !selectedBatchForIssue) {
+      toast.error('Please select a batch');
+      return;
+    }
+    
+    setIsResolvingIssue(true);
+    
+    // Scan the package into the selected batch
+    const { error: updateError } = await supabase
+      .from('shipments')
+      .update({
+        batch_id: selectedBatchForIssue,
+        batch_scanned_at: new Date().toISOString(),
+        batch_scanned_by_user_id: user.id
+      })
+      .eq('id', issuePackage.id);
+
+    if (updateError) {
+      toast.error('Failed to add package to batch');
+      setIsResolvingIssue(false);
+      return;
+    }
+
+    // Increment batch count
+    await supabase.rpc('increment_batch_count', {
+      batch_uuid: selectedBatchForIssue
+    });
+
+    toast.success('Issue resolved - package added to batch');
+    
+    // Reset states
+    setIssueDialogOpen(false);
+    setIssuePackage(null);
+    setSelectedBatchForIssue('');
+    setSearchResult(null);
+    setSearchTracking('');
+    setSearchPerformed(false);
+    setIsResolvingIssue(false);
+    
+    // Refresh batches list
+    loadBatches();
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -643,16 +700,29 @@ export default function BatchManagement() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-blue-600">
-                        <Package2 className="h-5 w-5" />
-                        <span className="font-semibold">Not yet scanned into any batch</span>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-blue-600">
+                          <Package2 className="h-5 w-5" />
+                          <span className="font-semibold">Not yet scanned into any batch</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm mt-3">
+                          <div><span className="text-muted-foreground">Buyer:</span> {searchResult.buyer}</div>
+                          <div><span className="text-muted-foreground">Order:</span> {searchResult.order_id}</div>
+                          <div className="col-span-2"><span className="text-muted-foreground">Tracking:</span> {searchResult.tracking}</div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm mt-3">
-                        <div><span className="text-muted-foreground">Buyer:</span> {searchResult.buyer}</div>
-                        <div><span className="text-muted-foreground">Order:</span> {searchResult.order_id}</div>
-                        <div className="col-span-2"><span className="text-muted-foreground">Tracking:</span> {searchResult.tracking}</div>
-                      </div>
+                      <Button 
+                        variant="destructive" 
+                        onClick={() => {
+                          setIssuePackage(searchResult);
+                          setIssueDialogOpen(true);
+                        }}
+                        className="w-full gap-2"
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        Mark as Issue
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -823,6 +893,63 @@ export default function BatchManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Issue Dialog */}
+      <AlertDialog open={issueDialogOpen} onOpenChange={setIssueDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-6 w-6" />
+              Package Issue Detected
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <p className="text-lg font-medium text-foreground">
+                There is an issue with this package - Take to manager
+              </p>
+              
+              {issuePackage && (
+                <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
+                  <div><span className="text-muted-foreground">Tracking:</span> {issuePackage.tracking}</div>
+                  <div><span className="text-muted-foreground">Buyer:</span> {issuePackage.buyer}</div>
+                  <div><span className="text-muted-foreground">Order:</span> {issuePackage.order_id}</div>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label>Select batch to add to (when resolved):</Label>
+                <Select value={selectedBatchForIssue} onValueChange={setSelectedBatchForIssue}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {batches.filter(b => b.status === 'scanning').map(batch => (
+                      <SelectItem key={batch.id} value={batch.id}>
+                        {batch.name} ({batch.package_count} packages)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResolvingIssue}>
+              I Understand
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleIssueResolved}
+              disabled={isResolvingIssue || !selectedBatchForIssue}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isResolvingIssue ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Resolving...</>
+              ) : (
+                'Solved'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
