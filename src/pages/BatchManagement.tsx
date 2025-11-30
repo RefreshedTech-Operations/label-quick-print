@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Package2, CalendarIcon, Clock, AlertCircle, CheckCircle2, Trash2, Edit2, MoreVertical } from 'lucide-react';
+import { Package2, CalendarIcon, Clock, AlertCircle, CheckCircle2, Trash2, Edit2, MoreVertical, Search, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Batch } from '@/types/batch';
@@ -62,6 +62,12 @@ export default function BatchManagement() {
   const [scannedPackages, setScannedPackages] = useState<any[]>([]);
   const [batchName, setBatchName] = useState('');
   const [batchShowDate, setBatchShowDate] = useState<Date | undefined>(undefined);
+  
+  // Search state
+  const [searchTracking, setSearchTracking] = useState('');
+  const [searchResult, setSearchResult] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchPerformed, setSearchPerformed] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -359,6 +365,58 @@ export default function BatchManagement() {
     setSearchParams({ tab: value });
   };
 
+  const searchTrackingNumber = async () => {
+    if (!searchTracking.trim()) return;
+    
+    setIsSearching(true);
+    setSearchPerformed(true);
+    
+    let trackingUpper = searchTracking.trim().toUpperCase();
+    
+    // Apply same prefix stripping logic as scanning
+    if (trackingUpper.length > 22) {
+      trackingUpper = trackingUpper.substring(12);
+    }
+    
+    // Search for the tracking number
+    const { data: shipment, error } = await supabase
+      .from('shipments')
+      .select(`
+        id,
+        tracking,
+        buyer,
+        order_id,
+        product_name,
+        batch_id,
+        batch_scanned_at,
+        show_date
+      `)
+      .ilike('tracking', trackingUpper)
+      .maybeSingle();
+    
+    if (error) {
+      toast.error('Search failed');
+      console.error(error);
+      setIsSearching(false);
+      return;
+    }
+    
+    // If found and has a batch, get batch details
+    if (shipment?.batch_id) {
+      const { data: batch } = await supabase
+        .from('batches')
+        .select('id, name, status')
+        .eq('id', shipment.batch_id)
+        .maybeSingle();
+      
+      setSearchResult({ ...shipment, batch });
+    } else {
+      setSearchResult(shipment);
+    }
+    
+    setIsSearching(false);
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -527,6 +585,80 @@ export default function BatchManagement() {
               Shipped
             </Button>
           </div>
+
+          {/* Tracking Search Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Search Tracking Number
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={searchTracking}
+                  onChange={(e) => setSearchTracking(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && searchTrackingNumber()}
+                  placeholder="Scan or enter tracking number to search"
+                  className="flex-1"
+                />
+                <Button onClick={searchTrackingNumber} disabled={isSearching}>
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search'}
+                </Button>
+                {searchPerformed && (
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => {
+                      setSearchTracking('');
+                      setSearchResult(null);
+                      setSearchPerformed(false);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              
+              {/* Search Results */}
+              {searchPerformed && (
+                <div className="border rounded-lg p-4">
+                  {searchResult === null ? (
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <AlertCircle className="h-5 w-5" />
+                      <span>Tracking number not found in system</span>
+                    </div>
+                  ) : searchResult.batch_id ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle2 className="h-5 w-5" />
+                        <span className="font-semibold">Already scanned into a batch</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm mt-3">
+                        <div><span className="text-muted-foreground">Batch:</span> {searchResult.batch?.name}</div>
+                        <div><span className="text-muted-foreground">Status:</span> {searchResult.batch?.status}</div>
+                        <div><span className="text-muted-foreground">Scanned:</span> {format(new Date(searchResult.batch_scanned_at), 'MMM d h:mm a')}</div>
+                        <div><span className="text-muted-foreground">Buyer:</span> {searchResult.buyer}</div>
+                        <div className="col-span-2"><span className="text-muted-foreground">Tracking:</span> {searchResult.tracking}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-blue-600">
+                        <Package2 className="h-5 w-5" />
+                        <span className="font-semibold">Not yet scanned into any batch</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm mt-3">
+                        <div><span className="text-muted-foreground">Buyer:</span> {searchResult.buyer}</div>
+                        <div><span className="text-muted-foreground">Order:</span> {searchResult.order_id}</div>
+                        <div className="col-span-2"><span className="text-muted-foreground">Tracking:</span> {searchResult.tracking}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {batches.length === 0 ? (
             <Card>
