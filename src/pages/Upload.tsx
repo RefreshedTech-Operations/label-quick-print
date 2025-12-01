@@ -14,6 +14,8 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import PickListPrintDialog from '@/components/PickListPrintDialog';
 
 export default function Upload() {
   const [file, setFile] = useState<File | null>(null);
@@ -21,6 +23,9 @@ export default function Upload() {
   const [preview, setPreview] = useState<any[]>([]);
   const [showDate, setShowDate] = useState<Date>();
   const [channel, setChannel] = useState<string>('regular');
+  const [isLabelOnly, setIsLabelOnly] = useState(false);
+  const [showPickListDialog, setShowPickListDialog] = useState(false);
+  const [uploadedShipments, setUploadedShipments] = useState<any[]>([]);
   
   const { columnMap, settings } = useAppStore();
   const navigate = useNavigate();
@@ -183,14 +188,23 @@ export default function Upload() {
       }
 
       // Insert only NEW shipments into database
-      const shipmentsWithUser = newShipments.map(s => ({
-        ...s,
-        user_id: user.id,
-        channel: channel,
-        show_date: showDate 
-          ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
-          : null
-      }));
+      const shipmentsWithUser = newShipments.map(s => {
+        // If Label Only mode, copy label_url to manifest_url for printing
+        const shipment = {
+          ...s,
+          user_id: user.id,
+          channel: channel,
+          show_date: showDate 
+            ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
+            : null
+        };
+        
+        if (isLabelOnly && s.label_url) {
+          shipment.manifest_url = s.label_url;
+        }
+        
+        return shipment;
+      });
 
       const { data: insertedData, error } = await supabase
         .from('shipments')
@@ -218,7 +232,13 @@ export default function Upload() {
         });
       }
 
-      navigate('/orders');
+      // If Label Only mode, prompt for pick list printing
+      if (isLabelOnly && insertedData && insertedData.length > 0) {
+        setUploadedShipments(insertedData);
+        setShowPickListDialog(true);
+      } else {
+        navigate('/orders');
+      }
     } catch (error: any) {
       toast.error('Upload failed', {
         description: error.message
@@ -289,6 +309,22 @@ export default function Upload() {
                   </Label>
                 </div>
               </RadioGroup>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+              <div className="space-y-0.5">
+                <Label htmlFor="label-only" className="font-medium">
+                  Label Only Format
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Uses label_only field and generates pick lists for packing
+                </p>
+              </div>
+              <Switch
+                id="label-only"
+                checked={isLabelOnly}
+                onCheckedChange={setIsLabelOnly}
+              />
             </div>
 
             <div className="flex items-center gap-4">
@@ -367,6 +403,13 @@ export default function Upload() {
           )}
         </CardContent>
       </Card>
+
+      <PickListPrintDialog
+        open={showPickListDialog}
+        onOpenChange={setShowPickListDialog}
+        shipments={uploadedShipments}
+        onComplete={() => navigate('/orders')}
+      />
     </div>
   );
 }
