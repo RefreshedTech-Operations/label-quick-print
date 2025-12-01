@@ -206,20 +206,46 @@ export default function Upload() {
         return shipment;
       });
 
-      const { data: insertedData, error } = await supabase
-        .from('shipments')
-        .upsert(shipmentsWithUser, { 
-          onConflict: 'order_id',
-          ignoreDuplicates: true
-        })
-        .select();
+      // Insert in batches to avoid timeout on large files
+      const INSERT_BATCH_SIZE = 100;
+      const insertedData: any[] = [];
+      let batchErrors: string[] = [];
 
-      if (error) throw error;
+      for (let i = 0; i < shipmentsWithUser.length; i += INSERT_BATCH_SIZE) {
+        const batch = shipmentsWithUser.slice(i, i + INSERT_BATCH_SIZE);
+        const progress = Math.round(((i + batch.length) / shipmentsWithUser.length) * 100);
+        
+        toast.loading(`Uploading... ${progress}%`, {
+          id: 'upload-progress',
+          description: `Processing ${i + batch.length} of ${shipmentsWithUser.length} shipments`
+        });
+
+        try {
+          const { data, error } = await supabase
+            .from('shipments')
+            .upsert(batch, { 
+              onConflict: 'order_id',
+              ignoreDuplicates: true
+            })
+            .select();
+
+          if (error) throw error;
+          if (data) insertedData.push(...data);
+        } catch (batchError: any) {
+          batchErrors.push(`Batch ${i}-${i + batch.length}: ${batchError.message}`);
+        }
+      }
+
+      toast.dismiss('upload-progress');
+
+      if (batchErrors.length > 0) {
+        throw new Error(`Upload completed with errors:\n${batchErrors.join('\n')}`);
+      }
 
       // No need to set local state - Orders page will fetch from database
 
       const printable = newShipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
-      const printed = insertedData?.filter(s => s.printed).length || 0;
+      const printed = insertedData.filter(s => s.printed).length;
       const exceptions = newShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
       toast.success('Upload complete!', {
@@ -233,7 +259,7 @@ export default function Upload() {
       }
 
       // If Label Only mode, prompt for pick list printing
-      if (isLabelOnly && insertedData && insertedData.length > 0) {
+      if (isLabelOnly && insertedData.length > 0) {
         setUploadedShipments(insertedData);
         setShowPickListDialog(true);
       } else {
