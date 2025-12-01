@@ -59,6 +59,7 @@ export function parseXLSX(file: File): Promise<any[]> {
         const jsonData = XLSX.utils.sheet_to_json(worksheet, {
           header: 1,
           defval: '',
+          raw: false, // Prevent scientific notation for long tracking numbers
         }) as any[][];
         
         if (jsonData.length < 2) {
