@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Package, AlertTriangle, Printer } from 'lucide-react';
+import { Loader2, Package, AlertTriangle, Printer, Copy, CheckCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/useAppStore';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
@@ -40,6 +40,8 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
   const queryClient = useQueryClient();
   const { settings } = useAppStore();
   const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set());
+  const [copiedUid, setCopiedUid] = useState<string | null>(null);
+  const [copiedBundle, setCopiedBundle] = useState<string | null>(null);
 
   const { data: bundles, isLoading } = useQuery({
     queryKey: ['incomplete-bundles', showDate, printedDate],
@@ -178,6 +180,22 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
     });
   };
 
+  const copyToClipboard = async (text: string, type: 'uid' | 'bundle', id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (type === 'uid') {
+        setCopiedUid(id);
+        setTimeout(() => setCopiedUid(null), 2000);
+      } else {
+        setCopiedBundle(id);
+        setTimeout(() => setCopiedBundle(null), 2000);
+      }
+      toast.success('Copied to clipboard');
+    } catch (err) {
+      toast.error('Failed to copy');
+    }
+  };
+
   const totalMissing = bundles?.reduce((sum, b) => sum + b.unprinted_count, 0) || 0;
 
   if (isLoading) {
@@ -268,20 +286,62 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
 
                 <CollapsibleContent>
                   <CardContent className="pt-0 space-y-4">
+                    <div className="flex gap-2 mb-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const uids = bundle.unprinted_items
+                            .filter(item => item.uid)
+                            .map(item => item.uid)
+                            .join(', ');
+                          copyToClipboard(uids, 'bundle', bundle.tracking);
+                        }}
+                        className="gap-2"
+                      >
+                        {copiedBundle === bundle.tracking ? (
+                          <CheckCheck className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                        Copy All {bundle.unprinted_count} UIDs
+                      </Button>
+                    </div>
+
                     <div className="rounded-lg bg-muted p-4 space-y-2">
                       <h4 className="font-semibold text-sm text-destructive flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4" />
                         MISSING (need to print & add to package):
                       </h4>
-                      <ul className="space-y-1 text-sm">
+                      <ul className="space-y-2 text-sm">
                         {bundle.unprinted_items.map((item) => (
-                          <li key={item.id} className="flex items-start gap-2">
-                            <span className="text-muted-foreground">•</span>
-                            <span>
-                              {item.product_name || 'Unknown Product'}
-                              {item.price && ` - $${item.price}`}
-                              {item.uid && ` (UID: ${item.uid})`}
-                            </span>
+                          <li key={item.id} className="flex items-start justify-between gap-2 py-1">
+                            <div className="flex items-start gap-2">
+                              <span className="text-muted-foreground">•</span>
+                              <span>
+                                {item.product_name || 'Unknown Product'}
+                                {item.price && ` - $${item.price}`}
+                                {item.uid && (
+                                  <span className="font-mono font-semibold ml-1">
+                                    (UID: {item.uid})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {item.uid && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2"
+                                onClick={() => copyToClipboard(item.uid!, 'uid', item.id)}
+                              >
+                                {copiedUid === item.id ? (
+                                  <CheckCheck className="h-3 w-3 text-green-600" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            )}
                           </li>
                         ))}
                       </ul>
