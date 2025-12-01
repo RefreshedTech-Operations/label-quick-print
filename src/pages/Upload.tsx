@@ -95,14 +95,46 @@ export default function Upload() {
         }
       });
 
+      // Check database for existing bundles with these tracking numbers
+      const trackingNumbers = Array.from(groupedByTracking.keys());
+      const existingBundlesMap = new Map<string, string>(); // tracking -> order_group_id
+      
+      if (trackingNumbers.length > 0) {
+        const BATCH_SIZE = 500;
+        for (let i = 0; i < trackingNumbers.length; i += BATCH_SIZE) {
+          const batch = trackingNumbers.slice(i, i + BATCH_SIZE);
+          const { data: existingBundles } = await supabase
+            .from('shipments')
+            .select('tracking, order_group_id')
+            .in('tracking', batch)
+            .not('order_group_id', 'is', null);
+          
+          existingBundles?.forEach(item => {
+            if (item.tracking && item.order_group_id) {
+              existingBundlesMap.set(item.tracking.trim().toLowerCase(), item.order_group_id);
+            }
+          });
+        }
+      }
+
       // Assign order_group_id to groups with same tracking number
       const shipmentsWithGroups: any[] = [];
       const processedShipments = new Set();
+      const trackingsToUpdateInDb = new Set<string>();
 
-      groupedByTracking.forEach((group) => {
-        // Only assign group ID if there are multiple shipments with the same tracking
-        if (group.length > 1) {
-          const groupId = crypto.randomUUID();
+      groupedByTracking.forEach((group, trackingNumber) => {
+        // Check if we already have a bundle for this tracking in the database
+        const existingGroupId = existingBundlesMap.get(trackingNumber);
+        
+        // Only assign group ID if there are multiple shipments OR if existing bundle exists
+        if (group.length > 1 || existingGroupId) {
+          const groupId = existingGroupId || crypto.randomUUID();
+          
+          // If using existing group ID, mark that we need to update existing items in DB
+          if (existingGroupId) {
+            trackingsToUpdateInDb.add(trackingNumber);
+          }
+          
           group.forEach(shipment => {
             shipmentsWithGroups.push({
               ...shipment,
@@ -113,6 +145,16 @@ export default function Upload() {
           });
         }
       });
+
+      // Update existing items in database to mark them as bundled
+      if (trackingsToUpdateInDb.size > 0) {
+        const trackingsArray = Array.from(trackingsToUpdateInDb);
+        await supabase
+          .from('shipments')
+          .update({ bundle: true })
+          .in('tracking', trackingsArray)
+          .is('bundle', false);
+      }
 
       // Add remaining shipments without group IDs (single tracking or no tracking)
       shipments.forEach(shipment => {
