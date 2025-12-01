@@ -67,19 +67,37 @@ export default function Scan() {
     setEditingLocationIds(rest);
 
     try {
-      const { error } = await supabase
-        .from('shipments')
-        .update({ location_id: newLocationId })
-        .eq('id', shipmentId);
+      // Find the shipment to check if it's a bundle
+      const shipment = groupItems.find(item => item.id === shipmentId) || selectedShipment;
+      
+      if (shipment?.order_group_id) {
+        // BUNDLE: Update ALL items in the bundle using the database function
+        const { error } = await supabase.rpc('assign_location_to_bundle', {
+          p_order_group_id: shipment.order_group_id,
+          p_location_code: newLocationId
+        });
 
-      if (error) throw error;
-      
-      // Update the groupItems array if the item is in it
-      setGroupItems(prev => prev.map(item => 
-        item.id === shipmentId ? { ...item, location_id: newLocationId } : item
-      ));
-      
-      toast.success('Location ID updated');
+        if (error) throw error;
+        
+        // Update ALL items in local state
+        setGroupItems(prev => prev.map(item => ({ ...item, location_id: newLocationId })));
+        
+        toast.success('Location updated for entire bundle');
+      } else {
+        // SINGLE ITEM: Update just this item
+        const { error } = await supabase
+          .from('shipments')
+          .update({ location_id: newLocationId })
+          .eq('id', shipmentId);
+
+        if (error) throw error;
+        
+        setGroupItems(prev => prev.map(item => 
+          item.id === shipmentId ? { ...item, location_id: newLocationId } : item
+        ));
+        
+        toast.success('Location ID updated');
+      }
     } catch (error: any) {
       toast.error('Failed to update location ID', { description: error.message });
     }
@@ -1060,8 +1078,29 @@ export default function Scan() {
       )}
 
       {/* Location Confirmation Dialog */}
-      <Dialog open={locationDialogOpen} onOpenChange={setLocationDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog 
+        open={locationDialogOpen} 
+        onOpenChange={(open) => {
+          // Only allow closing if location has been acknowledged
+          if (!open && !locationAcknowledged && recommendedLocation) {
+            return; // Prevent closing
+          }
+          setLocationDialogOpen(open);
+        }}
+      >
+        <DialogContent 
+          className="sm:max-w-md"
+          onPointerDownOutside={(e) => {
+            if (!locationAcknowledged && recommendedLocation) {
+              e.preventDefault();
+            }
+          }}
+          onEscapeKeyDown={(e) => {
+            if (!locationAcknowledged && recommendedLocation) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5" />
