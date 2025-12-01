@@ -67,37 +67,20 @@ export default function Scan() {
     setEditingLocationIds(rest);
 
     try {
-      // Find the shipment to check if it's a bundle
-      const shipment = groupItems.find(item => item.id === shipmentId) || selectedShipment;
+      // ALWAYS update only the CURRENT scanned item, never all bundle items
+      const { error } = await supabase
+        .from('shipments')
+        .update({ location_id: newLocationId })
+        .eq('id', shipmentId);
+
+      if (error) throw error;
       
-      if (shipment?.order_group_id) {
-        // BUNDLE: Update ALL items in the bundle using the database function
-        const { error } = await supabase.rpc('assign_location_to_bundle', {
-          p_order_group_id: shipment.order_group_id,
-          p_location_code: newLocationId
-        });
-
-        if (error) throw error;
-        
-        // Update ALL items in local state
-        setGroupItems(prev => prev.map(item => ({ ...item, location_id: newLocationId })));
-        
-        toast.success('Location updated for entire bundle');
-      } else {
-        // SINGLE ITEM: Update just this item
-        const { error } = await supabase
-          .from('shipments')
-          .update({ location_id: newLocationId })
-          .eq('id', shipmentId);
-
-        if (error) throw error;
-        
-        setGroupItems(prev => prev.map(item => 
-          item.id === shipmentId ? { ...item, location_id: newLocationId } : item
-        ));
-        
-        toast.success('Location ID updated');
-      }
+      // Update only this single item in local state
+      setGroupItems(prev => prev.map(item => 
+        item.id === shipmentId ? { ...item, location_id: newLocationId } : item
+      ));
+      
+      toast.success('Location ID updated');
     } catch (error: any) {
       toast.error('Failed to update location ID', { description: error.message });
     }
