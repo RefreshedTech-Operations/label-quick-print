@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, MapPin } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, MapPin, Package } from 'lucide-react';
 import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
 import { ChargerWarning } from '@/components/ChargerWarning';
@@ -196,6 +196,14 @@ export default function Scan() {
       return;
     }
 
+    // Debug info for bundle detection
+    console.log('Scanned shipment:', {
+      uid: shipment.uid,
+      bundle: shipment.bundle,
+      order_group_id: shipment.order_group_id,
+      tracking: shipment.tracking
+    });
+
     if (shipment.printed) {
       toast.error('Already printed', {
         description: `This label was already printed${shipment.printed_at ? ` on ${new Date(shipment.printed_at).toLocaleString()}` : ''}`
@@ -229,16 +237,28 @@ export default function Scan() {
     let groupTotal = 0;
     let allGroupItems: Shipment[] = [];
     if (shipment.bundle && shipment.order_group_id) {
-      const { data: groupShipments } = await supabase
+      const { data: groupShipments, error: groupError } = await supabase
         .from('shipments')
         .select('*')
         .eq('order_group_id', shipment.order_group_id)
         .order('uid');
       
+      if (groupError) {
+        console.error('Error fetching group items:', groupError);
+        toast.error('Failed to load bundle items');
+      }
+      
       allGroupItems = groupShipments || [];
       groupTotal = allGroupItems.length;
       const unprintedCount = allGroupItems.filter(s => !s.printed).length;
       lastInGroup = unprintedCount === 1;
+      
+      console.log('Bundle detected:', {
+        group_id: shipment.order_group_id,
+        total_items: groupTotal,
+        unprinted_items: unprintedCount,
+        items: allGroupItems.map(i => ({ uid: i.uid, order_id: i.order_id, printed: i.printed }))
+      });
       
       // Check for existing location in bundle
       const existingLocation = allGroupItems.find(s => s.location_id)?.location_id || null;
@@ -939,10 +959,13 @@ export default function Scan() {
 
           {/* Right Column - Group Items */}
           {selectedShipment?.bundle && groupItems.length > 0 ? (
-            <Card>
-              <CardHeader>
+            <Card className="border-2 border-primary">
+              <CardHeader className="bg-primary/5">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Package className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">Bundle Items ({groupItems.length})</CardTitle>
+                  </div>
                   <Button
                     onClick={handlePrintAllGroupManifests}
                     disabled={printing || groupItems.every(item => item.printed)}
