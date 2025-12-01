@@ -261,9 +261,9 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
             <Card key={bundle.tracking} className="border-l-4 border-l-destructive">
               <Collapsible open={isExpanded} onOpenChange={() => toggleBundle(bundle.tracking)}>
                 <CardHeader className="pb-3">
-                  <CollapsibleTrigger className="w-full">
-                    <div className="flex items-start justify-between text-left">
-                      <div className="space-y-1 flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    <CollapsibleTrigger className="flex-1 text-left">
+                      <div className="space-y-1">
                         <CardTitle className="text-lg flex items-center gap-2">
                           <Package className="h-5 w-5" />
                           Tracking: {bundle.tracking}
@@ -280,29 +280,29 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
                           </Badge>
                         </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const firstUid = bundle.unprinted_items.find(item => item.uid)?.uid;
-                          if (firstUid) {
-                            copyToClipboard(firstUid, 'bundle', bundle.tracking);
-                          } else {
-                            toast.error('No UID available');
-                          }
-                        }}
-                        className="gap-2 shrink-0"
-                      >
-                        {copiedBundle === bundle.tracking ? (
-                          <CheckCheck className="h-4 w-4" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                        Copy UID
-                      </Button>
-                    </div>
-                  </CollapsibleTrigger>
+                    </CollapsibleTrigger>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const firstUid = bundle.unprinted_items.find(item => item.uid)?.uid;
+                        if (firstUid) {
+                          copyToClipboard(firstUid, 'bundle', bundle.tracking);
+                        } else {
+                          toast.error('No UID available');
+                        }
+                      }}
+                      className="gap-2 shrink-0"
+                    >
+                      {copiedBundle === bundle.tracking ? (
+                        <CheckCheck className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                      Copy UID
+                    </Button>
+                  </div>
                 </CardHeader>
 
                 <CollapsibleContent>
