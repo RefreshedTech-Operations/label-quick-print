@@ -12,6 +12,7 @@ import { Printer, CheckCircle, XCircle, AlertCircle, MapPin } from 'lucide-react
 import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
 import { ChargerWarning } from '@/components/ChargerWarning';
+import { createPickListPrintJob, PickListData } from '@/lib/pickList';
 
 export default function Scan() {
   const [uid, setUid] = useState('');
@@ -141,6 +142,12 @@ export default function Scan() {
       setPrinterId(settings.default_printer_id);
     }
   }, [settings.default_printer_id]);
+
+  const isLabelOnlyOrder = (shipment: Shipment) => {
+    return shipment.label_url && 
+           shipment.manifest_url && 
+           shipment.label_url === shipment.manifest_url;
+  };
 
   const getCookie = (name: string): string | null => {
     const value = `; ${document.cookie}`;
@@ -372,6 +379,51 @@ export default function Scan() {
         description: `Printed label for ${shipment.uid}`
       });
 
+      // Check if this is a Label Only order and print pick list
+      if (isLabelOnlyOrder(shipment)) {
+        try {
+          let pickListItems: any[] = [];
+          
+          // For bundles, get all items in the group
+          if (shipment.bundle && shipment.order_group_id) {
+            pickListItems = groupItems.map(item => ({
+              product_name: item.product_name || '',
+              uid: item.uid,
+              quantity: item.quantity || 1
+            }));
+          } else {
+            // Single item
+            pickListItems = [{
+              product_name: shipment.product_name || '',
+              uid: shipment.uid,
+              quantity: shipment.quantity || 1
+            }];
+          }
+
+          const pickListData: PickListData = {
+            buyer: shipment.buyer || '',
+            tracking: shipment.tracking || '',
+            order_id: shipment.order_id,
+            items: pickListItems
+          };
+
+          const pickListJob = createPickListPrintJob(
+            parseInt(printerId),
+            pickListData
+          );
+
+          await submitPrintJob(printnodeApiKey, pickListJob);
+          
+          toast.success('Pick list printed!', {
+            description: 'Pick list printed successfully'
+          });
+        } catch (error: any) {
+          toast.error('Pick list print failed', {
+            description: error.message
+          });
+        }
+      }
+
       setSelectedShipment(null);
     } catch (error: any) {
       toast.error('Print failed', {
@@ -470,6 +522,39 @@ export default function Scan() {
         description: `Printed manifest for group`
       });
 
+      // Check if this is a Label Only order and print pick list
+      if (isLabelOnlyOrder(selectedShipment)) {
+        try {
+          const pickListItems = groupItems.map(item => ({
+            product_name: item.product_name || '',
+            uid: item.uid,
+            quantity: item.quantity || 1
+          }));
+
+          const pickListData: PickListData = {
+            buyer: selectedShipment.buyer || '',
+            tracking: selectedShipment.tracking || '',
+            order_id: selectedShipment.order_id,
+            items: pickListItems
+          };
+
+          const pickListJob = createPickListPrintJob(
+            parseInt(printerId),
+            pickListData
+          );
+
+          await submitPrintJob(printnodeApiKey, pickListJob);
+          
+          toast.success('Pick list printed!', {
+            description: 'Pick list printed successfully'
+          });
+        } catch (error: any) {
+          toast.error('Pick list print failed', {
+            description: error.message
+          });
+        }
+      }
+
       setSelectedShipment(null);
       setGroupItems([]);
     } catch (error: any) {
@@ -557,6 +642,37 @@ export default function Scan() {
       toast.success('Group ID label printed!', {
         description: `Printed group ID for bundle ${shipment.uid}`
       });
+
+      // Check if this is a Label Only order and print pick list
+      if (isLabelOnlyOrder(shipment)) {
+        try {
+          const pickListData: PickListData = {
+            buyer: shipment.buyer || '',
+            tracking: shipment.tracking || '',
+            order_id: shipment.order_id,
+            items: [{
+              product_name: shipment.product_name || '',
+              uid: shipment.uid,
+              quantity: shipment.quantity || 1
+            }]
+          };
+
+          const pickListJob = createPickListPrintJob(
+            parseInt(printerId),
+            pickListData
+          );
+
+          await submitPrintJob(printnodeApiKey, pickListJob);
+          
+          toast.success('Pick list printed!', {
+            description: 'Pick list printed for this item'
+          });
+        } catch (error: any) {
+          toast.error('Pick list print failed', {
+            description: error.message
+          });
+        }
+      }
 
       setSelectedShipment(null);
     } catch (error: any) {
