@@ -263,7 +263,7 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
                 <CardHeader className="pb-3">
                   <CollapsibleTrigger className="w-full">
                     <div className="flex items-start justify-between text-left">
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <CardTitle className="text-lg flex items-center gap-2">
                           <Package className="h-5 w-5" />
                           Tracking: {bundle.tracking}
@@ -280,34 +280,33 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
                           </Badge>
                         </div>
                       </div>
-                    </div>
-                  </CollapsibleTrigger>
-                </CardHeader>
-
-                <CollapsibleContent>
-                  <CardContent className="pt-0 space-y-4">
-                    <div className="flex gap-2 mb-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          const uids = bundle.unprinted_items
-                            .filter(item => item.uid)
-                            .map(item => item.uid)
-                            .join(', ');
-                          copyToClipboard(uids, 'bundle', bundle.tracking);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const firstUid = bundle.unprinted_items.find(item => item.uid)?.uid;
+                          if (firstUid) {
+                            copyToClipboard(firstUid, 'bundle', bundle.tracking);
+                          } else {
+                            toast.error('No UID available');
+                          }
                         }}
-                        className="gap-2"
+                        className="gap-2 shrink-0"
                       >
                         {copiedBundle === bundle.tracking ? (
                           <CheckCheck className="h-4 w-4" />
                         ) : (
                           <Copy className="h-4 w-4" />
                         )}
-                        Copy All {bundle.unprinted_count} UIDs
+                        Copy UID
                       </Button>
                     </div>
+                  </CollapsibleTrigger>
+                </CardHeader>
 
+                <CollapsibleContent>
+                  <CardContent className="pt-0 space-y-4">
                     <div className="rounded-lg bg-muted p-4 space-y-2">
                       <h4 className="font-semibold text-sm text-destructive flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4" />
@@ -328,20 +327,6 @@ export function IncompleteBundleRecovery({ showDate, printedDate }: IncompleteBu
                                 )}
                               </span>
                             </div>
-                            {item.uid && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2"
-                                onClick={() => copyToClipboard(item.uid!, 'uid', item.id)}
-                              >
-                                {copiedUid === item.id ? (
-                                  <CheckCheck className="h-3 w-3 text-green-600" />
-                                ) : (
-                                  <Copy className="h-3 w-3" />
-                                )}
-                              </Button>
-                            )}
                           </li>
                         ))}
                       </ul>
