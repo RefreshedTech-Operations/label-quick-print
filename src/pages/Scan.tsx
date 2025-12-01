@@ -477,6 +477,17 @@ export default function Scan() {
       return;
     }
 
+    // Check if all bundle items have been processed
+    const unprocessedItems = groupItems.filter(item => 
+      !item.group_id_printed || !item.location_id
+    );
+    
+    if (unprocessedItems.length > 0) {
+      toast.warning('Not all items processed', {
+        description: `${unprocessedItems.length} item(s) haven't been scanned yet. Only processed items will be marked as printed.`
+      });
+    }
+
     setPrinting(true);
 
     try {
@@ -495,7 +506,7 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Mark all items in the group as printed
+      // Mark ONLY items that were actually scanned and have location as printed
       await supabase
         .from('shipments')
         .update({ 
@@ -503,7 +514,9 @@ export default function Scan() {
           printed_at: new Date().toISOString(),
           printed_by_user_id: user.id
         })
-        .eq('order_group_id', selectedShipment.order_group_id);
+        .eq('order_group_id', selectedShipment.order_group_id)
+        .eq('group_id_printed', true)
+        .not('location_id', 'is', null);
 
       // Log print job for the manifest
       await supabase
