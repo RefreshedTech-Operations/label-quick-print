@@ -639,6 +639,21 @@ export default function Scan() {
         })
         .eq('id', shipment.id);
 
+      // Update local state to reflect the change
+      setGroupItems(prev => prev.map(item => 
+        item.id === shipment.id 
+          ? { 
+              ...item, 
+              group_id_printed: true,
+              group_id_printed_at: new Date().toISOString(),
+              group_id_printed_by_user_id: user.id,
+              printed: true,
+              printed_at: new Date().toISOString(),
+              printed_by_user_id: user.id
+            } 
+          : item
+      ));
+
       // Log print job
       await supabase
         .from('print_jobs')
@@ -957,15 +972,27 @@ export default function Scan() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
-                  <Button
-                    onClick={handlePrintAllGroupManifests}
-                    disabled={printing || groupItems.every(item => item.printed)}
-                    variant="default"
-                    size="sm"
-                  >
-                    <Printer className="h-4 w-4 mr-2" />
-                    Mark All Printed
-                  </Button>
+                  <div className="flex flex-col items-end gap-1">
+                    <Button
+                      onClick={handlePrintAllGroupManifests}
+                      disabled={
+                        printing || 
+                        groupItems.every(item => item.printed) ||
+                        groupItems.some(item => !item.group_id_printed || !item.location_id)
+                      }
+                      variant="default"
+                      size="sm"
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Mark All Printed
+                    </Button>
+                    {groupItems.some(item => !item.group_id_printed || !item.location_id) && (
+                      <p className="text-xs text-muted-foreground">
+                        {groupItems.filter(item => !item.group_id_printed || !item.location_id).length} item(s) 
+                        {' '}need Group ID labels printed
+                      </p>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
