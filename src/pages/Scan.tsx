@@ -236,7 +236,8 @@ export default function Scan() {
       // Check for existing location in bundle
       const existingLocation = allGroupItems.find(s => s.location_id)?.location_id || null;
       setRecommendedLocation(existingLocation);
-      setLocationAcknowledged(false);
+      // If this item already has a location set, consider it acknowledged
+      setLocationAcknowledged(!!shipment.location_id);
       setOverrideLocation(false);
       setCustomLocation('');
       
