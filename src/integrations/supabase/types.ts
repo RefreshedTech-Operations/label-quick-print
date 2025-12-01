@@ -413,18 +413,6 @@ export type Database = {
           print_count: number
         }[]
       }
-      get_incomplete_bundles_for_date: {
-        Args: { p_printed_date?: string; p_show_date: string }
-        Returns: {
-          buyer: string
-          printed_items: Json
-          printed_today_count: number
-          total_count: number
-          tracking: string
-          unprinted_count: number
-          unprinted_items: Json
-        }[]
-      }
       get_next_available_location: { Args: never; Returns: string }
       get_print_status_breakdown: {
         Args: { end_date: string; start_date: string }

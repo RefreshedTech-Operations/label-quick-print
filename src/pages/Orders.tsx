@@ -53,11 +53,10 @@ import { format } from 'date-fns';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
 import { useColumnResize } from '@/hooks/useColumnResize';
 import { HighlightText } from '@/components/HighlightText';
-import { IncompleteBundleRecovery } from '@/components/IncompleteBundleRecovery';
 
 export default function Orders() {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled' | 'incomplete-bundles'>('unprinted');
+  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('unprinted');
   const [search, setSearch] = useState('');
   const debouncedSearch = useAdaptiveDebounce(search, 600);
   const [printing, setPrinting] = useState<string | null>(null);
@@ -1112,7 +1111,6 @@ export default function Orders() {
             <SelectItem value="unprinted">Unprinted</SelectItem>
             <SelectItem value="bundled">Bundled Items</SelectItem>
             <SelectItem value="exceptions">Exceptions</SelectItem>
-            <SelectItem value="incomplete-bundles">⚠️ Incomplete Bundles</SelectItem>
           </SelectContent>
         </Select>
         <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
@@ -1127,45 +1125,38 @@ export default function Orders() {
         </Select>
       </div>
 
-      {filter === 'incomplete-bundles' ? (
-        <IncompleteBundleRecovery 
-          showDate={showDateFilter || '2025-11-28'}
-          printedDate={format(new Date(), 'yyyy-MM-dd')}
-        />
-      ) : (
-        <>
-          {selectedShipments.size > 0 && (
-            <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
-              <span className="text-sm font-medium">
-                {selectedShipments.size} order{selectedShipments.size !== 1 ? 's' : ''} selected
-              </span>
-              <Button 
-                onClick={handleBulkPrint}
-                disabled={isBulkPrinting}
-                className="ml-auto"
-              >
-                <Printer className="h-4 w-4 mr-2" />
-                {isBulkPrinting ? 'Processing...' : `Print Selected (${selectedShipments.size})`}
-              </Button>
-              <Button 
-                variant="secondary"
-                onClick={handleBulkMarkShipped}
-                disabled={isBulkPrinting}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Mark as Shipped ({selectedShipments.size})
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setSelectedShipments(new Set())}
-                disabled={isBulkPrinting}
-              >
-                Clear Selection
-              </Button>
-            </div>
-          )}
+      {selectedShipments.size > 0 && (
+        <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
+          <span className="text-sm font-medium">
+            {selectedShipments.size} order{selectedShipments.size !== 1 ? 's' : ''} selected
+          </span>
+          <Button 
+            onClick={handleBulkPrint}
+            disabled={isBulkPrinting}
+            className="ml-auto"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            {isBulkPrinting ? 'Processing...' : `Print Selected (${selectedShipments.size})`}
+          </Button>
+          <Button 
+            variant="secondary"
+            onClick={handleBulkMarkShipped}
+            disabled={isBulkPrinting}
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Mark as Shipped ({selectedShipments.size})
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setSelectedShipments(new Set())}
+            disabled={isBulkPrinting}
+          >
+            Clear Selection
+          </Button>
+        </div>
+      )}
 
-          <div className="border rounded-lg overflow-x-auto">
+      <div className="border rounded-lg overflow-x-auto">
         <Table className="min-w-[1400px]">
           <TableHeader>
             <TableRow>
@@ -1540,8 +1531,6 @@ export default function Orders() {
             </PaginationContent>
           </Pagination>
         </div>
-      )}
-        </>
       )}
 
       <AlertDialog open={showAlreadyPrintedDialog} onOpenChange={setShowAlreadyPrintedDialog}>
