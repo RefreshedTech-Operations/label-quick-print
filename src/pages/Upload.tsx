@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import PickListPrintDialog from '@/components/PickListPrintDialog';
 
 export default function Upload() {
   const [file, setFile] = useState<File | null>(null);
@@ -24,8 +23,6 @@ export default function Upload() {
   const [showDate, setShowDate] = useState<Date>();
   const [channel, setChannel] = useState<string>('regular');
   const [isLabelOnly, setIsLabelOnly] = useState(false);
-  const [showPickListDialog, setShowPickListDialog] = useState(false);
-  const [uploadedShipments, setUploadedShipments] = useState<any[]>([]);
   
   const { columnMap, settings } = useAppStore();
   const navigate = useNavigate();
@@ -258,13 +255,8 @@ export default function Upload() {
         });
       }
 
-      // If Label Only mode, prompt for pick list printing
-      if (isLabelOnly && insertedData.length > 0) {
-        setUploadedShipments(insertedData);
-        setShowPickListDialog(true);
-      } else {
-        navigate('/orders');
-      }
+      // Navigate to orders page - pick lists will print when labels are printed
+      navigate('/orders');
     } catch (error: any) {
       toast.error('Upload failed', {
         description: error.message
@@ -429,13 +421,6 @@ export default function Upload() {
           )}
         </CardContent>
       </Card>
-
-      <PickListPrintDialog
-        open={showPickListDialog}
-        onOpenChange={setShowPickListDialog}
-        shipments={uploadedShipments}
-        onComplete={() => navigate('/orders')}
-      />
     </div>
   );
 }

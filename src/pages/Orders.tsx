@@ -48,6 +48,7 @@ import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, Refr
 import { Shipment } from '@/types';
 import { exportOrders } from '@/lib/analyticsExport';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
+import { createPickListPrintJob, PickListData } from '@/lib/pickList';
 import { format } from 'date-fns';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
 import { useColumnResize } from '@/hooks/useColumnResize';
@@ -89,6 +90,13 @@ export default function Orders() {
     }
   }, [showDateFilter, allowAllShows]);
   const { columnWidths, handleResizeStart, resizingColumn } = useColumnResize('orders-table-widths');
+
+  // Helper to identify Label Only orders
+  const isLabelOnlyOrder = (shipment: Shipment) => {
+    return shipment.label_url && 
+           shipment.manifest_url && 
+           shipment.label_url === shipment.manifest_url;
+  };
 
   // Fetch app config and user settings (cached with React Query)
   const { data: appConfig } = useQuery({
@@ -454,6 +462,59 @@ export default function Orders() {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
       
       toast.success(`Printed label for ${shipment.uid}`);
+
+      // Print pick list for Label Only orders
+      if (isLabelOnlyOrder(shipment)) {
+        try {
+          let pickListData: PickListData;
+
+          if (shipment.order_group_id) {
+            // Bundle: Fetch all items in this order group
+            const { data: bundleItems, error: bundleError } = await supabase
+              .from('shipments')
+              .select('product_name, uid, quantity, buyer, tracking, order_id')
+              .eq('order_group_id', shipment.order_group_id);
+
+            if (bundleError) throw bundleError;
+
+            pickListData = {
+              buyer: shipment.buyer || 'Unknown',
+              tracking: shipment.tracking || 'No tracking',
+              order_id: bundleItems?.map(i => i.order_id).join(', ') || shipment.order_id,
+              items: bundleItems?.map(item => ({
+                product_name: item.product_name || 'Unknown',
+                uid: item.uid || 'N/A',
+                quantity: item.quantity || 1
+              })) || []
+            };
+          } else {
+            // Single item
+            pickListData = {
+              buyer: shipment.buyer || 'Unknown',
+              tracking: shipment.tracking || 'No tracking',
+              order_id: shipment.order_id,
+              items: [{
+                product_name: shipment.product_name || 'Unknown',
+                uid: shipment.uid || 'N/A',
+                quantity: shipment.quantity || 1
+              }]
+            };
+          }
+
+          const pickListJob = createPickListPrintJob(
+            parseInt(settings.default_printer_id),
+            pickListData
+          );
+
+          await submitPrintJob(printnodeApiKey, pickListJob);
+          console.log('✓ Printed pick list for Label Only order');
+        } catch (pickListError: any) {
+          console.error('Failed to print pick list:', pickListError);
+          toast.error('Label printed but pick list failed', {
+            description: pickListError.message
+          });
+        }
+      }
     } catch (error: any) {
       toast.error('Print failed', { description: error.message });
     } finally {
@@ -644,6 +705,7 @@ export default function Orders() {
     let groupsProcessed = 0;
     const totalShipments = shipmentGroups.size;
     const totalItems = shipmentsToPrint.length;
+    const printedPickLists = new Set<string>(); // Track which order_group_ids have had pick lists printed
 
     toast.info(`Printing ${totalShipments} shipping label${totalShipments !== 1 ? 's' : ''} for ${totalItems} item${totalItems !== 1 ? 's' : ''}...`);
 
@@ -707,6 +769,60 @@ export default function Orders() {
 
         // Invalidate cache to refetch updated data
         await queryClient.invalidateQueries({ queryKey: ['shipments'] });
+
+        // Print pick list for Label Only orders
+        if (representative && isLabelOnlyOrder(representative)) {
+          try {
+            // Determine if this is a bundle or single item
+            const orderGroupId = representative.order_group_id;
+            
+            // Avoid printing duplicate pick lists for the same bundle
+            if (orderGroupId && printedPickLists.has(orderGroupId)) {
+              console.log('✓ Pick list already printed for this bundle');
+            } else {
+              let pickListData: PickListData;
+
+              if (orderGroupId) {
+                // Bundle: Use all items in this group
+                pickListData = {
+                  buyer: representative.buyer || 'Unknown',
+                  tracking: representative.tracking || 'No tracking',
+                  order_id: shipmentsInGroup.map(i => i.order_id).join(', '),
+                  items: shipmentsInGroup.map(item => ({
+                    product_name: item.product_name || 'Unknown',
+                    uid: item.uid || 'N/A',
+                    quantity: item.quantity || 1
+                  }))
+                };
+
+                printedPickLists.add(orderGroupId);
+              } else {
+                // Single item
+                pickListData = {
+                  buyer: representative.buyer || 'Unknown',
+                  tracking: representative.tracking || 'No tracking',
+                  order_id: representative.order_id,
+                  items: [{
+                    product_name: representative.product_name || 'Unknown',
+                    uid: representative.uid || 'N/A',
+                    quantity: representative.quantity || 1
+                  }]
+                };
+              }
+
+              const pickListJob = createPickListPrintJob(
+                parseInt(settings.default_printer_id),
+                pickListData
+              );
+
+              await submitPrintJob(printnodeApiKey, pickListJob);
+              console.log('✓ Printed pick list for Label Only order');
+            }
+          } catch (pickListError: any) {
+            console.error('Failed to print pick list:', pickListError);
+            // Don't fail the whole bulk print, just log it
+          }
+        }
 
       } catch (error: any) {
         failCount++;
