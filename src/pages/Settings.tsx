@@ -72,6 +72,7 @@ export default function Settings() {
     created_at: string;
     count: number;
     user_id: string;
+    show_date: string | null;
   }>>([]);
   const [loadingUploads, setLoadingUploads] = useState(false);
   const [deletingUpload, setDeletingUpload] = useState<string | null>(null);
@@ -523,14 +524,14 @@ export default function Settings() {
       // Get distinct upload batches (grouped by created_at timestamp)
       const { data, error } = await supabase
         .from('shipments')
-        .select('created_at, user_id')
+        .select('created_at, user_id, show_date')
         .order('created_at', { ascending: false })
         .limit(1000); // Get recent records to group
 
       if (error) throw error;
 
       // Group by created_at timestamp (uploads are batched with same timestamp)
-      const uploadMap = new Map<string, { created_at: string; count: number; user_id: string }>();
+      const uploadMap = new Map<string, { created_at: string; count: number; user_id: string; show_date: string | null }>();
       
       data?.forEach(shipment => {
         const timestamp = shipment.created_at;
@@ -540,7 +541,8 @@ export default function Settings() {
           uploadMap.set(timestamp, {
             created_at: timestamp,
             count: 1,
-            user_id: shipment.user_id || 'unknown'
+            user_id: shipment.user_id || 'unknown',
+            show_date: shipment.show_date
           });
         }
       });
@@ -883,6 +885,7 @@ export default function Settings() {
                   <thead className="bg-muted">
                     <tr>
                       <th className="text-left p-3 font-medium">Upload Date & Time</th>
+                      <th className="text-left p-3 font-medium">Show Date</th>
                       <th className="text-center p-3 font-medium">Shipments</th>
                       <th className="text-right p-3 font-medium">Actions</th>
                     </tr>
@@ -906,6 +909,19 @@ export default function Settings() {
                               {upload.created_at}
                             </span>
                           </div>
+                        </td>
+                        <td className="p-3">
+                          {upload.show_date ? (
+                            <span className="font-medium">
+                              {new Date(upload.show_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">No show date</span>
+                          )}
                         </td>
                         <td className="p-3 text-center">
                           <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-primary/10 text-primary font-medium">
