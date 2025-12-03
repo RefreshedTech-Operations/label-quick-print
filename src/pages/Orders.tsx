@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/useAppStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -56,8 +57,24 @@ import { HighlightText } from '@/components/HighlightText';
 
 export default function Orders() {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>('unprinted');
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>(() => {
+    const urlFilter = searchParams.get('filter');
+    if (urlFilter && ['all', 'printed', 'unprinted', 'exceptions', 'bundled'].includes(urlFilter)) {
+      return urlFilter as 'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled';
+    }
+    return 'unprinted';
+  });
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
+
+  // Clear URL params after initial read
+  useEffect(() => {
+    if (searchParams.get('search') || searchParams.get('filter')) {
+      searchParams.delete('search');
+      searchParams.delete('filter');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
   const debouncedSearch = useAdaptiveDebounce(search, 600);
   const [printing, setPrinting] = useState<string | null>(null);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);

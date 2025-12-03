@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/stores/useAppStore';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ export default function Scan() {
   const [overrideLocation, setOverrideLocation] = useState(false);
   const [customLocation, setCustomLocation] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
   
   const { 
     settings,
@@ -838,7 +840,11 @@ export default function Scan() {
                 {selectedShipment.order_group_id && (
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">Group ID</p>
-                    <p className="font-mono text-xs break-all" title={selectedShipment.order_group_id}>
+                    <p 
+                      className="font-mono text-xs break-all cursor-pointer hover:text-primary hover:underline" 
+                      title="Click to view all bundle items in Orders"
+                      onClick={() => navigate(`/orders?search=${selectedShipment.order_group_id}&filter=all`)}
+                    >
                       {selectedShipment.order_group_id}
                     </p>
                   </div>
