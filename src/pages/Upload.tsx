@@ -82,7 +82,7 @@ export default function Upload() {
       
       console.log('After cancelled and empty order_id filter:', shipments.length);
 
-      // Group shipments by tracking number
+      // Group shipments by tracking number - use order_id as key in processedSet for reliability
       const groupedByTracking = new Map<string, any[]>();
       shipments.forEach(shipment => {
         // Only group if tracking number exists
@@ -95,28 +95,32 @@ export default function Upload() {
         }
       });
 
+      console.log('Tracking groups found:', groupedByTracking.size);
+      console.log('Multi-item bundles:', Array.from(groupedByTracking.values()).filter(g => g.length > 1).length);
+
       // Assign order_group_id to groups with same tracking number
       const shipmentsWithGroups: any[] = [];
-      const processedShipments = new Set();
+      const processedOrderIds = new Set<string>(); // Use order_id instead of object reference
 
-      groupedByTracking.forEach((group) => {
+      groupedByTracking.forEach((group, tracking) => {
         // Only assign group ID if there are multiple shipments with the same tracking
         if (group.length > 1) {
           const groupId = crypto.randomUUID();
+          console.log(`Bundle group ${groupId}: tracking ${tracking}, ${group.length} items:`, group.map(s => s.order_id));
           group.forEach(shipment => {
             shipmentsWithGroups.push({
               ...shipment,
               order_group_id: groupId,
               bundle: true
             });
-            processedShipments.add(shipment);
+            processedOrderIds.add(shipment.order_id);
           });
         }
       });
 
       // Add remaining shipments without group IDs (single tracking or no tracking)
       shipments.forEach(shipment => {
-        if (!processedShipments.has(shipment)) {
+        if (!processedOrderIds.has(shipment.order_id)) {
           shipmentsWithGroups.push({
             ...shipment,
             order_group_id: null,
@@ -124,6 +128,8 @@ export default function Upload() {
           });
         }
       });
+
+      console.log('Total after grouping:', shipmentsWithGroups.length, 'Bundled:', shipmentsWithGroups.filter(s => s.bundle).length);
 
       // Phase 1: Deduplicate within the file itself
       const seenOrderIds = new Set<string>();
