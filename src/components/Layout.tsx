@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface LayoutProps {
   children: ReactNode;
@@ -112,6 +113,7 @@ export default function Layout({ children }: LayoutProps) {
                 </Link>
               </Button>
 
+              <ThemeToggle />
               <Button variant="ghost" size="icon" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" />
               </Button>

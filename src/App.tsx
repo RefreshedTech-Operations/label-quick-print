@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Upload from "./pages/Upload";
@@ -18,26 +19,28 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<Index />} />
-          <Route path="/upload" element={<Layout><Upload /></Layout>} />
-          <Route path="/orders" element={<Layout><Orders /></Layout>} />
-          <Route path="/print-jobs" element={<Layout><PrintJobs /></Layout>} />
-          <Route path="/batches" element={<Layout><BatchManagement /></Layout>} />
-          <Route path="/tv-dashboard" element={<TVDashboard />} />
-          <Route path="/settings" element={<Layout><Settings /></Layout>} />
-          <Route path="/admin" element={<Layout><AdminTools /></Layout>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider defaultTheme="system" storageKey="whatnot-labels-theme" attribute="class">
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/upload" element={<Layout><Upload /></Layout>} />
+            <Route path="/orders" element={<Layout><Orders /></Layout>} />
+            <Route path="/print-jobs" element={<Layout><PrintJobs /></Layout>} />
+            <Route path="/batches" element={<Layout><BatchManagement /></Layout>} />
+            <Route path="/tv-dashboard" element={<TVDashboard />} />
+            <Route path="/settings" element={<Layout><Settings /></Layout>} />
+            <Route path="/admin" element={<Layout><AdminTools /></Layout>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
