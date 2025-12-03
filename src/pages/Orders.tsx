@@ -1366,7 +1366,11 @@ export default function Orders() {
                   {/* Bundle ID - Separate column */}
                   <TableCell style={{ width: columnWidths.bundleId }}>
                     {shipment.order_group_id && (
-                      <div className="font-mono text-sm break-all" title={shipment.order_group_id}>
+                      <div 
+                        className="font-mono text-sm break-all cursor-pointer hover:text-primary hover:underline" 
+                        title={`Click to search bundle: ${shipment.order_group_id}`}
+                        onClick={() => setSearch(shipment.order_group_id)}
+                      >
                         <HighlightText text={shipment.order_group_id} searchTerm={debouncedSearch} />
                       </div>
                     )}
