@@ -229,13 +229,11 @@ export default function Orders() {
           p_filter: filter, // NEW: Pass filter to SQL for server-side filtering
           p_limit: pageSize,
           p_offset: (currentPage - 1) * pageSize
-        }, {
-          count: 'exact'
         });
 
       if (searchError) throw searchError;
 
-      return { shipments: searchData || [], totalCount: count || 0 };
+      return { shipments: searchData || [] };
     },
     enabled: showDateFilter !== undefined || allowAllShows, // Wait for auto-selected date OR explicit "All Shows"
     staleTime: 60000, // Increased from 30s to 60s
@@ -270,7 +268,7 @@ export default function Orders() {
   useEffect(() => {
     if (!shipmentsResponse) return;
     
-    const totalPages = Math.max(1, Math.ceil((shipmentsResponse.totalCount || 0) / pageSize));
+    const totalPages = Math.max(1, Math.ceil((statsData?.total || 0) / pageSize));
     const nextPage = currentPage + 1;
     
     // Only prefetch if there's a next page
@@ -291,13 +289,11 @@ export default function Orders() {
               p_filter: filter,
               p_limit: pageSize,
               p_offset: currentOffset
-            }, {
-              count: 'exact'
             });
 
           if (searchError) throw searchError;
 
-          return { shipments: searchData || [], totalCount: count || 0 };
+          return { shipments: searchData || [] };
         },
         staleTime: 60000,
       });
@@ -1026,7 +1022,7 @@ export default function Orders() {
   }, [statsData]);
 
   // Pagination - Use totalCount from database and current page's shipments
-  const totalCount = shipmentsResponse?.totalCount || 0;
+  const totalCount = stats.total || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
