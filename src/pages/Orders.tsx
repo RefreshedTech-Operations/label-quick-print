@@ -1369,7 +1369,10 @@ export default function Orders() {
                       <div 
                         className="font-mono text-sm break-all cursor-pointer hover:text-primary hover:underline" 
                         title={`Click to search bundle: ${shipment.order_group_id}`}
-                        onClick={() => setSearch(shipment.order_group_id)}
+                        onClick={() => {
+                          setSearch(shipment.order_group_id);
+                          setFilter('all');
+                        }}
                       >
                         <HighlightText text={shipment.order_group_id} searchTerm={debouncedSearch} />
                       </div>
