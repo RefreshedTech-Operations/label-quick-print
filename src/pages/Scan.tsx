@@ -172,10 +172,7 @@ export default function Scan() {
     }
   };
 
-  // Reset charger acknowledgment when shipment changes
-  useEffect(() => {
-    setChargersAcknowledged(false);
-  }, [selectedShipment?.id]);
+  // Charger warning is informational only, no acknowledgment reset needed
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -281,12 +278,7 @@ export default function Scan() {
         return;
       }
       
-      // ALWAYS print Group ID first if not already printed
-      if (!shipment.group_id_printed) {
-        return handlePrintGroupId(shipment);
-      }
-      
-      // Group ID already printed - check if ready for manifest
+      // Check how many unprinted items remain
       const { data: groupShipments, error } = await supabase
         .from('shipments')
         .select('id, printed, group_id_printed')
@@ -298,19 +290,19 @@ export default function Scan() {
         return;
       }
 
-      const allHaveGroupId = groupShipments?.every(s => s.group_id_printed) ?? false;
       const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
-
-      if (!allHaveGroupId) {
-        toast.info('Other items in group still need Group ID labels');
-        return;
-      }
+      const isLastItem = unprintedCount === 1;
       
-      if (unprintedCount <= 1) {
-        toast.info('All Group IDs printed - printing manifest');
+      // If last item in group, print manifest directly (skip Group ID flow)
+      if (isLastItem) {
+        toast.info('Last item in group - printing manifest + packing slip');
         // Fall through to manifest printing
+      } else if (!shipment.group_id_printed) {
+        // Not last item, print Group ID label
+        return handlePrintGroupId(shipment);
       } else {
-        toast.error('Group ID already printed for this item');
+        // Group ID already printed but not last item
+        toast.error('Group ID already printed for this item. Scan remaining items.');
         return;
       }
     }
@@ -484,14 +476,12 @@ export default function Scan() {
       return;
     }
 
-    // Check if all bundle items have been processed
-    const unprocessedItems = groupItems.filter(item => 
-      !item.group_id_printed || !item.location_id
-    );
+    // Check if all bundle items have location IDs
+    const unprocessedItems = groupItems.filter(item => !item.location_id);
     
     if (unprocessedItems.length > 0) {
-      toast.warning('Not all items processed', {
-        description: `${unprocessedItems.length} item(s) haven't been scanned yet. Only processed items will be marked as printed.`
+      toast.warning('Not all items have locations', {
+        description: `${unprocessedItems.length} item(s) need location IDs. Only items with locations will be marked as printed.`
       });
     }
 
@@ -513,7 +503,7 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Mark ONLY items that were actually scanned and have location as printed
+      // Mark items that have location as printed (regardless of group_id_printed)
       const { error: updateError } = await supabase
         .from('shipments')
         .update({ 
@@ -522,7 +512,6 @@ export default function Scan() {
           printed_by_user_id: user.id
         })
         .eq('order_group_id', selectedShipment.order_group_id)
-        .eq('group_id_printed', true)
         .not('location_id', 'is', null);
 
       if (updateError) {
@@ -829,15 +818,13 @@ export default function Scan() {
                 )}
               </CardTitle>
               
-              {/* Charger Warning - Main Display */}
+              {/* Charger Warning - Main Display (informational only) */}
               {selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && (
                 <div className="mt-4">
                   <ChargerWarning 
                     items={groupItems}
                     channel={selectedShipment.channel}
-                    requireAcknowledgment={true}
-                    acknowledged={chargersAcknowledged}
-                    onAcknowledge={setChargersAcknowledged}
+                    requireAcknowledgment={false}
                   />
                 </div>
               )}
@@ -946,9 +933,8 @@ export default function Scan() {
                   disabled={
                     printing || 
                     (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
-                    (selectedShipment.bundle && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
-                    (selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && !chargersAcknowledged) ||
-                    (selectedShipment.bundle && recommendedLocation && !locationAcknowledged)
+                    (selectedShipment.bundle && !isLastInGroup && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
+                    (selectedShipment.bundle && !isLastInGroup && recommendedLocation && !locationAcknowledged)
                   }
                   size="lg"
                   className="w-full"
@@ -994,12 +980,12 @@ export default function Scan() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Group Items ({groupItems.length})</CardTitle>
                   <div className="flex flex-col items-end gap-1">
-                    <Button
+                    <Button 
                       onClick={handlePrintAllGroupManifests}
                       disabled={
                         printing || 
                         groupItems.every(item => item.printed) ||
-                        groupItems.some(item => !item.group_id_printed || !item.location_id)
+                        groupItems.some(item => !item.location_id)
                       }
                       variant="default"
                       size="sm"
@@ -1007,10 +993,10 @@ export default function Scan() {
                       <Printer className="h-4 w-4 mr-2" />
                       Mark All Printed
                     </Button>
-                    {groupItems.some(item => !item.group_id_printed || !item.location_id) && (
+                    {groupItems.some(item => !item.location_id) && (
                       <p className="text-xs text-muted-foreground">
-                        {groupItems.filter(item => !item.group_id_printed || !item.location_id).length} item(s) 
-                        {' '}need Group ID labels printed
+                        {groupItems.filter(item => !item.location_id).length} item(s) 
+                        {' '}need location IDs
                       </p>
                     )}
                   </div>
