@@ -96,9 +96,26 @@ export default function Orders() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showDeleteNoManifestDialog, setShowDeleteNoManifestDialog] = useState(false);
+  const [showDeleteSelectedDialog, setShowDeleteSelectedDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   const { settings, updateSettings } = useAppStore();
+
+  // Check if current user is admin
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.rpc('has_role', { 
+          _user_id: user.id, 
+          _role: 'admin' 
+        });
+        setIsAdmin(data === true);
+      }
+    };
+    checkAdminRole();
+  }, []);
 
   // Reset "All Shows" mode when a specific date is selected
   useEffect(() => {
@@ -1004,6 +1021,32 @@ export default function Orders() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedShipments.size === 0) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('shipments')
+        .delete()
+        .in('id', Array.from(selectedShipments));
+      
+      if (error) throw error;
+      
+      // Clear selection and refresh
+      setSelectedShipments(new Set());
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-show-dates'] });
+      
+      toast.success(`Successfully deleted ${selectedShipments.size} order(s)`);
+    } catch (error: any) {
+      toast.error('Failed to delete orders', { description: error.message });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteSelectedDialog(false);
+    }
+  };
+
   // REMOVED: Client-side filtering now handled in SQL via p_filter parameter
 
   // Stats calculation using aggregate query from database
@@ -1079,7 +1122,7 @@ export default function Orders() {
             )}
             Export
           </Button>
-          {stats.exceptions > 0 && (
+          {isAdmin && stats.exceptions > 0 && (
             <Button
               variant="destructive"
               onClick={() => setShowDeleteNoManifestDialog(true)}
@@ -1160,6 +1203,16 @@ export default function Orders() {
             <CheckCircle className="h-4 w-4 mr-2" />
             Mark as Shipped ({selectedShipments.size})
           </Button>
+          {isAdmin && (
+            <Button 
+              variant="destructive"
+              onClick={() => setShowDeleteSelectedDialog(true)}
+              disabled={isBulkPrinting || isDeleting}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected ({selectedShipments.size})
+            </Button>
+          )}
           <Button 
             variant="outline" 
             onClick={() => setSelectedShipments(new Set())}
@@ -1656,6 +1709,30 @@ export default function Orders() {
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteNoManifest}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Orders'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Selected Confirmation Dialog */}
+      <AlertDialog open={showDeleteSelectedDialog} onOpenChange={setShowDeleteSelectedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Orders?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedShipments.size} selected order{selectedShipments.size !== 1 ? 's' : ''}.
+              <br /><br />
+              <strong className="text-destructive">This action cannot be undone.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSelected}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
