@@ -58,10 +58,10 @@ import { HighlightText } from '@/components/HighlightText';
 export default function Orders() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled'>(() => {
+  const [filter, setFilter] = useState<'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled' | 'incomplete_bundles'>(() => {
     const urlFilter = searchParams.get('filter');
-    if (urlFilter && ['all', 'printed', 'unprinted', 'exceptions', 'bundled'].includes(urlFilter)) {
-      return urlFilter as 'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled';
+    if (urlFilter && ['all', 'printed', 'unprinted', 'exceptions', 'bundled', 'incomplete_bundles'].includes(urlFilter)) {
+      return urlFilter as 'all' | 'printed' | 'unprinted' | 'exceptions' | 'bundled' | 'incomplete_bundles';
     }
     return 'unprinted';
   });
@@ -1123,6 +1123,7 @@ export default function Orders() {
             <SelectItem value="printed">Printed</SelectItem>
             <SelectItem value="unprinted">Unprinted</SelectItem>
             <SelectItem value="bundled">Bundled Items</SelectItem>
+            <SelectItem value="incomplete_bundles">Incomplete Bundles</SelectItem>
             <SelectItem value="exceptions">Exceptions</SelectItem>
           </SelectContent>
         </Select>
