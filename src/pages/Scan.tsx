@@ -353,7 +353,7 @@ export default function Scan() {
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
       // Update shipment as printed
-      await supabase
+      const { error: updateError } = await supabase
         .from('shipments')
         .update({ 
           printed: true, 
@@ -361,6 +361,11 @@ export default function Scan() {
           printed_by_user_id: user.id
         })
         .eq('id', shipment.id);
+
+      if (updateError) {
+        console.error('Failed to update shipment:', updateError);
+        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      }
 
       // Log print job
       await supabase
@@ -509,7 +514,7 @@ export default function Scan() {
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
       // Mark ONLY items that were actually scanned and have location as printed
-      await supabase
+      const { error: updateError } = await supabase
         .from('shipments')
         .update({ 
           printed: true, 
@@ -519,6 +524,11 @@ export default function Scan() {
         .eq('order_group_id', selectedShipment.order_group_id)
         .eq('group_id_printed', true)
         .not('location_id', 'is', null);
+
+      if (updateError) {
+        console.error('Failed to update shipments:', updateError);
+        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      }
 
       // Log print job for the manifest
       await supabase
@@ -629,7 +639,7 @@ export default function Scan() {
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
       // Update shipment with group ID printed status and mark as printed
-      await supabase
+      const { error: updateError } = await supabase
         .from('shipments')
         .update({ 
           group_id_printed: true, 
@@ -640,6 +650,11 @@ export default function Scan() {
           printed_by_user_id: user.id
         })
         .eq('id', shipment.id);
+
+      if (updateError) {
+        console.error('Failed to update shipment:', updateError);
+        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      }
 
       // Update local state to reflect the change
       setGroupItems(prev => prev.map(item => 
