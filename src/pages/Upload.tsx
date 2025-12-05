@@ -211,53 +211,91 @@ export default function Upload() {
 
       // Insert in batches to avoid timeout on large files
       const INSERT_BATCH_SIZE = 100;
-      const insertedData: any[] = [];
+      let successfulBatches = 0;
+      let failedBatches = 0;
       let batchErrors: string[] = [];
+
+      console.log(`Starting insert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE}`);
 
       for (let i = 0; i < shipmentsWithUser.length; i += INSERT_BATCH_SIZE) {
         const batch = shipmentsWithUser.slice(i, i + INSERT_BATCH_SIZE);
+        const batchNum = Math.floor(i / INSERT_BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(shipmentsWithUser.length / INSERT_BATCH_SIZE);
         const progress = Math.round(((i + batch.length) / shipmentsWithUser.length) * 100);
         
         toast.loading(`Uploading... ${progress}%`, {
           id: 'upload-progress',
-          description: `Processing ${i + batch.length} of ${shipmentsWithUser.length} shipments`
+          description: `Batch ${batchNum}/${totalBatches}: Processing ${i + 1}-${i + batch.length} of ${shipmentsWithUser.length}`
         });
 
         try {
-          const { data, error } = await supabase
+          // Remove .select() - it can cause issues with ignoreDuplicates
+          const { error } = await supabase
             .from('shipments')
             .upsert(batch, { 
               onConflict: 'order_id',
               ignoreDuplicates: true
-            })
-            .select();
+            });
 
-          if (error) throw error;
-          if (data) insertedData.push(...data);
+          if (error) {
+            console.error(`Batch ${batchNum} error:`, error);
+            throw error;
+          }
+          
+          successfulBatches++;
+          console.log(`Batch ${batchNum}/${totalBatches} completed: ${batch.length} records`);
         } catch (batchError: any) {
-          batchErrors.push(`Batch ${i}-${i + batch.length}: ${batchError.message}`);
+          failedBatches++;
+          batchErrors.push(`Batch ${batchNum} (rows ${i + 1}-${i + batch.length}): ${batchError.message}`);
+          console.error(`Batch ${batchNum} failed:`, batchError);
         }
       }
 
       toast.dismiss('upload-progress');
 
-      if (batchErrors.length > 0) {
-        throw new Error(`Upload completed with errors:\n${batchErrors.join('\n')}`);
+      // Verify insertion by counting records for this show_date
+      const formattedShowDate = showDate 
+        ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
+        : null;
+
+      let verifiedCount = 0;
+      if (formattedShowDate) {
+        const { count } = await supabase
+          .from('shipments')
+          .select('*', { count: 'exact', head: true })
+          .eq('show_date', formattedShowDate);
+        verifiedCount = count || 0;
+        console.log(`Verification: ${verifiedCount} total records for show_date ${formattedShowDate}`);
       }
 
-      // No need to set local state - Orders page will fetch from database
+      if (batchErrors.length > 0) {
+        toast.error(`Upload completed with ${failedBatches} failed batch(es)`, {
+          description: batchErrors.slice(0, 3).join('; ') + (batchErrors.length > 3 ? `... and ${batchErrors.length - 3} more` : '')
+        });
+      }
 
       const printable = newShipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
-      const printed = insertedData.filter(s => s.printed).length;
       const exceptions = newShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
+      // Show detailed summary with verification
       toast.success('Upload complete!', {
-        description: `Imported: ${newShipments.length} | File duplicates: ${inFileDuplicates} | DB duplicates: ${dbDuplicateCount} | Printable: ${printable}`
+        description: `Expected: ${newShipments.length} | In DB for date: ${verifiedCount} | File dups: ${inFileDuplicates} | DB dups: ${dbDuplicateCount}`
+      });
+
+      console.log('Upload summary:', {
+        expectedToInsert: newShipments.length,
+        verifiedInDB: verifiedCount,
+        inFileDuplicates,
+        dbDuplicateCount,
+        successfulBatches,
+        failedBatches,
+        printable,
+        exceptions
       });
 
       if (totalSkipped > 0) {
         toast.info(`Skipped ${totalSkipped} duplicate shipment(s)`, {
-          description: `${inFileDuplicates} duplicates within file, ${dbDuplicateCount} already in database`
+          description: `${inFileDuplicates} in file, ${dbDuplicateCount} in database`
         });
       }
 
