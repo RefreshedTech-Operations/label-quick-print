@@ -1200,27 +1200,9 @@ export default function Scan() {
       {/* Location Confirmation Dialog */}
       <Dialog 
         open={locationDialogOpen} 
-        onOpenChange={(open) => {
-          // Only allow closing if location has been acknowledged
-          if (!open && !locationAcknowledged && recommendedLocation) {
-            return; // Prevent closing
-          }
-          setLocationDialogOpen(open);
-        }}
+        onOpenChange={setLocationDialogOpen}
       >
-        <DialogContent 
-          className="sm:max-w-md"
-          onPointerDownOutside={(e) => {
-            if (!locationAcknowledged && recommendedLocation) {
-              e.preventDefault();
-            }
-          }}
-          onEscapeKeyDown={(e) => {
-            if (!locationAcknowledged && recommendedLocation) {
-              e.preventDefault();
-            }
-          }}
-        >
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5" />
