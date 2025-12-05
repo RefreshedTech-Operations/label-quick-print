@@ -96,7 +96,7 @@ export function NewBundleLocationDialog({
           {!useCustom ? (
             <>
               <div className="text-lg text-muted-foreground mb-2">Place devices at</div>
-              <div className="text-7xl font-bold text-primary tracking-wider py-4 px-8 rounded-lg bg-primary/10 border-2 border-primary">
+              <div className="text-7xl font-bold text-primary tracking-wider py-4 px-8 rounded-lg bg-primary/10 border-2 border-primary transition-all duration-300">
                 {suggestedLocation}
               </div>
               <div className="text-sm text-muted-foreground mt-4">
