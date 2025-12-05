@@ -51,6 +51,53 @@ export default function Scan() {
     loadUserSettings();
   }, []);
 
+  // Real-time subscription for location conflict detection
+  useEffect(() => {
+    if (!newBundleDialogOpen || !suggestedNewLocation) return;
+    
+    console.log('Setting up realtime subscription for location:', suggestedNewLocation);
+    
+    const channel = supabase
+      .channel('location-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'shipments',
+        },
+        async (payload) => {
+          // Check if the update involves our suggested location
+          const newRecord = payload.new as { location_id?: string };
+          if (newRecord.location_id === suggestedNewLocation) {
+            console.log('Location conflict detected:', payload);
+            
+            // Someone else took this location! Fetch a new one
+            const { data: nextLocation } = await supabase.rpc('get_next_available_location');
+            
+            if (nextLocation && nextLocation !== suggestedNewLocation) {
+              setSuggestedNewLocation(nextLocation);
+              toast.warning('Location taken by another user', {
+                description: `Switched to Location ${nextLocation}`
+              });
+            } else if (!nextLocation) {
+              setSuggestedNewLocation(null);
+              setAllLocationsOccupied(true);
+              toast.error('All locations are now occupied');
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [newBundleDialogOpen, suggestedNewLocation]);
+
   const loadAppConfig = async () => {
     const { data, error } = await supabase
       .from('app_config')
