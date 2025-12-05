@@ -14,6 +14,7 @@ import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/pri
 import { Shipment } from '@/types';
 import { ChargerWarning } from '@/components/ChargerWarning';
 import { createPickListPrintJob, PickListData } from '@/lib/pickList';
+import { NewBundleLocationDialog } from '@/components/NewBundleLocationDialog';
 
 export default function Scan() {
   const [uid, setUid] = useState('');
@@ -31,6 +32,10 @@ export default function Scan() {
   const [locationAcknowledged, setLocationAcknowledged] = useState(false);
   const [overrideLocation, setOverrideLocation] = useState(false);
   const [customLocation, setCustomLocation] = useState('');
+  const [newBundleDialogOpen, setNewBundleDialogOpen] = useState(false);
+  const [suggestedNewLocation, setSuggestedNewLocation] = useState<string | null>(null);
+  const [allLocationsOccupied, setAllLocationsOccupied] = useState(false);
+  const [pendingShipment, setPendingShipment] = useState<Shipment | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   
@@ -248,6 +253,38 @@ export default function Scan() {
       setOverrideLocation(false);
       setCustomLocation('');
       
+      // First device in NEW bundle - no existing location anywhere
+      if (!existingLocation && !shipment.location_id) {
+        // Get next available location from database
+        const { data: nextLocation, error } = await supabase.rpc('get_next_available_location');
+        
+        if (error) {
+          console.error('Failed to get next available location:', error);
+        }
+        
+        if (nextLocation) {
+          setSuggestedNewLocation(nextLocation);
+          setAllLocationsOccupied(false);
+        } else {
+          // All locations occupied
+          setSuggestedNewLocation(null);
+          setAllLocationsOccupied(true);
+        }
+        
+        // Store pending shipment and show new bundle dialog
+        setPendingShipment(shipment);
+        setNewBundleDialogOpen(true);
+        
+        // Set state for display but don't auto-print yet
+        setSelectedShipment(shipment);
+        setIsLastInGroup(lastInGroup);
+        setTotalGroupItems(groupTotal);
+        setGroupItems(allGroupItems);
+        addRecentScan(trimmedUid, 'found');
+        setUid('');
+        return; // Wait for location confirmation before continuing
+      }
+      
       // Auto-show dialog if subsequent device without location
       if (existingLocation && !shipment.location_id) {
         setLocationDialogOpen(true);
@@ -265,8 +302,50 @@ export default function Scan() {
     addRecentScan(trimmedUid, 'found');
     setUid('');
 
-    if (settings.auto_print) {
+    // Only auto-print for non-bundles, or bundles that already have locations
+    if (settings.auto_print && (!shipment.bundle || shipment.location_id)) {
       await handlePrint(shipment);
+    }
+  };
+
+  // Handle new bundle location confirmation
+  const handleNewBundleLocationConfirm = async (location: string) => {
+    if (!pendingShipment) return;
+    
+    try {
+      // Save location to the shipment
+      const { error } = await supabase
+        .from('shipments')
+        .update({ location_id: location })
+        .eq('id', pendingShipment.id);
+
+      if (error) throw error;
+      
+      // Update local state
+      const updatedShipment = { ...pendingShipment, location_id: location };
+      setSelectedShipment(updatedShipment);
+      setRecommendedLocation(location);
+      setLocationAcknowledged(true);
+      
+      // Update in group items too
+      setGroupItems(prev => prev.map(item => 
+        item.id === pendingShipment.id ? { ...item, location_id: location } : item
+      ));
+      
+      toast.success(`Location ${location} assigned`, {
+        description: 'Place devices at this location'
+      });
+      
+      // Close dialog
+      setNewBundleDialogOpen(false);
+      setPendingShipment(null);
+      
+      // Auto-print if enabled
+      if (settings.auto_print) {
+        await handlePrint(updatedShipment);
+      }
+    } catch (error: any) {
+      toast.error('Failed to assign location', { description: error.message });
     }
   };
 
@@ -855,12 +934,23 @@ export default function Scan() {
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">
                       Location ID {!selectedShipment.location_id && <span className="text-destructive">*</span>}
-                      {!recommendedLocation && <span className="text-xs ml-2 text-muted-foreground">(First item - choose location)</span>}
+                      {!recommendedLocation && !selectedShipment.location_id && (
+                        <span className="text-xs ml-2 text-primary">(New bundle - location suggested)</span>
+                      )}
                       {recommendedLocation && selectedShipment.location_id && (
-                        <span className="text-xs ml-2 text-success">✓ Confirmed</span>
+                        <span className="text-xs ml-2 text-success">✓ Confirmed at {selectedShipment.location_id}</span>
                       )}
                     </p>
-                    {recommendedLocation && !selectedShipment.location_id ? (
+                    {!recommendedLocation && !selectedShipment.location_id ? (
+                      <Button 
+                        onClick={() => setNewBundleDialogOpen(true)}
+                        variant="default"
+                        className="w-full h-12 mt-1 text-lg"
+                      >
+                        <MapPin className="h-5 w-5 mr-2" />
+                        View Suggested Location
+                      </Button>
+                    ) : recommendedLocation && !selectedShipment.location_id ? (
                       <Button 
                         onClick={() => setLocationDialogOpen(true)}
                         variant="outline"
@@ -1222,6 +1312,21 @@ export default function Scan() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* New Bundle Location Dialog */}
+      <NewBundleLocationDialog
+        open={newBundleDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            // If closing without confirming, clear pending state
+            setPendingShipment(null);
+          }
+          setNewBundleDialogOpen(open);
+        }}
+        suggestedLocation={suggestedNewLocation}
+        allLocationsOccupied={allLocationsOccupied}
+        onConfirm={handleNewBundleLocationConfirm}
+      />
     </div>
   );
 }

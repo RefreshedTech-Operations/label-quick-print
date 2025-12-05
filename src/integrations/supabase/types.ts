@@ -425,6 +425,20 @@ export type Database = {
           unprinted_items: Json
         }[]
       }
+      get_location_occupancy: {
+        Args: never
+        Returns: {
+          buyer: string
+          category: string
+          is_active: boolean
+          is_occupied: boolean
+          location_code: string
+          order_group_id: string
+          printed_count: number
+          sort_order: number
+          total_count: number
+        }[]
+      }
       get_next_available_location: { Args: never; Returns: string }
       get_print_status_breakdown: {
         Args: { end_date: string; start_date: string }
