@@ -215,6 +215,9 @@ export default function Upload() {
       let failedBatches = 0;
       let batchErrors: string[] = [];
 
+      // Capture start time for verification (records created after this timestamp are from this upload)
+      const uploadStartTime = new Date().toISOString();
+
       console.log(`Starting insert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE}`);
 
       for (let i = 0; i < shipmentsWithUser.length; i += INSERT_BATCH_SIZE) {
@@ -253,7 +256,7 @@ export default function Upload() {
 
       toast.dismiss('upload-progress');
 
-      // Verify insertion by counting records for this show_date
+      // Verify insertion by counting records created AFTER upload started (not all records for date)
       const formattedShowDate = showDate 
         ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
         : null;
@@ -263,9 +266,10 @@ export default function Upload() {
         const { count } = await supabase
           .from('shipments')
           .select('*', { count: 'exact', head: true })
-          .eq('show_date', formattedShowDate);
+          .eq('show_date', formattedShowDate)
+          .gte('created_at', uploadStartTime);
         verifiedCount = count || 0;
-        console.log(`Verification: ${verifiedCount} total records for show_date ${formattedShowDate}`);
+        console.log(`Verification: ${verifiedCount} records inserted in this upload for show_date ${formattedShowDate}`);
       }
 
       if (batchErrors.length > 0) {
