@@ -229,7 +229,7 @@ export function BundleLocationsTab() {
                   <TableHead className="w-24">Status</TableHead>
                   <TableHead>Occupancy</TableHead>
                   <TableHead className="w-24">Active</TableHead>
-                  {isAdmin && <TableHead className="w-24">Actions</TableHead>}
+                  <TableHead className="w-24">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -280,31 +280,29 @@ export function BundleLocationsTab() {
                         </Badge>
                       )}
                     </TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {location.is_occupied && location.order_group_id && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewBundle(location.order_group_id!)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {!location.is_occupied && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteLocation(location.location_code)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {location.is_occupied && location.order_group_id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewBundle(location.order_group_id!)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {isAdmin && !location.is_occupied && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteLocation(location.location_code)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
