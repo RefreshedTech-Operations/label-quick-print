@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, AlertTriangle, RefreshCw } from 'lucide-react';
+import { MapPin, AlertTriangle, RefreshCw, PartyPopper } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -14,6 +14,9 @@ interface NewBundleLocationDialogProps {
   allLocationsOccupied: boolean;
   onConfirm: (location: string) => void;
   onLocationChange?: (newLocation: string | null) => void;
+  isLastDevice?: boolean;
+  currentDeviceNumber?: number;
+  totalDevices?: number;
 }
 
 export function NewBundleLocationDialog({
@@ -22,7 +25,10 @@ export function NewBundleLocationDialog({
   suggestedLocation,
   allLocationsOccupied,
   onConfirm,
-  onLocationChange
+  onLocationChange,
+  isLastDevice = false,
+  currentDeviceNumber = 1,
+  totalDevices = 1
 }: NewBundleLocationDialogProps) {
   const [useCustom, setUseCustom] = useState(false);
   const [customLocation, setCustomLocation] = useState('');
@@ -117,6 +123,19 @@ export function NewBundleLocationDialog({
           </DialogDescription>
         </DialogHeader>
         
+        {/* Last Device Banner */}
+        {isLastDevice && (
+          <div className="mb-4 p-3 bg-success/10 border border-success rounded-lg">
+            <div className="flex items-center gap-2">
+              <PartyPopper className="h-5 w-5 text-success" />
+              <div>
+                <p className="font-semibold text-success">Final Device - {currentDeviceNumber} of {totalDevices}</p>
+                <p className="text-sm text-muted-foreground">After confirming location, bundle will be ready for manifest printing</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col items-center justify-center py-6">
           {!useCustom ? (
             <>

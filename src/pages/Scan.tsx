@@ -1419,6 +1419,19 @@ export default function Scan() {
               This bundle already has items at an existing location
             </DialogDescription>
           </DialogHeader>
+
+          {/* Last Device Banner */}
+          {isLastInGroup && (
+            <div className="p-3 bg-success/10 border border-success rounded-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-success" />
+                <div>
+                  <p className="font-semibold text-success">Final Device - {groupItems.filter(g => g.printed).length + 1} of {totalGroupItems}</p>
+                  <p className="text-sm text-muted-foreground">After confirming location, bundle will be ready for manifest printing</p>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="py-4">
             <div className="text-center p-6 bg-primary/10 rounded-lg border-2 border-primary">
@@ -1516,6 +1529,9 @@ export default function Scan() {
         allLocationsOccupied={allLocationsOccupied}
         onConfirm={handleNewBundleLocationConfirm}
         onLocationChange={(newLocation) => setSuggestedNewLocation(newLocation)}
+        isLastDevice={isLastInGroup}
+        currentDeviceNumber={groupItems.filter(g => g.printed).length + 1}
+        totalDevices={totalGroupItems}
       />
 
       {/* Kit Items Dialog */}
