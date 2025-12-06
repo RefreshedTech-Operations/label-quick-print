@@ -15,6 +15,7 @@ import { Shipment } from '@/types';
 import { ChargerWarning } from '@/components/ChargerWarning';
 import { createPickListPrintJob, PickListData } from '@/lib/pickList';
 import { NewBundleLocationDialog } from '@/components/NewBundleLocationDialog';
+import { KitItemsDialog } from '@/components/KitItemsDialog';
 
 export default function Scan() {
   const [uid, setUid] = useState('');
@@ -36,6 +37,9 @@ export default function Scan() {
   const [suggestedNewLocation, setSuggestedNewLocation] = useState<string | null>(null);
   const [allLocationsOccupied, setAllLocationsOccupied] = useState(false);
   const [pendingShipment, setPendingShipment] = useState<Shipment | null>(null);
+  const [kitItemsDialogOpen, setKitItemsDialogOpen] = useState(false);
+  const [kitItemsToGather, setKitItemsToGather] = useState<{ product_name: string; quantity: number }[]>([]);
+  const [pendingKitConfirmation, setPendingKitConfirmation] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   
@@ -302,6 +306,49 @@ export default function Scan() {
       
       // First device in NEW bundle - no existing location anywhere
       if (!existingLocation && !shipment.location_id) {
+        // Check for kit items in this bundle BEFORE showing location dialog
+        const { data: kitDevices } = await supabase
+          .from('kit_devices')
+          .select('product_name');
+        
+        if (kitDevices && kitDevices.length > 0) {
+          const kitProductNames = new Set(kitDevices.map(k => k.product_name.toLowerCase()));
+          
+          // Aggregate kit items from bundle
+          const kitItemsMap = new Map<string, number>();
+          allGroupItems.forEach(item => {
+            if (item.product_name && kitProductNames.has(item.product_name.toLowerCase())) {
+              const existing = kitItemsMap.get(item.product_name) || 0;
+              kitItemsMap.set(item.product_name, existing + (item.quantity || 1));
+            }
+          });
+          
+          if (kitItemsMap.size > 0) {
+            // Convert map to array for dialog
+            const kitItems = Array.from(kitItemsMap.entries()).map(([product_name, quantity]) => ({
+              product_name,
+              quantity
+            }));
+            
+            setKitItemsToGather(kitItems);
+            setPendingKitConfirmation(true);
+            
+            // Set state for display
+            setSelectedShipment(shipment);
+            setIsLastInGroup(lastInGroup);
+            setTotalGroupItems(groupTotal);
+            setGroupItems(allGroupItems);
+            setPendingShipment(shipment);
+            addRecentScan(trimmedUid, 'found');
+            setUid('');
+            
+            // Show kit items dialog first
+            setKitItemsDialogOpen(true);
+            return; // Wait for kit items confirmation before continuing to location
+          }
+        }
+        
+        // No kit items - proceed directly to location dialog
         // Get next available location from database
         const { data: nextLocation, error } = await supabase.rpc('get_next_available_location');
         
@@ -353,6 +400,31 @@ export default function Scan() {
     if (settings.auto_print && (!shipment.bundle || shipment.location_id)) {
       await handlePrint(shipment);
     }
+  };
+
+  // Handle kit items confirmation
+  const handleKitItemsConfirm = async () => {
+    setPendingKitConfirmation(false);
+    setKitItemsDialogOpen(false);
+    setKitItemsToGather([]);
+    
+    // Now proceed to show location dialog
+    const { data: nextLocation, error } = await supabase.rpc('get_next_available_location');
+    
+    if (error) {
+      console.error('Failed to get next available location:', error);
+    }
+    
+    if (nextLocation) {
+      setSuggestedNewLocation(nextLocation);
+      setAllLocationsOccupied(false);
+    } else {
+      setSuggestedNewLocation(null);
+      setAllLocationsOccupied(true);
+    }
+    
+    // Show new bundle location dialog
+    setNewBundleDialogOpen(true);
   };
 
   // Handle new bundle location confirmation
@@ -1355,6 +1427,21 @@ export default function Scan() {
         suggestedLocation={suggestedNewLocation}
         allLocationsOccupied={allLocationsOccupied}
         onConfirm={handleNewBundleLocationConfirm}
+      />
+
+      {/* Kit Items Dialog */}
+      <KitItemsDialog
+        open={kitItemsDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && pendingKitConfirmation) {
+            // If closing without confirming, reset pending state
+            setPendingKitConfirmation(false);
+            setKitItemsToGather([]);
+          }
+          setKitItemsDialogOpen(open);
+        }}
+        kitItems={kitItemsToGather}
+        onConfirm={handleKitItemsConfirm}
       />
     </div>
   );

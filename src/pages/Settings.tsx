@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
-import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download, MapPin } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download, MapPin, Package } from 'lucide-react';
 import { DateRangeFilter } from '@/components/analytics/DateRangeFilter';
 import { KPICard } from '@/components/analytics/KPICard';
 import { OrdersTimelineChart } from '@/components/analytics/OrdersTimelineChart';
@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { BundleLocationsTab } from '@/components/BundleLocationsTab';
+import { KitDevicesTab } from '@/components/KitDevicesTab';
 
 interface ProcessResult {
   successful: string[];
@@ -613,11 +614,15 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="config">Configuration</TabsTrigger>
           <TabsTrigger value="locations" className="flex items-center gap-1">
             <MapPin className="h-4 w-4" />
             Locations
+          </TabsTrigger>
+          <TabsTrigger value="kit-devices" className="flex items-center gap-1">
+            <Package className="h-4 w-4" />
+            Kit Devices
           </TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
@@ -1056,6 +1061,10 @@ export default function Settings() {
 
         <TabsContent value="locations">
           <BundleLocationsTab />
+        </TabsContent>
+
+        <TabsContent value="kit-devices">
+          <KitDevicesTab />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
