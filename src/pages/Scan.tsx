@@ -9,13 +9,20 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, MapPin } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, MapPin, AlertTriangle } from 'lucide-react';
 import { submitPrintJob, createPrintJob, createGroupIdPrintJob } from '@/lib/printnode';
 import { Shipment } from '@/types';
 import { ChargerWarning } from '@/components/ChargerWarning';
 import { createPickListPrintJob, PickListData } from '@/lib/pickList';
 import { NewBundleLocationDialog } from '@/components/NewBundleLocationDialog';
 import { KitItemsDialog } from '@/components/KitItemsDialog';
+import { cn } from '@/lib/utils';
+
+type ScanStatus = {
+  type: 'not_found' | 'already_printed' | 'cancelled' | 'missing_manifest';
+  message: string;
+  details?: string;
+} | null;
 
 export default function Scan() {
   const [uid, setUid] = useState('');
@@ -40,6 +47,7 @@ export default function Scan() {
   const [kitItemsDialogOpen, setKitItemsDialogOpen] = useState(false);
   const [kitItemsToGather, setKitItemsToGather] = useState<{ product_name: string; quantity: number }[]>([]);
   const [pendingKitConfirmation, setPendingKitConfirmation] = useState(false);
+  const [scanStatus, setScanStatus] = useState<ScanStatus>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   
@@ -243,8 +251,10 @@ export default function Scan() {
     const shipment = await findShipmentByUid(trimmedUid);
 
     if (!shipment) {
-      toast.error('UID not found', {
-        description: `No shipment found for UID: ${trimmedUid}`
+      setScanStatus({
+        type: 'not_found',
+        message: 'SHIPMENT NOT FOUND',
+        details: `No shipment found for UID: ${trimmedUid}`
       });
       addRecentScan(trimmedUid, 'not_found');
       setSelectedShipment(null);
@@ -253,32 +263,43 @@ export default function Scan() {
     }
 
     if (shipment.printed) {
-      toast.error('Already printed', {
-        description: `This label was already printed${shipment.printed_at ? ` on ${new Date(shipment.printed_at).toLocaleString()}` : ''}`
+      setScanStatus({
+        type: 'already_printed',
+        message: 'ALREADY PRINTED',
+        details: `This label was already printed${shipment.printed_at ? ` on ${new Date(shipment.printed_at).toLocaleString()}` : ''}`
       });
       addRecentScan(trimmedUid, 'already_printed');
+      setSelectedShipment(null);
       setUid('');
       return;
     }
 
     if (settings.block_cancelled && shipment.cancelled && shipment.cancelled.toLowerCase() !== 'false') {
-      toast.error('Order cancelled', {
-        description: 'This order has been cancelled or failed'
+      setScanStatus({
+        type: 'cancelled',
+        message: 'ORDER CANCELLED',
+        details: 'This order has been cancelled or failed'
       });
       addRecentScan(trimmedUid, 'cancelled');
+      setSelectedShipment(null);
       setUid('');
       return;
     }
 
     if (!shipment.manifest_url) {
-      toast.error('Missing manifest URL', {
-        description: 'This shipment does not have a manifest URL'
+      setScanStatus({
+        type: 'missing_manifest',
+        message: 'MISSING MANIFEST URL',
+        details: 'This shipment does not have a manifest URL'
       });
       addRecentScan(trimmedUid, 'missing_manifest');
       setSelectedShipment(shipment);
       setUid('');
       return;
     }
+
+    // Clear any previous scan status on successful find
+    setScanStatus(null);
 
     // Check if this is the last item in a bundle group
     let lastInGroup = false;
@@ -999,7 +1020,10 @@ export default function Scan() {
               <Input
                 ref={inputRef}
                 value={uid}
-                onChange={(e) => setUid(e.target.value)}
+                onChange={(e) => {
+                  setUid(e.target.value);
+                  setScanStatus(null); // Clear status on new input
+                }}
                 placeholder="Scan or enter UID..."
                 className="text-2xl h-16 text-center font-mono"
                 autoFocus
@@ -1011,6 +1035,35 @@ export default function Scan() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Scan Status Banner */}
+      {scanStatus && (
+        <Card className={cn(
+          "max-w-2xl mx-auto border-4",
+          scanStatus.type === 'not_found' || scanStatus.type === 'cancelled' 
+            ? "border-destructive bg-destructive/10" 
+            : "border-yellow-500 bg-yellow-500/10"
+        )}>
+          <CardContent className="pt-8 pb-8 text-center space-y-3">
+            <div className={cn(
+              "flex flex-col items-center gap-3",
+              scanStatus.type === 'not_found' || scanStatus.type === 'cancelled'
+                ? "text-destructive"
+                : "text-yellow-600 dark:text-yellow-400"
+            )}>
+              {scanStatus.type === 'not_found' || scanStatus.type === 'cancelled' ? (
+                <XCircle className="h-20 w-20" />
+              ) : (
+                <AlertTriangle className="h-20 w-20" />
+              )}
+              <span className="text-4xl font-bold tracking-tight">{scanStatus.message}</span>
+            </div>
+            {scanStatus.details && (
+              <p className="text-lg text-muted-foreground">{scanStatus.details}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Two-Column Layout: Shipment Details (Left) + Group Items (Right) */}
       {selectedShipment && (
