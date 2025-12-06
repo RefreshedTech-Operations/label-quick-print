@@ -404,6 +404,41 @@ export default function Scan() {
 
   // Handle kit items confirmation
   const handleKitItemsConfirm = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Mark kit items in the bundle as printed
+    if (groupItems.length > 0 && kitItemsToGather.length > 0) {
+      const kitProductNames = new Set(kitItemsToGather.map(k => k.product_name.toLowerCase()));
+      const kitItemIds = groupItems
+        .filter(item => item.product_name && kitProductNames.has(item.product_name.toLowerCase()))
+        .map(item => item.id);
+      
+      if (kitItemIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from('shipments')
+          .update({
+            printed: true,
+            printed_at: new Date().toISOString(),
+            printed_by_user_id: user?.id
+          })
+          .in('id', kitItemIds);
+        
+        if (updateError) {
+          console.error('Failed to mark kit items as printed:', updateError);
+          toast.error('Failed to mark kit items as printed');
+        } else {
+          toast.success(`${kitItemIds.length} kit item(s) marked as printed`);
+          
+          // Update local groupItems state
+          setGroupItems(prev => prev.map(item => 
+            kitItemIds.includes(item.id) 
+              ? { ...item, printed: true, printed_at: new Date().toISOString() }
+              : item
+          ));
+        }
+      }
+    }
+    
     setPendingKitConfirmation(false);
     setKitItemsDialogOpen(false);
     setKitItemsToGather([]);
