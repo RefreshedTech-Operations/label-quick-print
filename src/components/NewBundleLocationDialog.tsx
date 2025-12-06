@@ -2,8 +2,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, AlertTriangle } from 'lucide-react';
+import { MapPin, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface NewBundleLocationDialogProps {
   open: boolean;
@@ -11,6 +13,7 @@ interface NewBundleLocationDialogProps {
   suggestedLocation: string | null;
   allLocationsOccupied: boolean;
   onConfirm: (location: string) => void;
+  onLocationChange?: (newLocation: string | null) => void;
 }
 
 export function NewBundleLocationDialog({
@@ -18,10 +21,12 @@ export function NewBundleLocationDialog({
   onOpenChange,
   suggestedLocation,
   allLocationsOccupied,
-  onConfirm
+  onConfirm,
+  onLocationChange
 }: NewBundleLocationDialogProps) {
   const [useCustom, setUseCustom] = useState(false);
   const [customLocation, setCustomLocation] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleConfirm = () => {
     const location = useCustom ? customLocation : suggestedLocation;
@@ -36,6 +41,26 @@ export function NewBundleLocationDialog({
     setUseCustom(false);
     setCustomLocation('');
     onOpenChange(false);
+  };
+
+  const handleGetNewLocation = async () => {
+    setIsRefreshing(true);
+    try {
+      const { data, error } = await supabase.rpc('get_next_available_location');
+      
+      if (error) throw error;
+      
+      if (data) {
+        onLocationChange?.(data);
+        toast.success(`New location: ${data}`);
+      } else {
+        toast.error('No other locations available');
+      }
+    } catch (error: any) {
+      toast.error('Failed to get new location', { description: error.message });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   if (allLocationsOccupied) {
@@ -99,9 +124,16 @@ export function NewBundleLocationDialog({
               <div className="text-7xl font-bold text-primary tracking-wider py-4 px-8 rounded-lg bg-primary/10 border-2 border-primary transition-all duration-300">
                 {suggestedLocation}
               </div>
-              <div className="text-sm text-muted-foreground mt-4">
-                This location is currently available
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4 text-muted-foreground"
+                onClick={handleGetNewLocation}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Get Different Location
+              </Button>
             </>
           ) : (
             <div className="w-full space-y-2">
