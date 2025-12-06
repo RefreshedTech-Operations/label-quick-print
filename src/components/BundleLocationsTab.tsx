@@ -75,6 +75,13 @@ export function BundleLocationsTab() {
       return;
     }
 
+    // Optimistically update the UI
+    setLocations(prev => prev.map(loc => 
+      loc.location_code === locationCode 
+        ? { ...loc, is_active: !currentActive }
+        : loc
+    ));
+
     try {
       const { error } = await supabase
         .from('bundle_locations')
@@ -84,8 +91,13 @@ export function BundleLocationsTab() {
       if (error) throw error;
 
       toast.success(`Location ${locationCode} ${!currentActive ? 'activated' : 'deactivated'}`);
-      loadLocations();
     } catch (error: any) {
+      // Revert on error
+      setLocations(prev => prev.map(loc => 
+        loc.location_code === locationCode 
+          ? { ...loc, is_active: currentActive }
+          : loc
+      ));
       toast.error('Failed to update location', { description: error.message });
     }
   };
