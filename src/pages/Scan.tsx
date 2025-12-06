@@ -787,9 +787,23 @@ export default function Scan() {
           status: 'done'
         });
 
-      toast.success('All items marked as printed!', {
-        description: `Printed manifest for group`
-      });
+      // Clear location_id from all items in the bundle to free up the location
+      const bundleLocationId = selectedShipment.location_id;
+      const { error: clearLocationError } = await supabase
+        .from('shipments')
+        .update({ location_id: null })
+        .eq('order_group_id', selectedShipment.order_group_id);
+
+      if (clearLocationError) {
+        console.error('Failed to clear locations:', clearLocationError);
+        toast.warning('Printed but failed to clear location', {
+          description: 'Location may still appear occupied'
+        });
+      } else {
+        toast.success('Bundle complete! Manifest printed & location cleared', {
+          description: `Location ${bundleLocationId} is now available`
+        });
+      }
 
       // Check if this is a Label Only order and print pick list
       if (isLabelOnlyOrder(selectedShipment)) {
@@ -1237,7 +1251,14 @@ export default function Scan() {
                   className="w-full"
                 >
                   <Printer className="h-5 w-5 mr-2" />
-                  {printing ? 'Printing...' : (selectedShipment.bundle && !selectedShipment.group_id_printed) ? 'Print Group ID Label' : 'Print Label'}
+                  {printing 
+                    ? 'Printing...' 
+                    : (selectedShipment.bundle && isLastInGroup) 
+                      ? 'Print Manifest & Clear Location'
+                      : (selectedShipment.bundle && !selectedShipment.group_id_printed) 
+                        ? 'Print Group ID Label' 
+                        : 'Print Label'
+                  }
                 </Button>
               )}
               
