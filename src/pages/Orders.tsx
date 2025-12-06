@@ -184,12 +184,12 @@ export default function Orders() {
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
   });
 
-  // Auto-select most recent show date on initial load
+  // Auto-select most recent show date on initial load (but not if user explicitly chose "All Dates")
   useEffect(() => {
-    if (recentShowDates && recentShowDates.length > 0 && !showDateFilter) {
+    if (recentShowDates && recentShowDates.length > 0 && !showDateFilter && !allowAllShows) {
       setShowDateFilter(recentShowDates[0].date);
     }
-  }, [recentShowDates, showDateFilter]);
+  }, [recentShowDates, showDateFilter, allowAllShows]);
 
   // Update settings when userSettings data loads
   useEffect(() => {
