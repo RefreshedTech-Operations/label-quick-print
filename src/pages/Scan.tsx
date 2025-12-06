@@ -1462,6 +1462,7 @@ export default function Scan() {
         suggestedLocation={suggestedNewLocation}
         allLocationsOccupied={allLocationsOccupied}
         onConfirm={handleNewBundleLocationConfirm}
+        onLocationChange={(newLocation) => setSuggestedNewLocation(newLocation)}
       />
 
       {/* Kit Items Dialog */}
