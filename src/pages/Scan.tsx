@@ -1143,7 +1143,7 @@ export default function Scan() {
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">Group ID</p>
                     <p 
-                      className="font-mono text-xs break-all cursor-pointer hover:text-primary hover:underline" 
+                      className="font-mono text-xs break-all cursor-pointer text-primary underline hover:opacity-80" 
                       title="Click to view all bundle items in Orders"
                       onClick={() => navigate(`/orders?search=${selectedShipment.order_group_id}&filter=all`)}
                     >
