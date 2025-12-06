@@ -128,6 +128,27 @@ export type Database = {
         }
         Relationships: []
       }
+      kit_devices: {
+        Row: {
+          created_at: string | null
+          created_by_user_id: string | null
+          id: string
+          product_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by_user_id?: string | null
+          id?: string
+          product_name: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by_user_id?: string | null
+          id?: string
+          product_name?: string
+        }
+        Relationships: []
+      }
       print_jobs: {
         Row: {
           created_at: string | null
