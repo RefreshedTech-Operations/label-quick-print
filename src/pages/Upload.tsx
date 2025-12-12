@@ -211,11 +211,10 @@ export default function Upload() {
 
       // Insert in batches to avoid timeout on large files
       const INSERT_BATCH_SIZE = 100;
-      let successfulBatches = 0;
-      let failedBatches = 0;
-      let batchErrors: string[] = [];
+      let totalInserted = 0;
+      let failedRecords: any[] = [];
 
-      // Capture start time for verification (records created after this timestamp are from this upload)
+      // Capture start time for verification
       const uploadStartTime = new Date().toISOString();
 
       console.log(`Starting insert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE}`);
@@ -232,31 +231,65 @@ export default function Upload() {
         });
 
         try {
-          // Remove .select() - it can cause issues with ignoreDuplicates
-          const { error } = await supabase
+          // Use insert with select to get confirmation of what was inserted
+          const { data: insertedData, error } = await supabase
             .from('shipments')
-            .upsert(batch, { 
-              onConflict: 'order_id',
-              ignoreDuplicates: true
-            });
+            .insert(batch)
+            .select('order_id');
 
           if (error) {
             console.error(`Batch ${batchNum} error:`, error);
-            throw error;
+            // If batch fails entirely, add all records to retry queue
+            failedRecords.push(...batch);
+          } else {
+            const insertedCount = insertedData?.length || 0;
+            totalInserted += insertedCount;
+            console.log(`Batch ${batchNum}/${totalBatches}: ${insertedCount}/${batch.length} inserted`);
+            
+            // Check if some records in batch didn't insert
+            if (insertedCount < batch.length) {
+              const insertedOrderIds = new Set(insertedData?.map(r => r.order_id) || []);
+              const missing = batch.filter(r => !insertedOrderIds.has(r.order_id));
+              console.warn(`Batch ${batchNum}: ${missing.length} records missing, adding to retry queue`);
+              failedRecords.push(...missing);
+            }
           }
-          
-          successfulBatches++;
-          console.log(`Batch ${batchNum}/${totalBatches} completed: ${batch.length} records`);
         } catch (batchError: any) {
-          failedBatches++;
-          batchErrors.push(`Batch ${batchNum} (rows ${i + 1}-${i + batch.length}): ${batchError.message}`);
-          console.error(`Batch ${batchNum} failed:`, batchError);
+          console.error(`Batch ${batchNum} exception:`, batchError);
+          failedRecords.push(...batch);
         }
+      }
+
+      // Retry failed records individually
+      let retriedSuccessfully = 0;
+      if (failedRecords.length > 0) {
+        console.log(`Retrying ${failedRecords.length} failed records individually...`);
+        toast.loading(`Retrying ${failedRecords.length} failed records...`, {
+          id: 'upload-progress'
+        });
+
+        for (const record of failedRecords) {
+          try {
+            const { error } = await supabase
+              .from('shipments')
+              .insert(record);
+            
+            if (!error) {
+              retriedSuccessfully++;
+              totalInserted++;
+            } else {
+              console.warn(`Retry failed for order_id ${record.order_id}:`, error.message);
+            }
+          } catch (e) {
+            console.warn(`Retry exception for order_id ${record.order_id}:`, e);
+          }
+        }
+        console.log(`Retry complete: ${retriedSuccessfully}/${failedRecords.length} recovered`);
       }
 
       toast.dismiss('upload-progress');
 
-      // Verify insertion by counting records created AFTER upload started (not all records for date)
+      // Final verification by counting records created during this upload
       const formattedShowDate = showDate 
         ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
         : null;
@@ -269,30 +302,37 @@ export default function Upload() {
           .eq('show_date', formattedShowDate)
           .gte('created_at', uploadStartTime);
         verifiedCount = count || 0;
-        console.log(`Verification: ${verifiedCount} records inserted in this upload for show_date ${formattedShowDate}`);
+        console.log(`Verification: ${verifiedCount} records inserted in this upload`);
       }
 
-      if (batchErrors.length > 0) {
-        toast.error(`Upload completed with ${failedBatches} failed batch(es)`, {
-          description: batchErrors.slice(0, 3).join('; ') + (batchErrors.length > 3 ? `... and ${batchErrors.length - 3} more` : '')
-        });
-      }
-
+      const finalFailedCount = failedRecords.length - retriedSuccessfully;
       const printable = newShipments.filter(s => s.manifest_url && (!settings.block_cancelled || !s.cancelled)).length;
       const exceptions = newShipments.filter(s => !s.manifest_url || (settings.block_cancelled && s.cancelled)).length;
 
-      // Show detailed summary with verification
-      toast.success('Upload complete!', {
-        description: `Expected: ${newShipments.length} | In DB for date: ${verifiedCount} | File dups: ${inFileDuplicates} | DB dups: ${dbDuplicateCount}`
-      });
+      // Show appropriate toast based on outcome
+      if (verifiedCount === newShipments.length) {
+        toast.success('Upload complete!', {
+          description: `All ${verifiedCount} shipments imported successfully`
+        });
+      } else if (verifiedCount > 0) {
+        toast.warning(`Upload partially complete`, {
+          description: `${verifiedCount}/${newShipments.length} imported. ${newShipments.length - verifiedCount} missing!`
+        });
+      } else {
+        toast.error('Upload failed', {
+          description: 'No records were inserted. Please try again.'
+        });
+      }
 
       console.log('Upload summary:', {
         expectedToInsert: newShipments.length,
+        totalInsertedFromBatches: totalInserted,
         verifiedInDB: verifiedCount,
+        failedRecords: failedRecords.length,
+        retriedSuccessfully,
+        finalFailedCount,
         inFileDuplicates,
         dbDuplicateCount,
-        successfulBatches,
-        failedBatches,
         printable,
         exceptions
       });
