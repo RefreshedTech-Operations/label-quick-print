@@ -1515,9 +1515,16 @@ export default function Orders() {
                       {!shipment.manifest_url ? (
                         <Badge variant="destructive" className="text-xs">No Manifest</Badge>
                       ) : shipment.printed ? (
-                        <div className="flex items-center gap-1 text-success">
-                          <CheckCircle className="h-3 w-3" />
-                          <span className="text-xs">Printed</span>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-success">
+                            <CheckCircle className="h-3 w-3" />
+                            <span className="text-xs">Printed</span>
+                          </div>
+                          {shipment.printed_by_email && (
+                            <span className="text-xs text-muted-foreground">
+                              by {shipment.printed_by_email.split('@')[0]}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div className="flex items-center gap-1 text-muted-foreground">

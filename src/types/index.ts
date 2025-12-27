@@ -43,6 +43,7 @@ export interface Shipment {
   group_id_printed_by?: { email: string };
   show_date?: string;
   created_at: string;
+  printed_by_email?: string;
 }
 
 export interface PrintJob {

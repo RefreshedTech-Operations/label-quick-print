@@ -560,6 +560,7 @@ export type Database = {
               price: string
               printed: boolean
               printed_at: string
+              printed_by_email: string
               printed_by_user_id: string
               product_name: string
               quantity: number
