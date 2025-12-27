@@ -1539,13 +1539,27 @@ export default function Orders() {
                   <TableCell style={{ width: columnWidths.printHistory }}>
                     <div className="space-y-1 text-xs text-muted-foreground">
                       {shipment.printed_at && (
-                        <div className="break-words" title={`Printed: ${format(new Date(shipment.printed_at), 'MMM d, HH:mm')}`}>
-                          <span className="font-medium">Printed:</span> {format(new Date(shipment.printed_at), 'MMM d, HH:mm')}
+                        <div className="break-words">
+                          <div title={`Printed: ${format(new Date(shipment.printed_at), 'MMM d, HH:mm')}`}>
+                            <span className="font-medium">Printed:</span> {format(new Date(shipment.printed_at), 'MMM d, HH:mm')}
+                          </div>
+                          {shipment.printed_by_email && (
+                            <div className="text-muted-foreground/70" title={shipment.printed_by_email}>
+                              by {shipment.printed_by_email.split('@')[0]}
+                            </div>
+                          )}
                         </div>
                       )}
                       {shipment.group_id_printed_at && (
-                        <div className="break-words" title={`Group: ${format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')}`}>
-                          <span className="font-medium">Group:</span> {format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')}
+                        <div className="break-words">
+                          <div title={`Group: ${format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')}`}>
+                            <span className="font-medium">Group:</span> {format(new Date(shipment.group_id_printed_at), 'MMM d, HH:mm')}
+                          </div>
+                          {shipment.group_id_printed_by_email && (
+                            <div className="text-muted-foreground/70" title={shipment.group_id_printed_by_email}>
+                              by {shipment.group_id_printed_by_email.split('@')[0]}
+                            </div>
+                          )}
                         </div>
                       )}
                       {!shipment.printed_at && !shipment.group_id_printed_at && '-'}
