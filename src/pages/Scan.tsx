@@ -185,19 +185,45 @@ export default function Scan() {
   const findShipmentByUid = async (uid: string): Promise<Shipment | null> => {
     const upperUid = uid.toUpperCase();
     
-    const { data, error } = await supabase
+    // Step 1: Try exact match first (uses index, <1ms)
+    const { data: exactMatch, error: exactError } = await supabase
       .from('shipments')
       .select('*')
-      .or(`uid.ilike.${upperUid},uid.ilike.%${upperUid}%`)
+      .eq('uid', upperUid)
       .limit(1)
       .maybeSingle();
-
-    if (error) {
-      console.error('Failed to find shipment:', error);
-      return null;
+    
+    if (exactError) {
+      console.error('Failed to find shipment (exact):', exactError);
     }
-
-    return data;
+    if (exactMatch) return exactMatch;
+    
+    // Step 2: Try prefix match (uses text_pattern_ops index, fast)
+    const { data: prefixMatch, error: prefixError } = await supabase
+      .from('shipments')
+      .select('*')
+      .ilike('uid', `${upperUid}%`)
+      .limit(1)
+      .maybeSingle();
+    
+    if (prefixError) {
+      console.error('Failed to find shipment (prefix):', prefixError);
+    }
+    if (prefixMatch) return prefixMatch;
+    
+    // Step 3: Suffix match as fallback (uses trigram index)
+    const { data: suffixMatch, error: suffixError } = await supabase
+      .from('shipments')
+      .select('*')
+      .ilike('uid', `%${upperUid}`)
+      .limit(1)
+      .maybeSingle();
+    
+    if (suffixError) {
+      console.error('Failed to find shipment (suffix):', suffixError);
+    }
+    
+    return suffixMatch || null;
   };
 
   // Load printer ID from cookie on mount
@@ -306,13 +332,21 @@ export default function Scan() {
     let groupTotal = 0;
     let allGroupItems: Shipment[] = [];
     if (shipment.bundle && shipment.order_group_id) {
-      const { data: groupShipments } = await supabase
-        .from('shipments')
-        .select('*')
-        .eq('order_group_id', shipment.order_group_id)
-        .order('uid');
+      // Parallelize independent queries for better performance
+      const [groupResult, kitResult] = await Promise.all([
+        supabase
+          .from('shipments')
+          .select('*')
+          .eq('order_group_id', shipment.order_group_id)
+          .order('uid'),
+        supabase
+          .from('kit_devices')
+          .select('product_name')
+      ]);
       
-      allGroupItems = groupShipments || [];
+      allGroupItems = groupResult.data || [];
+      const kitDevices = kitResult.data || [];
+      
       groupTotal = allGroupItems.length;
       const unprintedCount = allGroupItems.filter(s => !s.printed).length;
       lastInGroup = unprintedCount === 1;
@@ -328,11 +362,7 @@ export default function Scan() {
       // First device in NEW bundle - no existing location anywhere
       if (!existingLocation && !shipment.location_id) {
         // Check for kit items in this bundle BEFORE showing location dialog
-        const { data: kitDevices } = await supabase
-          .from('kit_devices')
-          .select('product_name');
-        
-        if (kitDevices && kitDevices.length > 0) {
+        if (kitDevices.length > 0) {
           const kitProductNames = new Set(kitDevices.map(k => k.product_name.toLowerCase()));
           
           // Aggregate kit items from bundle
