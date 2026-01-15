@@ -178,8 +178,9 @@ export default function Upload() {
         return shipment;
       });
 
-      // Smaller batch size to avoid statement timeouts (28 indexes + 2 triggers per row)
-      const INSERT_BATCH_SIZE = 50;
+      // Optimized batch size (reduced indexes and removed redundant trigger)
+      const INSERT_BATCH_SIZE = 100;
+      const PARALLEL_BATCHES = 2;
       let totalInserted = 0;
       let totalSkippedDuplicates = 0;
 
@@ -207,7 +208,7 @@ export default function Upload() {
               console.log(`Timeout on batch of ${batch.length}, splitting in half (attempt ${attempt})`);
               const mid = Math.floor(batch.length / 2);
               const result1 = await uploadBatch(batch.slice(0, mid), attempt + 1);
-              await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between splits
+              await new Promise(resolve => setTimeout(resolve, 50));
               const result2 = await uploadBatch(batch.slice(mid), attempt + 1);
               return {
                 inserted: result1.inserted + result2.inserted,
@@ -227,32 +228,55 @@ export default function Upload() {
         }
       };
 
-      console.log(`Starting upsert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE}`);
+      console.log(`Starting upsert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE} (${PARALLEL_BATCHES} parallel)`);
 
-      for (let i = 0; i < shipmentsWithUser.length; i += INSERT_BATCH_SIZE) {
-        const batch = shipmentsWithUser.slice(i, i + INSERT_BATCH_SIZE);
-        const batchNum = Math.floor(i / INSERT_BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(shipmentsWithUser.length / INSERT_BATCH_SIZE);
-        const progress = Math.round(((i + batch.length) / shipmentsWithUser.length) * 100);
+      // Process batches in parallel groups for faster upload
+      const totalBatches = Math.ceil(shipmentsWithUser.length / INSERT_BATCH_SIZE);
+      
+      for (let i = 0; i < shipmentsWithUser.length; i += INSERT_BATCH_SIZE * PARALLEL_BATCHES) {
+        // Create parallel batch group
+        const batchPromises: Promise<{ inserted: number; skipped: number; batchNum: number }>[] = [];
+        
+        for (let j = 0; j < PARALLEL_BATCHES; j++) {
+          const startIdx = i + (j * INSERT_BATCH_SIZE);
+          if (startIdx >= shipmentsWithUser.length) break;
+          
+          const batch = shipmentsWithUser.slice(startIdx, startIdx + INSERT_BATCH_SIZE);
+          const batchNum = Math.floor(startIdx / INSERT_BATCH_SIZE) + 1;
+          
+          batchPromises.push(
+            uploadBatch(batch)
+              .then(result => ({ ...result, batchNum }))
+              .catch(error => {
+                console.error(`Batch ${batchNum} failed:`, error);
+                toast.error(`Batch ${batchNum} failed: ${error.message}`);
+                return { inserted: 0, skipped: 0, batchNum };
+              })
+          );
+        }
+
+        // Update progress
+        const endIdx = Math.min(i + INSERT_BATCH_SIZE * PARALLEL_BATCHES, shipmentsWithUser.length);
+        const progress = Math.round((endIdx / shipmentsWithUser.length) * 100);
+        const currentBatch = Math.floor(i / INSERT_BATCH_SIZE) + 1;
         
         toast.loading(`Uploading... ${progress}%`, {
           id: 'upload-progress',
-          description: `Batch ${batchNum}/${totalBatches}: ${i + 1}-${i + batch.length} of ${shipmentsWithUser.length}`
+          description: `Batches ${currentBatch}-${Math.min(currentBatch + PARALLEL_BATCHES - 1, totalBatches)}/${totalBatches}`
         });
 
-        try {
-          const result = await uploadBatch(batch);
+        // Wait for parallel batches to complete
+        const results = await Promise.all(batchPromises);
+        
+        for (const result of results) {
           totalInserted += result.inserted;
           totalSkippedDuplicates += result.skipped;
-          console.log(`Batch ${batchNum}/${totalBatches}: ${result.inserted} new, ${result.skipped} skipped`);
-        } catch (batchError: any) {
-          console.error(`Batch ${batchNum} failed:`, batchError);
-          toast.error(`Batch ${batchNum} failed: ${batchError.message}`);
+          console.log(`Batch ${result.batchNum}/${totalBatches}: ${result.inserted} new, ${result.skipped} skipped`);
         }
 
-        // Small delay between batches to prevent database overload
-        if (i + INSERT_BATCH_SIZE < shipmentsWithUser.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+        // Brief delay between parallel groups
+        if (endIdx < shipmentsWithUser.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
 
