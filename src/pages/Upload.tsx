@@ -178,12 +178,54 @@ export default function Upload() {
         return shipment;
       });
 
-      // Use larger batch size since ON CONFLICT handles duplicates atomically
-      const INSERT_BATCH_SIZE = 300;
+      // Smaller batch size to avoid statement timeouts (28 indexes + 2 triggers per row)
+      const INSERT_BATCH_SIZE = 50;
       let totalInserted = 0;
       let totalSkippedDuplicates = 0;
 
       const uploadStartTime = new Date().toISOString();
+
+      // Recursive batch upload with retry and split on timeout
+      const uploadBatch = async (
+        batch: any[], 
+        attempt = 1
+      ): Promise<{ inserted: number; skipped: number }> => {
+        const maxAttempts = 3;
+        
+        try {
+          const { data: insertedData, error } = await supabase
+            .from('shipments')
+            .upsert(batch, { 
+              onConflict: 'order_id',
+              ignoreDuplicates: true 
+            })
+            .select('order_id');
+
+          if (error) {
+            // Check for statement timeout - split batch and retry
+            if (error.code === '57014' && attempt < maxAttempts && batch.length > 10) {
+              console.log(`Timeout on batch of ${batch.length}, splitting in half (attempt ${attempt})`);
+              const mid = Math.floor(batch.length / 2);
+              const result1 = await uploadBatch(batch.slice(0, mid), attempt + 1);
+              await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between splits
+              const result2 = await uploadBatch(batch.slice(mid), attempt + 1);
+              return {
+                inserted: result1.inserted + result2.inserted,
+                skipped: result1.skipped + result2.skipped
+              };
+            }
+            throw error;
+          }
+
+          const insertedCount = insertedData?.length || 0;
+          return {
+            inserted: insertedCount,
+            skipped: batch.length - insertedCount
+          };
+        } catch (err) {
+          throw err;
+        }
+      };
 
       console.log(`Starting upsert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE}`);
 
@@ -199,29 +241,18 @@ export default function Upload() {
         });
 
         try {
-          // Use upsert with ignoreDuplicates - database handles conflicts atomically
-          const { data: insertedData, error } = await supabase
-            .from('shipments')
-            .upsert(batch, { 
-              onConflict: 'order_id',
-              ignoreDuplicates: true 
-            })
-            .select('order_id');
-
-          if (error) {
-            console.error(`Batch ${batchNum} error:`, error);
-            // On error, the batch is skipped - no partial inserts with upsert
-            toast.error(`Batch ${batchNum} failed: ${error.message}`);
-          } else {
-            const insertedCount = insertedData?.length || 0;
-            const skippedCount = batch.length - insertedCount;
-            totalInserted += insertedCount;
-            totalSkippedDuplicates += skippedCount;
-            console.log(`Batch ${batchNum}/${totalBatches}: ${insertedCount} new, ${skippedCount} skipped (existing)`);
-          }
+          const result = await uploadBatch(batch);
+          totalInserted += result.inserted;
+          totalSkippedDuplicates += result.skipped;
+          console.log(`Batch ${batchNum}/${totalBatches}: ${result.inserted} new, ${result.skipped} skipped`);
         } catch (batchError: any) {
-          console.error(`Batch ${batchNum} exception:`, batchError);
+          console.error(`Batch ${batchNum} failed:`, batchError);
           toast.error(`Batch ${batchNum} failed: ${batchError.message}`);
+        }
+
+        // Small delay between batches to prevent database overload
+        if (i + INSERT_BATCH_SIZE < shipmentsWithUser.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
