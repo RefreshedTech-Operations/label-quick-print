@@ -197,8 +197,8 @@ export default function Upload() {
           const { data: insertedData, error } = await supabase
             .from('shipments')
             .upsert(batch, { 
-              onConflict: 'order_id',
-              ignoreDuplicates: true 
+              onConflict: 'order_id'
+              // Removed ignoreDuplicates to properly update all fields including UID
             })
             .select('order_id');
 
