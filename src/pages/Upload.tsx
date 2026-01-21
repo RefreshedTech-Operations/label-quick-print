@@ -399,6 +399,12 @@ export default function Upload() {
                     Misfits Channel (no chargers needed)
                   </Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="outlet" id="outlet" />
+                  <Label htmlFor="outlet" className="font-normal cursor-pointer">
+                    Outlet Channel (no chargers needed)
+                  </Label>
+                </div>
               </RadioGroup>
             </div>
 
