@@ -668,9 +668,15 @@ export default function Scan() {
         try {
           let pickListItems: any[] = [];
           
-          // For bundles, get all items in the group
+          // For bundles, fetch fresh data from database to avoid stale state
           if (shipment.bundle && shipment.order_group_id) {
-            pickListItems = groupItems.map(item => ({
+            const { data: freshGroupItems } = await supabase
+              .from('shipments')
+              .select('product_name, uid, quantity')
+              .eq('order_group_id', shipment.order_group_id)
+              .order('uid');
+            
+            pickListItems = (freshGroupItems || []).map(item => ({
               product_name: item.product_name || '',
               uid: item.uid,
               quantity: item.quantity || 1
@@ -838,7 +844,14 @@ export default function Scan() {
       // Check if this is a Label Only order and print pick list
       if (isLabelOnlyOrder(selectedShipment)) {
         try {
-          const pickListItems = groupItems.map(item => ({
+          // Fetch fresh bundle data from database to avoid stale state
+          const { data: freshGroupItems } = await supabase
+            .from('shipments')
+            .select('product_name, uid, quantity')
+            .eq('order_group_id', selectedShipment.order_group_id)
+            .order('uid');
+          
+          const pickListItems = (freshGroupItems || []).map(item => ({
             product_name: item.product_name || '',
             uid: item.uid,
             quantity: item.quantity || 1
