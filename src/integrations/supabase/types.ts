@@ -503,11 +503,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      archive_old_shipments: {
-        Args: { batch_size?: number; days_to_keep?: number }
+      archive_shipments_batch: {
+        Args: { batch_size?: number; days_to_keep: number }
         Returns: {
-          archived_count: number
-          remaining_count: number
+          batch_archived: number
+          has_more: boolean
+          total_remaining: number
         }[]
       }
       assign_location_to_bundle: {
