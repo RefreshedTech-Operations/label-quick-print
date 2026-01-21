@@ -30,6 +30,8 @@ export default function AdminTools() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [daysToKeep, setDaysToKeep] = useState(10);
+  const [archiveProgress, setArchiveProgress] = useState<{ archived: number; remaining: number } | null>(null);
+  const [cancelArchive, setCancelArchive] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -57,26 +59,49 @@ export default function AdminTools() {
     }
 
     setIsArchiving(true);
+    setArchiveProgress({ archived: 0, remaining: 0 });
+    setCancelArchive(false);
+    setShowArchiveDialog(false);
+    
+    let totalArchived = 0;
+    let hasMore = true;
+    
     try {
-      const { data, error } = await supabase.rpc('archive_old_shipments', {
-        days_to_keep: normalizedDaysToKeep,
-        batch_size: 5000,
-      });
-
-      if (error) throw error;
-
-      const result = data?.[0];
-      if (result) {
-        toast.success(`Archived ${result.archived_count} orders`, {
-          description: `${result.remaining_count} orders remaining in active table`
+      while (hasMore && !cancelArchive) {
+        const { data, error } = await supabase.rpc('archive_shipments_batch', {
+          days_to_keep: normalizedDaysToKeep,
+          batch_size: 1000,
         });
-        loadArchiveStats();
+
+        if (error) throw error;
+
+        const result = data?.[0];
+        if (result) {
+          totalArchived += Number(result.batch_archived) || 0;
+          hasMore = result.has_more;
+          setArchiveProgress({ 
+            archived: totalArchived, 
+            remaining: Number(result.total_remaining) || 0 
+          });
+        } else {
+          hasMore = false;
+        }
       }
+
+      if (cancelArchive) {
+        toast.info(`Archive cancelled`, {
+          description: `Archived ${totalArchived.toLocaleString()} orders before cancellation`
+        });
+      } else {
+        toast.success(`Archived ${totalArchived.toLocaleString()} orders`);
+      }
+      loadArchiveStats();
     } catch (error: any) {
       toast.error('Failed to archive orders', { description: error.message });
     } finally {
       setIsArchiving(false);
-      setShowArchiveDialog(false);
+      setArchiveProgress(null);
+      setCancelArchive(false);
     }
   };
 
@@ -344,23 +369,42 @@ export default function AdminTools() {
               </p>
             </div>
 
-            <Button 
-              onClick={() => setShowArchiveDialog(true)} 
-              className="w-full"
-              disabled={isArchiving}
-            >
-              {isArchiving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Archiving...
-                </>
-              ) : (
-                <>
-                  <Archive className="h-4 w-4 mr-2" />
-                  Archive Old Orders
-                </>
-              )}
-            </Button>
+            {isArchiving && archiveProgress && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Archiving...</span>
+                  <span>{archiveProgress.archived.toLocaleString()} archived, {archiveProgress.remaining.toLocaleString()} remaining</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ 
+                      width: archiveProgress.archived + archiveProgress.remaining > 0 
+                        ? `${(archiveProgress.archived / (archiveProgress.archived + archiveProgress.remaining)) * 100}%` 
+                        : '0%' 
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {isArchiving ? (
+              <Button 
+                onClick={() => setCancelArchive(true)} 
+                variant="destructive"
+                className="w-full"
+              >
+                Cancel Archive
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => setShowArchiveDialog(true)} 
+                className="w-full"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                Archive Old Orders
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
