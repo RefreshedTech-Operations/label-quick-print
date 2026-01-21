@@ -697,17 +697,48 @@ export default function Scan() {
             items: pickListItems
           };
 
+          // Debug: Log pick list content before printing
+          console.log('[Pick List Debug - handlePrint]', {
+            scannedUid: shipment.uid,
+            orderId: shipment.order_id,
+            isBundle: shipment.bundle,
+            orderGroupId: shipment.order_group_id,
+            pickListItems: pickListItems.map(i => ({ uid: i.uid, product: i.product_name })),
+            timestamp: new Date().toISOString()
+          });
+
           const pickListJob = createPickListPrintJob(
             parseInt(printerId),
             pickListData
           );
 
-          await submitPrintJob(printnodeApiKey, pickListJob);
+          const pickListJobId = await submitPrintJob(printnodeApiKey, pickListJob);
+          
+          // Log pick list print job to database
+          const { data: { user: pickListUser } } = await supabase.auth.getUser();
+          if (pickListUser) {
+            await supabase
+              .from('print_jobs')
+              .insert({
+                user_id: pickListUser.id,
+                shipment_id: shipment.id,
+                uid: shipment.uid,
+                order_id: shipment.order_id,
+                printer_id: printerId || '',
+                printnode_job_id: pickListJobId,
+                label_url: 'pick_list',
+                status: 'done'
+              });
+          }
           
           toast.success('Pick list printed!', {
             description: 'Pick list printed successfully'
           });
         } catch (error: any) {
+          console.error('[Pick List Error - handlePrint]', {
+            scannedUid: shipment.uid,
+            error: error.message
+          });
           toast.error('Pick list print failed', {
             description: error.message
           });
@@ -864,17 +895,47 @@ export default function Scan() {
             items: pickListItems
           };
 
+          // Debug: Log pick list content before printing
+          console.log('[Pick List Debug - handlePrintAllGroupManifests]', {
+            scannedUid: selectedShipment.uid,
+            orderId: selectedShipment.order_id,
+            orderGroupId: selectedShipment.order_group_id,
+            pickListItems: pickListItems.map(i => ({ uid: i.uid, product: i.product_name })),
+            timestamp: new Date().toISOString()
+          });
+
           const pickListJob = createPickListPrintJob(
             parseInt(printerId),
             pickListData
           );
 
-          await submitPrintJob(printnodeApiKey, pickListJob);
+          const pickListJobId = await submitPrintJob(printnodeApiKey, pickListJob);
+          
+          // Log pick list print job to database
+          const { data: { user: pickListUser } } = await supabase.auth.getUser();
+          if (pickListUser) {
+            await supabase
+              .from('print_jobs')
+              .insert({
+                user_id: pickListUser.id,
+                shipment_id: selectedShipment.id,
+                uid: selectedShipment.uid,
+                order_id: selectedShipment.order_id,
+                printer_id: printerId || '',
+                printnode_job_id: pickListJobId,
+                label_url: 'pick_list',
+                status: 'done'
+              });
+          }
           
           toast.success('Pick list printed!', {
             description: 'Pick list printed successfully'
           });
         } catch (error: any) {
+          console.error('[Pick List Error - handlePrintAllGroupManifests]', {
+            scannedUid: selectedShipment.uid,
+            error: error.message
+          });
           toast.error('Pick list print failed', {
             description: error.message
           });
@@ -1003,17 +1064,47 @@ export default function Scan() {
             }]
           };
 
+          // Debug: Log pick list content before printing
+          console.log('[Pick List Debug - handlePrintGroupId]', {
+            scannedUid: shipment.uid,
+            orderId: shipment.order_id,
+            orderGroupId: shipment.order_group_id,
+            pickListItems: [{ uid: shipment.uid, product: shipment.product_name }],
+            timestamp: new Date().toISOString()
+          });
+
           const pickListJob = createPickListPrintJob(
             parseInt(printerId),
             pickListData
           );
 
-          await submitPrintJob(printnodeApiKey, pickListJob);
+          const pickListJobId = await submitPrintJob(printnodeApiKey, pickListJob);
+          
+          // Log pick list print job to database
+          const { data: { user: pickListUser } } = await supabase.auth.getUser();
+          if (pickListUser) {
+            await supabase
+              .from('print_jobs')
+              .insert({
+                user_id: pickListUser.id,
+                shipment_id: shipment.id,
+                uid: shipment.uid,
+                order_id: shipment.order_id,
+                printer_id: printerId || '',
+                printnode_job_id: pickListJobId,
+                label_url: 'pick_list',
+                status: 'done'
+              });
+          }
           
           toast.success('Pick list printed!', {
             description: 'Pick list printed for this item'
           });
         } catch (error: any) {
+          console.error('[Pick List Error - handlePrintGroupId]', {
+            scannedUid: shipment.uid,
+            error: error.message
+          });
           toast.error('Pick list print failed', {
             description: error.message
           });
