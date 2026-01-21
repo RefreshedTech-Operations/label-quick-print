@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +32,7 @@ export default function AdminTools() {
   const [daysToKeep, setDaysToKeep] = useState(10);
   const [archiveProgress, setArchiveProgress] = useState<{ archived: number; remaining: number } | null>(null);
   const [cancelArchive, setCancelArchive] = useState(false);
+  const cancelArchiveRef = useRef(false);
 
   useEffect(() => {
     checkAuth();
@@ -61,19 +62,39 @@ export default function AdminTools() {
     setIsArchiving(true);
     setArchiveProgress({ archived: 0, remaining: 0 });
     setCancelArchive(false);
+    cancelArchiveRef.current = false;
     setShowArchiveDialog(false);
     
     let totalArchived = 0;
     let hasMore = true;
+    let batchSize = 250;
+    let timeoutBackoffNotified = false;
     
     try {
-      while (hasMore && !cancelArchive) {
+      while (hasMore && !cancelArchiveRef.current) {
         const { data, error } = await supabase.rpc('archive_shipments_batch', {
           days_to_keep: normalizedDaysToKeep,
-          batch_size: 1000,
+          batch_size: batchSize,
         });
 
-        if (error) throw error;
+        if (error) {
+          const code = (error as any)?.code;
+          const msg = String((error as any)?.message ?? '').toLowerCase();
+          const isTimeout = code === '57014' || msg.includes('statement timeout');
+
+          if (isTimeout) {
+            batchSize = Math.max(25, Math.floor(batchSize / 2));
+            if (!timeoutBackoffNotified) {
+              timeoutBackoffNotified = true;
+              toast.info('Archiving is taking longer than expected — reducing batch size and retrying.');
+            }
+            // Let UI breathe before retrying
+            await new Promise((r) => setTimeout(r, 150));
+            continue;
+          }
+
+          throw error;
+        }
 
         const result = data?.[0];
         if (result) {
@@ -83,12 +104,15 @@ export default function AdminTools() {
             archived: totalArchived, 
             remaining: Number(result.total_remaining) || 0 
           });
+
+          // Avoid a tight loop; keeps the UI responsive and reduces load.
+          await new Promise((r) => setTimeout(r, 50));
         } else {
           hasMore = false;
         }
       }
 
-      if (cancelArchive) {
+      if (cancelArchiveRef.current) {
         toast.info(`Archive cancelled`, {
           description: `Archived ${totalArchived.toLocaleString()} orders before cancellation`
         });
@@ -102,6 +126,7 @@ export default function AdminTools() {
       setIsArchiving(false);
       setArchiveProgress(null);
       setCancelArchive(false);
+      cancelArchiveRef.current = false;
     }
   };
 
@@ -390,7 +415,10 @@ export default function AdminTools() {
 
             {isArchiving ? (
               <Button 
-                onClick={() => setCancelArchive(true)} 
+                onClick={() => {
+                  setCancelArchive(true);
+                  cancelArchiveRef.current = true;
+                }} 
                 variant="destructive"
                 className="w-full"
               >
