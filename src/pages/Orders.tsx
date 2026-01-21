@@ -45,7 +45,8 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2 } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2, Archive } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Shipment } from '@/types';
 import { exportOrders } from '@/lib/analyticsExport';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
@@ -99,6 +100,7 @@ export default function Orders() {
   const [showDeleteSelectedDialog, setShowDeleteSelectedDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [includeArchive, setIncludeArchive] = useState(false);
   
   const { settings, updateSettings } = useAppStore();
 
@@ -219,7 +221,7 @@ export default function Orders() {
   // React Query automatically cancels in-flight requests when queryKey changes
   // GUARD: Wait for show date to be auto-selected OR user explicitly enables "All Shows"
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
-    queryKey: ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize],
+    queryKey: ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize, includeArchive],
     queryFn: async ({ signal }) => { // signal is automatically provided by React Query
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -235,17 +237,16 @@ export default function Orders() {
         throw new Error('Page number too high');
       }
       
-      // Use the new database function with p_filter parameter
-      // Note: Supabase JS client doesn't fully support AbortSignal yet,
-      // but React Query will still cancel on component unmount/key change
-      const { data: searchData, error: searchError, count } = await supabase
-        .rpc('search_shipments', {
+      // Use the new database function with archive support
+      const { data: searchData, error: searchError } = await supabase
+        .rpc('search_all_shipments', {
           search_term: debouncedSearch.trim() || null,
           p_show_date: showDateFilter || null,
           p_printed: null, // Keep for backward compatibility
           p_filter: filter, // NEW: Pass filter to SQL for server-side filtering
           p_limit: pageSize,
-          p_offset: (currentPage - 1) * pageSize
+          p_offset: (currentPage - 1) * pageSize,
+          p_include_archive: includeArchive
         });
 
       if (searchError) throw searchError;
@@ -260,14 +261,15 @@ export default function Orders() {
   // Separate query for aggregate stats (counts all records, not just current page)
   // PHASE 2: Lazy stats loading - only loads when enabled, with manual refresh button
   const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery({
-    queryKey: ['shipments-stats', showDateFilter, filter], // Removed debouncedSearch for instant filter updates
+    queryKey: ['shipments-stats', showDateFilter, filter, includeArchive], // Include archive in key
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc('get_shipments_stats', {
+        .rpc('get_shipments_stats_with_archive', {
           search_term: search.trim() || null, // Use instant search (no debounce) for filters
           p_show_date: showDateFilter || null,
           p_printed: null,
           p_filter: filter,
+          p_include_archive: includeArchive
         })
         .single();
 
@@ -1057,11 +1059,12 @@ export default function Orders() {
         printed: Number(statsData.printed) || 0,
         unprinted: Number(statsData.unprinted) || 0,
         exceptions: Number(statsData.exceptions) || 0,
+        archived: Number(statsData.archived) || 0,
       };
     }
     
     // Default empty stats if query hasn't loaded yet
-    return { total: 0, printed: 0, unprinted: 0, exceptions: 0 };
+    return { total: 0, printed: 0, unprinted: 0, exceptions: 0, archived: 0 };
   }, [statsData]);
 
   // Pagination - Use totalCount from database and current page's shipments
@@ -1099,6 +1102,12 @@ export default function Orders() {
           <Badge variant="destructive" className="text-lg px-4 py-2">
             Exceptions: {stats.exceptions}
           </Badge>
+          {includeArchive && stats.archived > 0 && (
+            <Badge variant="secondary" className="text-lg px-4 py-2">
+              <Archive className="h-4 w-4 mr-1" />
+              Archived: {stats.archived}
+            </Badge>
+          )}
           <Button
             size="icon"
             variant="ghost"
@@ -1181,6 +1190,14 @@ export default function Orders() {
             <SelectItem value="100">100 per page</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-2 ml-auto">
+          <Archive className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Include Archived</span>
+          <Switch
+            checked={includeArchive}
+            onCheckedChange={setIncludeArchive}
+          />
+        </div>
       </div>
 
       {selectedShipments.size > 0 && (
