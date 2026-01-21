@@ -1253,7 +1253,7 @@ export default function Scan() {
               </CardTitle>
               
               {/* Charger Warning - Main Display (informational only) */}
-              {selectedShipment.bundle && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && (
+              {selectedShipment.bundle && selectedShipment.channel !== 'misfits' && selectedShipment.channel !== 'outlet' && groupItems.length > 0 && (
                 <div className="mt-4">
                   <ChargerWarning 
                     items={groupItems}
@@ -1368,7 +1368,7 @@ export default function Scan() {
               </div>
 
               {/* Compact Charger Warning - Right before Print Button */}
-              {selectedShipment.bundle && !selectedShipment.group_id_printed && selectedShipment.channel !== 'misfits' && groupItems.length > 0 && (
+              {selectedShipment.bundle && !selectedShipment.group_id_printed && selectedShipment.channel !== 'misfits' && selectedShipment.channel !== 'outlet' && groupItems.length > 0 && (
                 <ChargerWarning items={groupItems} compact channel={selectedShipment.channel} />
               )}
 
@@ -1409,7 +1409,7 @@ export default function Scan() {
                       ⚠️ Please confirm bundle location
                     </p>
                   )}
-                  {selectedShipment.channel !== 'misfits' && groupItems.length > 0 && !chargersAcknowledged && (
+                  {selectedShipment.channel !== 'misfits' && selectedShipment.channel !== 'outlet' && groupItems.length > 0 && !chargersAcknowledged && (
                     <p className="text-destructive">
                       ⚠️ Please acknowledge charger requirements
                     </p>

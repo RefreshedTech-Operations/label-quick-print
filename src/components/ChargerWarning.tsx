@@ -85,8 +85,8 @@ export function ChargerWarning({
     return null;
   }
 
-  // Don't render for misfits channel
-  if (channel === 'misfits') {
+  // Don't render for misfits or outlet channels (no chargers needed)
+  if (channel === 'misfits' || channel === 'outlet') {
     return null;
   }
 
