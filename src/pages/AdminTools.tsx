@@ -6,7 +6,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, UserPlus, Trash2 } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Archive, Loader2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function AdminTools() {
   const [user, setUser] = useState<any>(null);
@@ -16,6 +26,10 @@ export default function AdminTools() {
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [emailToAdd, setEmailToAdd] = useState('');
   const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator' | 'user'>('user');
+  const [archiveStats, setArchiveStats] = useState<{ active_count: number; archived_count: number; oldest_active_date: string | null; newest_archived_date: string | null } | null>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [daysToKeep, setDaysToKeep] = useState(10);
 
   useEffect(() => {
     checkAuth();
@@ -24,8 +38,40 @@ export default function AdminTools() {
   useEffect(() => {
     if (isAdmin) {
       loadUsersAndRoles();
+      loadArchiveStats();
     }
   }, [isAdmin]);
+
+  const loadArchiveStats = async () => {
+    const { data, error } = await supabase.rpc('get_archive_stats');
+    if (!error && data && data.length > 0) {
+      setArchiveStats(data[0]);
+    }
+  };
+
+  const handleArchiveOrders = async () => {
+    setIsArchiving(true);
+    try {
+      const { data, error } = await supabase.rpc('archive_old_shipments', {
+        days_to_keep: daysToKeep
+      });
+
+      if (error) throw error;
+
+      const result = data?.[0];
+      if (result) {
+        toast.success(`Archived ${result.archived_count} orders`, {
+          description: `${result.remaining_count} orders remaining in active table`
+        });
+        loadArchiveStats();
+      }
+    } catch (error: any) {
+      toast.error('Failed to archive orders', { description: error.message });
+    } finally {
+      setIsArchiving(false);
+      setShowArchiveDialog(false);
+    }
+  };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -243,6 +289,73 @@ export default function AdminTools() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5" />
+              Database Archiving
+            </CardTitle>
+            <CardDescription>Archive old orders to improve database performance</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {archiveStats && (
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="p-3 border rounded-lg">
+                  <p className="text-muted-foreground">Active Orders</p>
+                  <p className="text-2xl font-bold">{archiveStats.active_count?.toLocaleString() || 0}</p>
+                  {archiveStats.oldest_active_date && (
+                    <p className="text-xs text-muted-foreground">
+                      Oldest: {new Date(archiveStats.oldest_active_date).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+                <div className="p-3 border rounded-lg">
+                  <p className="text-muted-foreground">Archived Orders</p>
+                  <p className="text-2xl font-bold">{archiveStats.archived_count?.toLocaleString() || 0}</p>
+                  {archiveStats.newest_archived_date && (
+                    <p className="text-xs text-muted-foreground">
+                      Latest: {new Date(archiveStats.newest_archived_date).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="daysToKeep">Days to keep in active table</Label>
+              <Input
+                id="daysToKeep"
+                type="number"
+                value={daysToKeep}
+                onChange={(e) => setDaysToKeep(Number(e.target.value))}
+                min={1}
+                max={365}
+              />
+              <p className="text-xs text-muted-foreground">
+                Orders older than this many days will be moved to the archive table
+              </p>
+            </div>
+
+            <Button 
+              onClick={() => setShowArchiveDialog(true)} 
+              className="w-full"
+              disabled={isArchiving}
+            >
+              {isArchiving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Archiving...
+                </>
+              ) : (
+                <>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive Old Orders
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="mt-6">
@@ -284,6 +397,29 @@ export default function AdminTools() {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive Old Orders?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move all orders older than {daysToKeep} days to the archive table. 
+              Archived orders can still be searched using the "Include Archived" toggle on the Orders page.
+              {archiveStats && archiveStats.active_count > 0 && (
+                <span className="block mt-2 font-medium">
+                  Estimated orders to archive: ~{Math.max(0, archiveStats.active_count - 15000).toLocaleString()}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleArchiveOrders}>
+              Archive Orders
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -333,6 +333,117 @@ export type Database = {
           },
         ]
       }
+      shipments_archive: {
+        Row: {
+          address_full: string | null
+          archived_at: string | null
+          batch_id: string | null
+          batch_scanned_at: string | null
+          batch_scanned_by_user_id: string | null
+          bundle: boolean | null
+          buyer: string | null
+          cancelled: string | null
+          channel: string | null
+          created_at: string | null
+          group_id_printed: boolean | null
+          group_id_printed_at: string | null
+          group_id_printed_by_user_id: string | null
+          has_issue: boolean | null
+          id: string
+          issue_marked_at: string | null
+          issue_marked_by_user_id: string | null
+          label_url: string | null
+          location_id: string | null
+          manifest_url: string | null
+          order_group_id: string | null
+          order_id: string
+          price: string | null
+          printed: boolean | null
+          printed_at: string | null
+          printed_by_user_id: string | null
+          product_name: string | null
+          quantity: number | null
+          raw: Json | null
+          search_vector: unknown
+          show_date: string | null
+          tracking: string | null
+          uid: string | null
+          user_id: string | null
+        }
+        Insert: {
+          address_full?: string | null
+          archived_at?: string | null
+          batch_id?: string | null
+          batch_scanned_at?: string | null
+          batch_scanned_by_user_id?: string | null
+          bundle?: boolean | null
+          buyer?: string | null
+          cancelled?: string | null
+          channel?: string | null
+          created_at?: string | null
+          group_id_printed?: boolean | null
+          group_id_printed_at?: string | null
+          group_id_printed_by_user_id?: string | null
+          has_issue?: boolean | null
+          id?: string
+          issue_marked_at?: string | null
+          issue_marked_by_user_id?: string | null
+          label_url?: string | null
+          location_id?: string | null
+          manifest_url?: string | null
+          order_group_id?: string | null
+          order_id: string
+          price?: string | null
+          printed?: boolean | null
+          printed_at?: string | null
+          printed_by_user_id?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          raw?: Json | null
+          search_vector?: unknown
+          show_date?: string | null
+          tracking?: string | null
+          uid?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          address_full?: string | null
+          archived_at?: string | null
+          batch_id?: string | null
+          batch_scanned_at?: string | null
+          batch_scanned_by_user_id?: string | null
+          bundle?: boolean | null
+          buyer?: string | null
+          cancelled?: string | null
+          channel?: string | null
+          created_at?: string | null
+          group_id_printed?: boolean | null
+          group_id_printed_at?: string | null
+          group_id_printed_by_user_id?: string | null
+          has_issue?: boolean | null
+          id?: string
+          issue_marked_at?: string | null
+          issue_marked_by_user_id?: string | null
+          label_url?: string | null
+          location_id?: string | null
+          manifest_url?: string | null
+          order_group_id?: string | null
+          order_id?: string
+          price?: string | null
+          printed?: boolean | null
+          printed_at?: string | null
+          printed_by_user_id?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          raw?: Json | null
+          search_vector?: unknown
+          show_date?: string | null
+          tracking?: string | null
+          uid?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -392,6 +503,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_old_shipments: {
+        Args: { days_to_keep?: number }
+        Returns: {
+          archived_count: number
+          remaining_count: number
+        }[]
+      }
       assign_location_to_bundle: {
         Args: { p_location_code: string; p_order_group_id: string }
         Returns: undefined
@@ -405,6 +523,15 @@ export type Database = {
           successful_prints: number
           total_orders: number
           total_print_jobs: number
+        }[]
+      }
+      get_archive_stats: {
+        Args: never
+        Returns: {
+          active_count: number
+          archived_count: number
+          newest_archived_date: string
+          oldest_active_date: string
         }[]
       }
       get_batch_stats: {
@@ -511,6 +638,22 @@ export type Database = {
               unprinted: number
             }[]
           }
+      get_shipments_stats_with_archive: {
+        Args: {
+          p_filter?: string
+          p_include_archive?: boolean
+          p_printed?: boolean
+          p_show_date?: string
+          search_term?: string
+        }
+        Returns: {
+          archived: number
+          exceptions: number
+          printed: number
+          total: number
+          unprinted: number
+        }[]
+      }
       get_show_date_counts: {
         Args: { limit_rows?: number }
         Returns: {
@@ -532,6 +675,46 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: never; Returns: boolean }
+      search_all_shipments: {
+        Args: {
+          p_filter?: string
+          p_include_archive?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_printed?: boolean
+          p_show_date?: string
+          search_term?: string
+        }
+        Returns: {
+          address_full: string
+          bundle: boolean
+          buyer: string
+          cancelled: string
+          created_at: string
+          group_id_printed: boolean
+          group_id_printed_at: string
+          group_id_printed_by_email: string
+          group_id_printed_by_user_id: string
+          id: string
+          is_archived: boolean
+          label_url: string
+          location_id: string
+          manifest_url: string
+          order_group_id: string
+          order_id: string
+          price: string
+          printed: boolean
+          printed_at: string
+          printed_by_email: string
+          printed_by_user_id: string
+          product_name: string
+          quantity: number
+          show_date: string
+          tracking: string
+          uid: string
+          user_id: string
+        }[]
+      }
       search_shipments: {
         Args: {
           p_filter?: string
