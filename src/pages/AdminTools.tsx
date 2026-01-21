@@ -50,10 +50,17 @@ export default function AdminTools() {
   };
 
   const handleArchiveOrders = async () => {
+    const normalizedDaysToKeep = Math.floor(daysToKeep);
+    if (!Number.isFinite(normalizedDaysToKeep) || normalizedDaysToKeep < 1) {
+      toast.error('Please enter a valid number of days to keep (1-365)');
+      return;
+    }
+
     setIsArchiving(true);
     try {
       const { data, error } = await supabase.rpc('archive_old_shipments', {
-        days_to_keep: daysToKeep
+        days_to_keep: normalizedDaysToKeep,
+        batch_size: 5000,
       });
 
       if (error) throw error;
