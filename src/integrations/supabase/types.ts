@@ -503,21 +503,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      archive_old_shipments:
-        | {
-            Args: { days_to_keep?: number }
-            Returns: {
-              archived_count: number
-              remaining_count: number
-            }[]
-          }
-        | {
-            Args: { batch_size?: number; days_to_keep?: number }
-            Returns: {
-              archived_count: number
-              remaining_count: number
-            }[]
-          }
+      archive_old_shipments: {
+        Args: { batch_size?: number; days_to_keep?: number }
+        Returns: {
+          archived_count: number
+          remaining_count: number
+        }[]
+      }
       assign_location_to_bundle: {
         Args: { p_location_code: string; p_order_group_id: string }
         Returns: undefined
