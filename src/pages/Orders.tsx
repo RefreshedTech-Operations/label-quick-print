@@ -125,6 +125,15 @@ export default function Orders() {
       setAllowAllShows(false);
     }
   }, [showDateFilter, allowAllShows]);
+
+  // Auto-enable "All Shows" when searching with archive toggle to find older archived orders
+  useEffect(() => {
+    if (includeArchive && debouncedSearch.trim() && showDateFilter) {
+      setShowDateFilter(undefined);
+      setAllowAllShows(true);
+      toast.info('Showing all dates to search archived orders');
+    }
+  }, [includeArchive, debouncedSearch]);
   const { columnWidths, handleResizeStart, resizingColumn } = useColumnResize('orders-table-widths');
 
   // Helper to identify Label Only orders
