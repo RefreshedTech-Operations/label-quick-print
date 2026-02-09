@@ -1006,24 +1006,56 @@ export default function Orders() {
   const handleDeleteNoManifest = async () => {
     setIsDeleting(true);
     try {
-      let query = supabase
-        .from('shipments')
-        .delete()
-        .or('manifest_url.is.null,manifest_url.eq.');
-      
-      if (showDateFilter) {
-        query = query.eq('show_date', showDateFilter);
+      const BATCH_SIZE = 200;
+      let totalDeleted = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        // First, fetch IDs of rows to delete in this batch
+        let fetchQuery = supabase
+          .from('shipments')
+          .select('id')
+          .or('manifest_url.is.null,manifest_url.eq.')
+          .limit(BATCH_SIZE);
+
+        if (showDateFilter) {
+          fetchQuery = fetchQuery.eq('show_date', showDateFilter);
+        }
+
+        const { data: rows, error: fetchError } = await fetchQuery;
+        if (fetchError) throw fetchError;
+
+        if (!rows || rows.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const ids = rows.map(r => r.id);
+
+        // Delete related print_jobs first
+        const { error: printJobsError } = await supabase
+          .from('print_jobs')
+          .delete()
+          .in('shipment_id', ids);
+        if (printJobsError) throw printJobsError;
+
+        // Then delete the shipments batch
+        const { error: deleteError } = await supabase
+          .from('shipments')
+          .delete()
+          .in('id', ids);
+        if (deleteError) throw deleteError;
+
+        totalDeleted += ids.length;
+        hasMore = ids.length === BATCH_SIZE;
       }
-      
-      const { error } = await query;
-      if (error) throw error;
-      
+
       // Refresh data
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
       queryClient.invalidateQueries({ queryKey: ['shipments-stats'] });
       queryClient.invalidateQueries({ queryKey: ['recent-show-dates'] });
-      
-      toast.success('Successfully deleted orders without manifests');
+
+      toast.success(`Successfully deleted ${totalDeleted} orders without manifests`);
     } catch (error: any) {
       toast.error('Failed to delete orders', { description: error.message });
     } finally {
