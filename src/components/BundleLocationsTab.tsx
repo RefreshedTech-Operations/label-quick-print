@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,6 @@ import { toast } from 'sonner';
 import { MapPin, Plus, Eye, RefreshCw, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BulkAddLocationsDialog } from '@/components/BulkAddLocationsDialog';
-import { BulkDeleteLocationsDialog } from '@/components/BulkDeleteLocationsDialog';
 
 interface LocationOccupancy {
   location_code: string;
@@ -34,7 +34,9 @@ export function BundleLocationsTab() {
   const [newLocationCode, setNewLocationCode] = useState('');
   const [addingLocation, setAddingLocation] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -205,10 +207,12 @@ export function BundleLocationsTab() {
                   <Plus className="h-4 w-4 mr-1" />
                   Bulk Add
                 </Button>
-                <Button size="sm" variant="outline" className="text-destructive border-destructive/50" onClick={() => setBulkDeleteOpen(true)}>
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Bulk Delete
-                </Button>
+                {selectedForDelete.size > 0 && (
+                  <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete Selected ({selectedForDelete.size})
+                  </Button>
+                )}
                 <Button size="sm" onClick={() => setAddDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add Location
@@ -238,7 +242,8 @@ export function BundleLocationsTab() {
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
+               <TableRow>
+                  {isAdmin && <TableHead className="w-10"></TableHead>}
                   <TableHead className="w-24">Location</TableHead>
                   <TableHead className="w-24">Status</TableHead>
                   <TableHead>Occupancy</TableHead>
@@ -249,6 +254,23 @@ export function BundleLocationsTab() {
               <TableBody>
                 {locations.map((location) => (
                   <TableRow key={location.location_code} className={!location.is_active ? 'opacity-50' : ''}>
+                    {isAdmin && (
+                      <TableCell>
+                        {!location.is_occupied && (
+                          <Checkbox
+                            checked={selectedForDelete.has(location.location_code)}
+                            onCheckedChange={(checked) => {
+                              setSelectedForDelete(prev => {
+                                const next = new Set(prev);
+                                if (checked) next.add(location.location_code);
+                                else next.delete(location.location_code);
+                                return next;
+                              });
+                            }}
+                          />
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="font-mono font-bold text-lg">
                       {location.location_code}
                     </TableCell>
@@ -365,12 +387,49 @@ export function BundleLocationsTab() {
         onComplete={loadLocations}
       />
 
-      <BulkDeleteLocationsDialog
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        locations={locations.map(l => ({ location_code: l.location_code, is_occupied: l.is_occupied }))}
-        onComplete={loadLocations}
-      />
+      {/* Confirm Bulk Delete Dialog */}
+      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedForDelete.size} location{selectedForDelete.size !== 1 ? 's' : ''}?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-40 overflow-y-auto">
+            <div className="flex flex-wrap gap-1">
+              {[...selectedForDelete].sort((a, b) => parseInt(a) - parseInt(b)).map(code => (
+                <Badge key={code} variant="outline" className="font-mono">{code}</Badge>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={bulkDeleting}
+              onClick={async () => {
+                setBulkDeleting(true);
+                try {
+                  const codes = [...selectedForDelete];
+                  const { error } = await supabase.from('bundle_locations').delete().in('location_code', codes);
+                  if (error) throw error;
+                  toast.success(`Deleted ${codes.length} locations`);
+                  setSelectedForDelete(new Set());
+                  setConfirmDeleteOpen(false);
+                  loadLocations();
+                } catch (error: any) {
+                  toast.error('Failed to delete locations', { description: error.message });
+                } finally {
+                  setBulkDeleting(false);
+                }
+              }}
+            >
+              {bulkDeleting ? 'Deleting...' : `Delete ${selectedForDelete.size} Locations`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
