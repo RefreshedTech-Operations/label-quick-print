@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 import { MapPin, Plus, Eye, RefreshCw, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BulkAddLocationsDialog } from '@/components/BulkAddLocationsDialog';
+import { BulkDeleteLocationsDialog } from '@/components/BulkDeleteLocationsDialog';
 
 interface LocationOccupancy {
   location_code: string;
