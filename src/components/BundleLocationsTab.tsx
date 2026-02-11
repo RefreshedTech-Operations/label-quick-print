@@ -387,12 +387,49 @@ export function BundleLocationsTab() {
         onComplete={loadLocations}
       />
 
-      <BulkDeleteLocationsDialog
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        locations={locations.map(l => ({ location_code: l.location_code, is_occupied: l.is_occupied }))}
-        onComplete={loadLocations}
-      />
+      {/* Confirm Bulk Delete Dialog */}
+      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedForDelete.size} location{selectedForDelete.size !== 1 ? 's' : ''}?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-40 overflow-y-auto">
+            <div className="flex flex-wrap gap-1">
+              {[...selectedForDelete].sort((a, b) => parseInt(a) - parseInt(b)).map(code => (
+                <Badge key={code} variant="outline" className="font-mono">{code}</Badge>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={bulkDeleting}
+              onClick={async () => {
+                setBulkDeleting(true);
+                try {
+                  const codes = [...selectedForDelete];
+                  const { error } = await supabase.from('bundle_locations').delete().in('location_code', codes);
+                  if (error) throw error;
+                  toast.success(`Deleted ${codes.length} locations`);
+                  setSelectedForDelete(new Set());
+                  setConfirmDeleteOpen(false);
+                  loadLocations();
+                } catch (error: any) {
+                  toast.error('Failed to delete locations', { description: error.message });
+                } finally {
+                  setBulkDeleting(false);
+                }
+              }}
+            >
+              {bulkDeleting ? 'Deleting...' : `Delete ${selectedForDelete.size} Locations`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
