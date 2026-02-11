@@ -356,6 +356,21 @@ export function BundleLocationsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkAddLocationsDialog
+        open={bulkAddOpen}
+        onOpenChange={setBulkAddOpen}
+        existingCodes={locations.map(l => l.location_code)}
+        maxSortOrder={locations.reduce((max, loc) => Math.max(max, loc.sort_order), 0)}
+        onComplete={loadLocations}
+      />
+
+      <BulkDeleteLocationsDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        locations={locations.map(l => ({ location_code: l.location_code, is_occupied: l.is_occupied }))}
+        onComplete={loadLocations}
+      />
     </Card>
   );
 }
