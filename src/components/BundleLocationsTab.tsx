@@ -34,7 +34,9 @@ export function BundleLocationsTab() {
   const [newLocationCode, setNewLocationCode] = useState('');
   const [addingLocation, setAddingLocation] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
