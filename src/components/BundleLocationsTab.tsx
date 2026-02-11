@@ -242,7 +242,8 @@ export function BundleLocationsTab() {
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
+               <TableRow>
+                  {isAdmin && <TableHead className="w-10"></TableHead>}
                   <TableHead className="w-24">Location</TableHead>
                   <TableHead className="w-24">Status</TableHead>
                   <TableHead>Occupancy</TableHead>
@@ -253,6 +254,23 @@ export function BundleLocationsTab() {
               <TableBody>
                 {locations.map((location) => (
                   <TableRow key={location.location_code} className={!location.is_active ? 'opacity-50' : ''}>
+                    {isAdmin && (
+                      <TableCell>
+                        {!location.is_occupied && (
+                          <Checkbox
+                            checked={selectedForDelete.has(location.location_code)}
+                            onCheckedChange={(checked) => {
+                              setSelectedForDelete(prev => {
+                                const next = new Set(prev);
+                                if (checked) next.add(location.location_code);
+                                else next.delete(location.location_code);
+                                return next;
+                              });
+                            }}
+                          />
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="font-mono font-bold text-lg">
                       {location.location_code}
                     </TableCell>
