@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 import { MapPin, Plus, Eye, RefreshCw, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BulkAddLocationsDialog } from '@/components/BulkAddLocationsDialog';
+import { BulkDeleteLocationsDialog } from '@/components/BulkDeleteLocationsDialog';
 
 interface LocationOccupancy {
   location_code: string;
@@ -31,6 +33,8 @@ export function BundleLocationsTab() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newLocationCode, setNewLocationCode] = useState('');
   const [addingLocation, setAddingLocation] = useState(false);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -196,10 +200,20 @@ export function BundleLocationsTab() {
               Refresh
             </Button>
             {isAdmin && (
-              <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Location
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={() => setBulkAddOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Bulk Add
+                </Button>
+                <Button size="sm" variant="outline" className="text-destructive border-destructive/50" onClick={() => setBulkDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Bulk Delete
+                </Button>
+                <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Location
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -342,6 +356,21 @@ export function BundleLocationsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkAddLocationsDialog
+        open={bulkAddOpen}
+        onOpenChange={setBulkAddOpen}
+        existingCodes={locations.map(l => l.location_code)}
+        maxSortOrder={locations.reduce((max, loc) => Math.max(max, loc.sort_order), 0)}
+        onComplete={loadLocations}
+      />
+
+      <BulkDeleteLocationsDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        locations={locations.map(l => ({ location_code: l.location_code, is_occupied: l.is_occupied }))}
+        onComplete={loadLocations}
+      />
     </Card>
   );
 }
