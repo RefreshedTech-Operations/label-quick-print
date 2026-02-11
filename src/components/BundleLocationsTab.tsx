@@ -200,10 +200,20 @@ export function BundleLocationsTab() {
               Refresh
             </Button>
             {isAdmin && (
-              <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Location
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={() => setBulkAddOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Bulk Add
+                </Button>
+                <Button size="sm" variant="outline" className="text-destructive border-destructive/50" onClick={() => setBulkDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Bulk Delete
+                </Button>
+                <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Location
+                </Button>
+              </>
             )}
           </div>
         </div>
