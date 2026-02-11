@@ -33,6 +33,8 @@ export function BundleLocationsTab() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newLocationCode, setNewLocationCode] = useState('');
   const [addingLocation, setAddingLocation] = useState(false);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
