@@ -207,10 +207,12 @@ export function BundleLocationsTab() {
                   <Plus className="h-4 w-4 mr-1" />
                   Bulk Add
                 </Button>
-                <Button size="sm" variant="outline" className="text-destructive border-destructive/50" onClick={() => setBulkDeleteOpen(true)}>
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Bulk Delete
-                </Button>
+                {selectedForDelete.size > 0 && (
+                  <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete Selected ({selectedForDelete.size})
+                  </Button>
+                )}
                 <Button size="sm" onClick={() => setAddDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add Location
