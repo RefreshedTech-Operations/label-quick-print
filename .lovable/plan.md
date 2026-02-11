@@ -1,36 +1,37 @@
 
 
-## Fix: Update Database Constraint for "Outlet" Channel
+## Bulk Add and Bulk Delete Locations
 
-### Problem Identified
-The upload is failing because the `shipments` table has a CHECK constraint that only allows two channel values:
-```sql
-CHECK ((channel = ANY (ARRAY['regular'::text, 'misfits'::text])))
-```
+### What's Changing
+Two new buttons will be added to the Locations tab header (admin-only), next to the existing "Add Location" button:
 
-When I added the "Outlet" channel option to the UI, I didn't update this database constraint. Every upload attempt is being rejected because the constraint doesn't include `'outlet'`.
+1. **Bulk Add** -- Enter a numeric range (e.g. start: 200, end: 250) and all locations in that range get created at once.
+2. **Bulk Delete** -- Enter a numeric range (e.g. start: 100, end: 150) and all matching locations in that range get deleted at once. Occupied locations will be skipped with a warning.
 
-### Solution
-Update the database constraint to include `'outlet'` as a valid channel value.
+### User Experience
 
-### Database Migration Required
+- **Bulk Add dialog**: Two number inputs for "From" and "To". Preview shows how many will be created. Clicking "Add" inserts them all.
+- **Bulk Delete dialog**: Two number inputs for "From" and "To". Preview shows how many will be deleted and warns if any are occupied (those get skipped). Clicking "Delete" removes all non-occupied locations in the range.
 
-**Drop the old constraint and create a new one:**
+### Technical Details
 
-```sql
--- Drop the existing constraint
-ALTER TABLE public.shipments 
-DROP CONSTRAINT shipments_channel_check;
+**File modified:** `src/components/BundleLocationsTab.tsx`
 
--- Add updated constraint with outlet channel
-ALTER TABLE public.shipments 
-ADD CONSTRAINT shipments_channel_check 
-CHECK (channel = ANY (ARRAY['regular'::text, 'misfits'::text, 'outlet'::text]));
-```
+**Bulk Add logic:**
+- Generate location codes from the start to end range
+- Filter out any that already exist (by comparing against current `locations` state)
+- Insert all new locations in a single Supabase `.insert()` call with incrementing `sort_order`
+- Refresh the list after completion
 
-### Files to Modify
-None - this is a database-only fix.
+**Bulk Delete logic:**
+- Filter current locations to find those with numeric codes in the specified range
+- Skip any that are currently occupied (show a warning toast listing skipped ones)
+- Delete all eligible locations in a single `.delete().in('location_code', codes)` call
+- Refresh the list after completion
 
-### After the Fix
-Once the constraint is updated, your CSV upload will work correctly. The file you uploaded has 726 rows and will be processed normally.
+**UI additions:**
+- Two new admin-only buttons in the header: "Bulk Add" and "Bulk Delete"
+- Two new Dialog components with range inputs (From/To number fields)
+- Preview count shown before confirming the action
 
+No database changes needed -- uses existing `bundle_locations` table operations.
