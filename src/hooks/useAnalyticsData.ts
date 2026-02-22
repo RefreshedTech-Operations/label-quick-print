@@ -83,7 +83,7 @@ export function useAnalyticsData(dateRange: DateRange | undefined, userId?: stri
 
   // Try optimized combined query first, fallback to individual queries if function doesn't exist
   const { data: combinedData, isLoading, error } = useQuery({
-    queryKey: ['analytics-combined', startDate, endDate],
+    queryKey: ['analytics-combined', startDate, endDate, userId],
     queryFn: async () => {
       if (!startDate || !endDate) return null
 
