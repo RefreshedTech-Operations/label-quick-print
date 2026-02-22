@@ -599,19 +599,19 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
           user_id: string
         }
         Insert: {
           created_at?: string | null
           id?: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
           user_id: string
         }
         Update: {
           created_at?: string | null
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: string
           user_id?: string
         }
         Relationships: []
@@ -815,13 +815,7 @@ export type Database = {
         }[]
       }
       get_tv_dashboard_stats: { Args: { target_date?: string }; Returns: Json }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       increment_batch_count: {
         Args: { batch_uuid: string }
         Returns: undefined
@@ -909,7 +903,7 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user" | "messaging"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1036,8 +1030,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      app_role: ["admin", "moderator", "user", "messaging"],
-    },
+    Enums: {},
   },
 } as const
