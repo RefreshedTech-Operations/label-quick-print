@@ -239,22 +239,12 @@ export default function Messages() {
             </div>
             <div className="space-y-2">
               <Label>Link to Customer (optional)</Label>
-              <Select
+              <CustomerCombobox
+                customers={[{ id: 'none', name: 'None', phone_number: null }, ...customers]}
                 value={selectedCustomerId}
-                onValueChange={setSelectedCustomerId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} {c.phone_number ? `(${c.phone_number})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onSelect={setSelectedCustomerId}
+                placeholder="Select a customer"
+              />
             </div>
           </div>
           <DialogFooter>
