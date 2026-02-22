@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { X, Activity, Target, Package, Clock, Zap } from 'lucide-react';
+import { X, Activity, Target, Package, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTVDashboardData } from '@/hooks/useTVDashboardData';
 import { Progress } from '@/components/ui/progress';
@@ -145,29 +144,6 @@ export default function TVDashboard() {
             <Progress value={goalPercentage} className="mt-4 h-3" />
           </CardContent>
         </Card>
-      </div>
-
-      {/* Compact Stats Strip */}
-      <div className="flex gap-4 mb-6 flex-wrap">
-        <Badge variant="secondary" className="text-base px-4 py-2 gap-2">
-          <Zap className="h-4 w-4" />
-          Peak Hour: {data.peak_hour ? formatHour(data.peak_hour.hour) : 'N/A'}
-          {data.peak_hour ? ` (${data.peak_hour.count} labels)` : ''}
-        </Badge>
-        <Badge variant="secondary" className="text-base px-4 py-2 gap-2">
-          <Package className="h-4 w-4" />
-          Unprinted: {data.unprinted_count.toLocaleString()}
-        </Badge>
-        <Badge variant="secondary" className="text-base px-4 py-2 gap-2">
-          <Clock className="h-4 w-4" />
-          Last Print: {timeSinceLastPrint}
-          {isActive && (
-            <span className="inline-flex items-center gap-1 ml-1 text-success">
-              <span className="h-2 w-2 rounded-full bg-success animate-pulse inline-block" />
-              Active
-            </span>
-          )}
-        </Badge>
       </div>
 
       {/* Chart + Leaderboard Row */}
