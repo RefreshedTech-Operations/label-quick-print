@@ -9,7 +9,7 @@ import { useTVDashboardData } from '@/hooks/useTVDashboardData';
 import { Progress } from '@/components/ui/progress';
 import { PrinterLeaderboard } from '@/components/tv-dashboard/PrinterLeaderboard';
 import { format, isToday } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+
 import { cn } from '@/lib/utils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
