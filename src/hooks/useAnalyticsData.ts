@@ -87,11 +87,14 @@ export function useAnalyticsData(dateRange: DateRange | undefined, userId?: stri
     queryFn: async () => {
       if (!startDate || !endDate) return null
 
-      // Try the optimized function first
-      const { data, error } = await supabase.rpc('get_all_analytics' as any, {
+      const rpcParams: any = {
         start_date: startDate,
         end_date: endDate,
-      })
+      }
+      if (userId) rpcParams.p_user_id = userId
+
+      // Try the optimized function first
+      const { data, error } = await supabase.rpc('get_all_analytics' as any, rpcParams)
 
       // If optimized function doesn't exist (PGRST202), fall back to individual queries
       if (error && error.code === 'PGRST202') {
