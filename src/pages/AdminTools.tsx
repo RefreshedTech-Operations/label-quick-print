@@ -38,6 +38,8 @@ export default function AdminTools() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
+  const [showDisabled, setShowDisabled] = useState(false);
+  const [togglingUser, setTogglingUser] = useState<string | null>(null);
 
   // Archive state
   const [archiveStats, setArchiveStats] = useState<{ active_count: number; archived_count: number; oldest_active_date: string | null; newest_archived_date: string | null } | null>(null);
