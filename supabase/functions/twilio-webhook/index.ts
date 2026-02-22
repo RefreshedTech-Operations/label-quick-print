@@ -27,16 +27,25 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
+    // Try to auto-match customer by phone number
+    const { data: matchedCustomer } = await adminClient
+      .from("customers")
+      .select("id")
+      .eq("phone_number", from)
+      .maybeSingle();
+
     // Upsert conversation by phone number
+    const upsertData: Record<string, unknown> = {
+      phone_number: from,
+      last_message_at: new Date().toISOString(),
+    };
+    if (matchedCustomer) {
+      upsertData.customer_id = matchedCustomer.id;
+    }
+
     const { data: conversation, error: convError } = await adminClient
       .from("sms_conversations")
-      .upsert(
-        {
-          phone_number: from,
-          last_message_at: new Date().toISOString(),
-        },
-        { onConflict: "phone_number" }
-      )
+      .upsert(upsertData, { onConflict: "phone_number" })
       .select("id")
       .single();
 
