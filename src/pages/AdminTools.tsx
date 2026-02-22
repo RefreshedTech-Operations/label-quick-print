@@ -453,11 +453,14 @@ export default function AdminTools() {
               const isDisabled = profile.disabled;
 
               return (
-                <div key={profile.id} className="border rounded-lg">
+                <div key={profile.id} className={`border rounded-lg ${isDisabled ? 'opacity-60' : ''}`}>
                   <div className="p-3 flex items-center gap-3">
                     {/* Email & date */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{profile.email}</p>
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium truncate text-sm ${isDisabled ? 'line-through' : ''}`}>{profile.email}</p>
+                        {isDisabled && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">disabled</Badge>}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Joined {new Date(profile.created_at).toLocaleDateString()}
                       </p>
