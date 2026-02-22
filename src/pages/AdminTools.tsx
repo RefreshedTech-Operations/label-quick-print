@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, UserPlus, X, Archive, Loader2, KeyRound, Eye, EyeOff, ChevronDown, ChevronRight, Plus, Ban, CheckCircle, Package2, GripVertical } from 'lucide-react';
+import { Shield, UserPlus, X, Archive, Loader2, KeyRound, Eye, EyeOff, ChevronDown, ChevronRight, Plus, Ban, CheckCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { ALL_PAGES, computeAllowedPages } from '@/lib/pagePermissions';
@@ -40,10 +40,6 @@ export default function AdminTools() {
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [showDisabled, setShowDisabled] = useState(false);
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
-
-  // Pack stations state
-  const [packStations, setPackStations] = useState<{ id: string; name: string; is_active: boolean; sort_order: number }[]>([]);
-  const [newStationName, setNewStationName] = useState('');
 
   // Archive state
   const [archiveStats, setArchiveStats] = useState<{ active_count: number; archived_count: number; oldest_active_date: string | null; newest_archived_date: string | null } | null>(null);
@@ -98,46 +94,8 @@ export default function AdminTools() {
       loadArchiveStats();
       loadPagePermissions();
       loadRoleDefaults();
-      loadPackStations();
     }
   }, [isAdmin]);
-
-  const loadPackStations = async () => {
-    const { data } = await supabase
-      .from('pack_stations')
-      .select('*')
-      .order('sort_order');
-    setPackStations(data || []);
-  };
-
-  const addPackStation = async () => {
-    const name = newStationName.trim();
-    if (!name) return;
-    const maxOrder = packStations.length > 0 ? Math.max(...packStations.map(s => s.sort_order)) + 1 : 0;
-    const { error } = await supabase.from('pack_stations').insert({ name, sort_order: maxOrder });
-    if (error) {
-      if (error.code === '23505') toast.error('Station name already exists');
-      else toast.error('Failed to add station');
-      return;
-    }
-    toast.success(`Station "${name}" added`);
-    setNewStationName('');
-    loadPackStations();
-  };
-
-  const toggleStationActive = async (id: string, currentActive: boolean) => {
-    await supabase.from('pack_stations').update({ is_active: !currentActive }).eq('id', id);
-    loadPackStations();
-  };
-
-  const deletePackStation = async (id: string) => {
-    const { error } = await supabase.from('pack_stations').delete().eq('id', id);
-    if (error) {
-      toast.error('Failed to delete station', { description: error.message });
-      return;
-    }
-    loadPackStations();
-  };
 
   const loadRoleDefaults = async () => {
     const { data } = await supabase.from('role_page_defaults').select('*');
@@ -840,67 +798,6 @@ export default function AdminTools() {
                   Archive Old Orders
                 </Button>
               )}
-            </CardContent>
-          </Card>
-          {/* Pack Stations */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package2 className="h-5 w-5" />
-                Pack Stations
-              </CardTitle>
-              <CardDescription>Manage packing stations used on the Pack page</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="New station name"
-                  value={newStationName}
-                  onChange={(e) => setNewStationName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addPackStation()}
-                  className="max-w-xs"
-                />
-                <Button onClick={addPackStation} disabled={!newStationName.trim()} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-              </div>
-              <div className="space-y-1">
-                {packStations.map((station) => (
-                  <div
-                    key={station.id}
-                    className={`flex items-center justify-between p-2 rounded border text-sm ${!station.is_active ? 'opacity-50' : ''}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{station.name}</span>
-                      {!station.is_active && <Badge variant="outline" className="text-[10px]">inactive</Badge>}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        title={station.is_active ? 'Deactivate' : 'Activate'}
-                        onClick={() => toggleStationActive(station.id, station.is_active)}
-                      >
-                        {station.is_active ? <Ban className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        title="Delete station"
-                        onClick={() => deletePackStation(station.id)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {packStations.length === 0 && (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No pack stations configured yet</p>
-                )}
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
