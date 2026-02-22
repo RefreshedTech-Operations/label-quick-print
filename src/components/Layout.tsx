@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, MessageSquare, Users } from 'lucide-react';
+import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, MessageSquare, Users, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -14,6 +14,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [hasMessagingRole, setHasMessagingRole] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -21,11 +22,12 @@ export default function Layout({ children }: LayoutProps) {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role: 'messaging' as any,
-        });
-        setHasMessagingRole(!!data);
+        const [{ data: msgData }, { data: adminData }] = await Promise.all([
+          supabase.rpc('has_role', { _user_id: user.id, _role: 'messaging' as any }),
+          supabase.rpc('has_role', { _user_id: user.id, _role: 'admin' as any }),
+        ]);
+        setHasMessagingRole(!!msgData);
+        setIsAdmin(!!adminData);
       }
     })();
   }, []);
@@ -83,6 +85,12 @@ export default function Layout({ children }: LayoutProps) {
                     <Link to="/customers"><Users className="h-4 w-4" />Customers</Link>
                   </Button>
                 </>
+              )}
+
+              {isAdmin && (
+                <Button variant={isActive('/admin') ? 'default' : 'ghost'} asChild className="gap-2">
+                  <Link to="/admin"><Shield className="h-4 w-4" />Admin</Link>
+                </Button>
               )}
 
               <Button variant={isActive('/settings') ? 'default' : 'ghost'} asChild className="gap-2">
