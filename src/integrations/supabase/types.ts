@@ -128,6 +128,36 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone_number?: string | null
+        }
+        Relationships: []
+      }
       kit_devices: {
         Row: {
           created_at: string | null
@@ -444,6 +474,82 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_conversations: {
+        Row: {
+          contact_name: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          last_message_at: string | null
+          phone_number: string
+        }
+        Insert: {
+          contact_name?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          phone_number: string
+        }
+        Update: {
+          contact_name?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          phone_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_conversations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_messages: {
+        Row: {
+          body: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          id: string
+          sent_by_user_id: string | null
+          status: string
+          twilio_sid: string | null
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          id?: string
+          sent_by_user_id?: string | null
+          status?: string
+          twilio_sid?: string | null
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          sent_by_user_id?: string | null
+          status?: string
+          twilio_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "sms_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -758,7 +864,7 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "messaging"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -886,7 +992,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "messaging"],
     },
   },
 } as const
