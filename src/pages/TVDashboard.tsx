@@ -147,29 +147,6 @@ export default function TVDashboard() {
         </Card>
       </div>
 
-      {/* Compact Stats Strip */}
-      <div className="flex gap-4 mb-6 flex-wrap">
-        <Badge variant="secondary" className="text-base px-4 py-2 gap-2">
-          <Zap className="h-4 w-4" />
-          Peak Hour: {data.peak_hour ? formatHour(data.peak_hour.hour) : 'N/A'}
-          {data.peak_hour ? ` (${data.peak_hour.count} labels)` : ''}
-        </Badge>
-        <Badge variant="secondary" className="text-base px-4 py-2 gap-2">
-          <Package className="h-4 w-4" />
-          Unprinted: {data.unprinted_count.toLocaleString()}
-        </Badge>
-        <Badge variant="secondary" className="text-base px-4 py-2 gap-2">
-          <Clock className="h-4 w-4" />
-          Last Print: {timeSinceLastPrint}
-          {isActive && (
-            <span className="inline-flex items-center gap-1 ml-1 text-success">
-              <span className="h-2 w-2 rounded-full bg-success animate-pulse inline-block" />
-              Active
-            </span>
-          )}
-        </Badge>
-      </div>
-
       {/* Chart + Leaderboard Row */}
       <div className="grid grid-cols-5 gap-6">
         {/* Chart - 3/5 width */}
