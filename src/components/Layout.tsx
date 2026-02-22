@@ -14,6 +14,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [hasMessagingRole, setHasMessagingRole] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -21,11 +22,12 @@ export default function Layout({ children }: LayoutProps) {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role: 'messaging' as any,
-        });
-        setHasMessagingRole(!!data);
+        const [{ data: msgData }, { data: adminData }] = await Promise.all([
+          supabase.rpc('has_role', { _user_id: user.id, _role: 'messaging' as any }),
+          supabase.rpc('has_role', { _user_id: user.id, _role: 'admin' as any }),
+        ]);
+        setHasMessagingRole(!!msgData);
+        setIsAdmin(!!adminData);
       }
     })();
   }, []);
