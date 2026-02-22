@@ -35,7 +35,7 @@ const App = () => (
             <Route path="/upload" element={<Layout><Upload /></Layout>} />
             <Route path="/orders" element={<Layout><Orders /></Layout>} />
             <Route path="/print-jobs" element={<Layout><PrintJobs /></Layout>} />
-            <Route path="/batches" element={<Layout><BatchManagement /></Layout>} />
+            <Route path="/pack" element={<Layout><Pack /></Layout>} />
             <Route path="/tv-dashboard" element={<TVDashboard />} />
             <Route path="/analytics" element={<Layout><Analytics /></Layout>} />
             <Route path="/settings" element={<Layout><Settings /></Layout>} />
