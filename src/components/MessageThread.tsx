@@ -44,7 +44,12 @@ export default function MessageThread({
   onSend,
   loading,
   phoneNumber,
+  customerId,
+  customerName,
+  customers = [],
+  onLinkCustomer,
 }: MessageThreadProps) {
+  const [showLinkSelector, setShowLinkSelector] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
