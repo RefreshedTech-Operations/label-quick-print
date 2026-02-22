@@ -36,25 +36,25 @@ export function useTVDashboardData(targetDate?: Date, refreshInterval = 30000) {
 
       if (error) throw error;
       
-      // Parse the jsonb response
       if (!data) throw new Error('No data returned');
       
-      // Cast to any first to work around jsonb type
       const result = data as any;
       
       return {
-        total_printed: Number(result.total_printed),
-        daily_goal: Number(result.daily_goal),
-        hourly_breakdown: result.hourly_breakdown as HourlyData[],
-        last_hour_count: Number(result.last_hour_count),
-        unprinted_count: Number(result.unprinted_count),
-        avg_per_hour: Number(result.avg_per_hour),
-        peak_hour: result.peak_hour as PeakHourData,
+        total_printed: Number(result.total_printed ?? 0),
+        daily_goal: Number(result.daily_goal ?? 1000),
+        hourly_breakdown: (result.hourly_breakdown as HourlyData[]) ?? [],
+        last_hour_count: Number(result.last_hour_count ?? 0),
+        unprinted_count: Number(result.unprinted_count ?? 0),
+        avg_per_hour: Number(result.avg_per_hour ?? 0),
+        peak_hour: result.peak_hour as PeakHourData | null,
         last_print_time: result.last_print_time as string | null,
-        goal_percentage: Number(result.goal_percentage),
+        goal_percentage: Number(result.goal_percentage ?? 0),
       } as TVDashboardData;
     },
     refetchInterval: refreshInterval,
     refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });
 }
