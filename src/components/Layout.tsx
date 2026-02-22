@@ -24,7 +24,7 @@ interface LayoutProps {
 }
 
 const NAV_ITEMS = [
-  { title: 'Scan', url: '/', icon: Package, group: 'Operations' },
+  { title: 'Label', url: '/', icon: Package, group: 'Operations' },
   { title: 'Upload', url: '/upload', icon: Upload, group: 'Operations' },
   { title: 'All Orders', url: '/orders', icon: List, group: 'Operations' },
   { title: 'Print Jobs', url: '/print-jobs', icon: Printer, group: 'Operations' },
