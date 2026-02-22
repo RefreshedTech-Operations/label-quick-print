@@ -88,17 +88,25 @@ export default function Pack() {
     return trimmed;
   };
 
-  const processTracking = async (rawInput: string) => {
-    if (!rawInput.trim()) return;
+  const flashStatus = (status: 'success' | 'error') => {
+    setScanStatus(status);
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    statusTimeoutRef.current = setTimeout(() => setScanStatus('idle'), 2000);
+  };
+
+  const processTracking = async (rawInput: string): Promise<'success' | 'error'> => {
+    if (!rawInput.trim()) return 'error';
 
     if (!selectedStation) {
       toast.error('Please select a packing station first');
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     if (!userId) {
       toast.error('Not authenticated');
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     const tracking = stripPrefix(rawInput);
@@ -112,12 +120,14 @@ export default function Pack() {
 
     if (error) {
       toast.error('Failed to look up order', { description: error.message });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     if (!shipments || shipments.length === 0) {
       toast.error('Order not found', { description: `No order found for tracking: ${tracking}` });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     const shipment = shipments[0];
@@ -135,7 +145,8 @@ export default function Pack() {
       toast.warning('Already packed', {
         description: `Packed by ${packedByEmail} at ${shipment.packed_at ? new Date(shipment.packed_at).toLocaleString() : 'unknown time'}`,
       });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     const now = new Date().toISOString();
@@ -151,12 +162,15 @@ export default function Pack() {
 
     if (updateError) {
       toast.error('Failed to mark as packed', { description: updateError.message });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     toast.success('Packed!', {
       description: `${shipment.buyer} — ${shipment.product_name}`,
     });
+
+    flashStatus('success');
 
     setRecentPacks(prev => [{
       tracking: shipment.tracking || tracking,
@@ -165,6 +179,8 @@ export default function Pack() {
       order_id: shipment.order_id,
       packed_at: now,
     }, ...prev]);
+
+    return 'success';
   };
 
   const { ref: cameraRef } = useZxing({
