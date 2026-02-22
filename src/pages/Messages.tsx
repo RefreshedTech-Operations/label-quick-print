@@ -56,12 +56,13 @@ export default function Messages() {
   };
 
   const loadCustomers = async () => {
-    const { data } = await supabase
-      .from('shipments')
-      .select('buyer')
-      .not('buyer', 'is', null);
-    // Deduplicate buyers and map to customer-like objects
-    const unique = [...new Set((data || []).map((s) => s.buyer).filter(Boolean))].sort();
+    // Fetch buyers from both active and archived shipments
+    const [{ data: active }, { data: archived }] = await Promise.all([
+      supabase.from('shipments').select('buyer').not('buyer', 'is', null),
+      supabase.from('shipments_archive').select('buyer').not('buyer', 'is', null),
+    ]);
+    const allBuyers = [...(active || []), ...(archived || [])].map((s) => s.buyer).filter(Boolean);
+    const unique = [...new Set(allBuyers)].sort();
     setCustomers(unique.map((name) => ({ id: name, name, phone_number: null })));
   };
 
