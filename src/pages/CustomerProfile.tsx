@@ -41,11 +41,6 @@ export default function CustomerProfile() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate('/auth'); return; }
-      const { data: hasRole } = await supabase.rpc('has_role', {
-        _user_id: user.id,
-        _role: 'messaging' as any,
-      });
-      if (!hasRole) { toast.error('Messaging role required'); navigate('/'); return; }
       setAuthorized(true);
       loadCustomer();
     })();

@@ -47,15 +47,6 @@ export default function Messages() {
         navigate('/auth');
         return;
       }
-      const { data: hasRole } = await supabase.rpc('has_role', {
-        _user_id: user.id,
-        _role: 'messaging' as any,
-      });
-      if (!hasRole) {
-        toast.error('You need the messaging role to access this page');
-        navigate('/');
-        return;
-      }
       setAuthorized(true);
       loadConversations();
       loadCustomers();
