@@ -1,7 +1,7 @@
 // Default page access per role
 // Pages not listed here are accessible to everyone with any role
 export const ALL_PAGES = [
-  { path: '/', label: 'Scan', group: 'Operations' },
+  { path: '/', label: 'Label', group: 'Operations' },
   { path: '/upload', label: 'Upload', group: 'Operations' },
   { path: '/orders', label: 'All Orders', group: 'Operations' },
   { path: '/print-jobs', label: 'Print Jobs', group: 'Operations' },
