@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import BatchManagement from "./pages/BatchManagement";
 import AdminTools from "./pages/AdminTools";
 import TVDashboard from "./pages/TVDashboard";
+import Analytics from "./pages/Analytics";
 import Messages from "./pages/Messages";
 import Customers from "./pages/Customers";
 import CustomerProfile from "./pages/CustomerProfile";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/print-jobs" element={<Layout><PrintJobs /></Layout>} />
             <Route path="/batches" element={<Layout><BatchManagement /></Layout>} />
             <Route path="/tv-dashboard" element={<TVDashboard />} />
+            <Route path="/analytics" element={<Layout><Analytics /></Layout>} />
             <Route path="/settings" element={<Layout><Settings /></Layout>} />
             <Route path="/admin" element={<Layout><AdminTools /></Layout>} />
             <Route path="/messages" element={<Layout><Messages /></Layout>} />

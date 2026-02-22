@@ -1,22 +1,14 @@
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { X, Activity, Target, Package, CalendarIcon } from 'lucide-react';
+import { X, Activity, Target, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTVDashboardData } from '@/hooks/useTVDashboardData';
 import { Progress } from '@/components/ui/progress';
 import { PrinterLeaderboard } from '@/components/tv-dashboard/PrinterLeaderboard';
-import { format, isToday } from 'date-fns';
-
-import { cn } from '@/lib/utils';
 
 export default function TVDashboard() {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const isViewingToday = isToday(selectedDate);
-  const { data, isLoading } = useTVDashboardData(selectedDate, isViewingToday ? 30000 : 0);
+  const { data, isLoading } = useTVDashboardData(new Date(), 30000);
 
   if (isLoading || !data) {
     return (
@@ -31,43 +23,13 @@ export default function TVDashboard() {
     ? Math.round(data.avg_per_hour * 10)
     : data.total_printed;
 
-  const isActive = isViewingToday && data.last_hour_count > 0;
+  const isActive = data.last_hour_count > 0;
 
   return (
     <div className="min-h-screen bg-background p-6 overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-5xl font-bold text-foreground">Label Printing Dashboard</h1>
-          <div className="flex items-center gap-4 mt-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="lg" className="text-xl gap-2">
-                  <CalendarIcon className="h-5 w-5" />
-                  {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-                  {!isViewingToday && (
-                    <span className="text-sm text-muted-foreground ml-1">(historical)</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  disabled={(date) => date > new Date()}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-            {!isViewingToday && (
-              <Button variant="secondary" size="lg" onClick={() => setSelectedDate(new Date())}>
-                Back to Today
-              </Button>
-            )}
-          </div>
-        </div>
+        <h1 className="text-5xl font-bold text-foreground">Label Printing Dashboard</h1>
         <Button variant="outline" size="lg" onClick={() => navigate('/')} className="gap-2">
           <X className="h-5 w-5" />
           Exit
@@ -75,13 +37,13 @@ export default function TVDashboard() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className={cn("grid gap-6 mb-4", isViewingToday ? "grid-cols-2" : "grid-cols-1")}>
-        {/* Labels Printed (+ Unprinted only for today) */}
+      <div className="grid gap-6 mb-4 grid-cols-2">
+        {/* Labels Printed + Unprinted */}
         <Card className="border-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-xl text-muted-foreground flex items-center gap-2">
               <Package className="h-5 w-5" />
-              Labels {isViewingToday ? 'Today' : format(selectedDate, 'MMM d')}
+              Labels Today
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -92,17 +54,13 @@ export default function TVDashboard() {
                 </div>
                 <p className="text-lg text-muted-foreground mt-1">printed</p>
               </div>
-              {isViewingToday && (
-                <>
-                  <div className="text-3xl text-muted-foreground font-light">/</div>
-                  <div>
-                    <div className="text-6xl font-bold text-muted-foreground">
-                      {data.unprinted_count.toLocaleString()}
-                    </div>
-                    <p className="text-lg text-muted-foreground mt-1">unprinted</p>
-                  </div>
-                </>
-              )}
+              <div className="text-3xl text-muted-foreground font-light">/</div>
+              <div>
+                <div className="text-6xl font-bold text-muted-foreground">
+                  {data.unprinted_count.toLocaleString()}
+                </div>
+                <p className="text-lg text-muted-foreground mt-1">unprinted</p>
+              </div>
             </div>
             {isActive && (
               <div className="mt-3 flex items-center gap-2 text-success">
@@ -113,42 +71,40 @@ export default function TVDashboard() {
           </CardContent>
         </Card>
 
-        {/* Daily Goal + Projected (today only) */}
-        {isViewingToday && (
-          <Card className="border-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl text-muted-foreground flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Daily Goal
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-6">
-                <div>
-                  <div className="text-6xl font-bold" style={{ 
-                    color: goalPercentage >= 100 ? 'hsl(var(--success))' : 
-                           goalPercentage >= 75 ? 'hsl(var(--primary))' : 
-                           'hsl(var(--warning))'
-                  }}>
-                    {goalPercentage.toFixed(0)}%
-                  </div>
-                  <p className="text-lg text-muted-foreground mt-1">
-                    {data.total_printed} / {data.daily_goal.toLocaleString()}
-                  </p>
+        {/* Daily Goal + Projected */}
+        <Card className="border-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl text-muted-foreground flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Daily Goal
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-6">
+              <div>
+                <div className="text-6xl font-bold" style={{ 
+                  color: goalPercentage >= 100 ? 'hsl(var(--success))' : 
+                         goalPercentage >= 75 ? 'hsl(var(--primary))' : 
+                         'hsl(var(--warning))'
+                }}>
+                  {goalPercentage.toFixed(0)}%
                 </div>
-                <div className="border-l border-border pl-6">
-                  <div className="text-4xl font-bold text-foreground">
-                    {projectedTotal.toLocaleString()}
-                  </div>
-                  <p className="text-lg text-muted-foreground mt-1">
-                    projected {projectedTotal >= data.daily_goal ? '🎉' : `(${data.daily_goal - projectedTotal} short)`}
-                  </p>
-                </div>
+                <p className="text-lg text-muted-foreground mt-1">
+                  {data.total_printed} / {data.daily_goal.toLocaleString()}
+                </p>
               </div>
-              <Progress value={goalPercentage} className="mt-4 h-3" />
-            </CardContent>
-          </Card>
-        )}
+              <div className="border-l border-border pl-6">
+                <div className="text-4xl font-bold text-foreground">
+                  {projectedTotal.toLocaleString()}
+                </div>
+                <p className="text-lg text-muted-foreground mt-1">
+                  projected {projectedTotal >= data.daily_goal ? '🎉' : `(${data.daily_goal - projectedTotal} short)`}
+                </p>
+              </div>
+            </div>
+            <Progress value={goalPercentage} className="mt-4 h-3" />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Leaderboard */}
