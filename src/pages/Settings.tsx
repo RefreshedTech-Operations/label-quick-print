@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { BundleLocationsTab } from '@/components/BundleLocationsTab';
 import { KitDevicesTab } from '@/components/KitDevicesTab';
+import { PackStationsTab } from '@/components/PackStationsTab';
 
 interface ProcessResult {
   successful: string[];
