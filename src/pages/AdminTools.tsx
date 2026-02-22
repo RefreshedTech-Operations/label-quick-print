@@ -30,7 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const AVAILABLE_ROLES = ['admin', 'moderator', 'user', 'messaging'] as const;
+// No hardcoded roles — derived dynamically from DB
 
 export default function AdminTools() {
   const [user, setUser] = useState<any>(null);
