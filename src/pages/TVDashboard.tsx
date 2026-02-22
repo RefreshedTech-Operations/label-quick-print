@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { X, Activity, Target, Package, Zap } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { X, Activity, Target, Package, CalendarIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTVDashboardData } from '@/hooks/useTVDashboardData';
 import { Progress } from '@/components/ui/progress';
 import { PrinterLeaderboard } from '@/components/tv-dashboard/PrinterLeaderboard';
-import { formatDistanceToNow, format } from 'date-fns';
+import { format, isToday } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
+import { cn } from '@/lib/utils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -22,7 +25,9 @@ export default function TVDashboard() {
   const navigate = useNavigate();
   const EST_TIMEZONE = 'America/New_York';
   const [currentTime, setCurrentTime] = useState(() => toZonedTime(new Date(), EST_TIMEZONE));
-  const { data, isLoading } = useTVDashboardData(undefined, 30000);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const isViewingToday = isToday(selectedDate);
+  const { data, isLoading } = useTVDashboardData(selectedDate, isViewingToday ? 30000 : 0);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -43,12 +48,8 @@ export default function TVDashboard() {
   const projectedTotal = data.avg_per_hour > 0 
     ? Math.round(data.avg_per_hour * 10)
     : data.total_printed;
-  
-  const timeSinceLastPrint = data.last_print_time
-    ? formatDistanceToNow(new Date(data.last_print_time), { addSuffix: true })
-    : 'No prints yet';
 
-  const isActive = data.last_hour_count > 0;
+  const isActive = isViewingToday && data.last_hour_count > 0;
 
   const chartData = data.hourly_breakdown.map(h => ({
     hour: h.hour,
@@ -62,12 +63,37 @@ export default function TVDashboard() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-5xl font-bold text-foreground">Label Printing Dashboard</h1>
-          <p className="text-2xl text-muted-foreground mt-2">
-            {format(currentTime, 'EEEE, MMMM d, yyyy')}
-            {' • '}
-            {format(currentTime, 'hh:mm:ss a')}
-            {' EST'}
-          </p>
+          <div className="flex items-center gap-4 mt-2">
+            <p className="text-2xl text-muted-foreground">
+              {format(currentTime, 'hh:mm:ss a')} EST
+            </p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="lg" className="text-xl gap-2">
+                  <CalendarIcon className="h-5 w-5" />
+                  {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+                  {!isViewingToday && (
+                    <span className="text-sm text-muted-foreground ml-1">(historical)</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => date && setSelectedDate(date)}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            {!isViewingToday && (
+              <Button variant="secondary" size="lg" onClick={() => setSelectedDate(new Date())}>
+                Back to Today
+              </Button>
+            )}
+          </div>
         </div>
         <Button variant="outline" size="lg" onClick={() => navigate('/')} className="gap-2">
           <X className="h-5 w-5" />
@@ -76,13 +102,13 @@ export default function TVDashboard() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 gap-6 mb-4">
-        {/* Labels Printed + Unprinted */}
+      <div className={cn("grid gap-6 mb-4", isViewingToday ? "grid-cols-2" : "grid-cols-1")}>
+        {/* Labels Printed (+ Unprinted only for today) */}
         <Card className="border-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-xl text-muted-foreground flex items-center gap-2">
               <Package className="h-5 w-5" />
-              Labels Today
+              Labels {isViewingToday ? 'Today' : format(selectedDate, 'MMM d')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -93,13 +119,17 @@ export default function TVDashboard() {
                 </div>
                 <p className="text-lg text-muted-foreground mt-1">printed</p>
               </div>
-              <div className="text-3xl text-muted-foreground font-light">/</div>
-              <div>
-                <div className="text-6xl font-bold text-muted-foreground">
-                  {data.unprinted_count.toLocaleString()}
-                </div>
-                <p className="text-lg text-muted-foreground mt-1">unprinted</p>
-              </div>
+              {isViewingToday && (
+                <>
+                  <div className="text-3xl text-muted-foreground font-light">/</div>
+                  <div>
+                    <div className="text-6xl font-bold text-muted-foreground">
+                      {data.unprinted_count.toLocaleString()}
+                    </div>
+                    <p className="text-lg text-muted-foreground mt-1">unprinted</p>
+                  </div>
+                </>
+              )}
             </div>
             {isActive && (
               <div className="mt-3 flex items-center gap-2 text-success">
@@ -110,45 +140,46 @@ export default function TVDashboard() {
           </CardContent>
         </Card>
 
-        {/* Daily Goal + Projected */}
-        <Card className="border-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xl text-muted-foreground flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              Daily Goal
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-6">
-              <div>
-                <div className="text-6xl font-bold" style={{ 
-                  color: goalPercentage >= 100 ? 'hsl(var(--success))' : 
-                         goalPercentage >= 75 ? 'hsl(var(--primary))' : 
-                         'hsl(var(--warning))'
-                }}>
-                  {goalPercentage.toFixed(0)}%
+        {/* Daily Goal + Projected (today only) */}
+        {isViewingToday && (
+          <Card className="border-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl text-muted-foreground flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Daily Goal
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline gap-6">
+                <div>
+                  <div className="text-6xl font-bold" style={{ 
+                    color: goalPercentage >= 100 ? 'hsl(var(--success))' : 
+                           goalPercentage >= 75 ? 'hsl(var(--primary))' : 
+                           'hsl(var(--warning))'
+                  }}>
+                    {goalPercentage.toFixed(0)}%
+                  </div>
+                  <p className="text-lg text-muted-foreground mt-1">
+                    {data.total_printed} / {data.daily_goal.toLocaleString()}
+                  </p>
                 </div>
-                <p className="text-lg text-muted-foreground mt-1">
-                  {data.total_printed} / {data.daily_goal.toLocaleString()}
-                </p>
-              </div>
-              <div className="border-l border-border pl-6">
-                <div className="text-4xl font-bold text-foreground">
-                  {projectedTotal.toLocaleString()}
+                <div className="border-l border-border pl-6">
+                  <div className="text-4xl font-bold text-foreground">
+                    {projectedTotal.toLocaleString()}
+                  </div>
+                  <p className="text-lg text-muted-foreground mt-1">
+                    projected {projectedTotal >= data.daily_goal ? '🎉' : `(${data.daily_goal - projectedTotal} short)`}
+                  </p>
                 </div>
-                <p className="text-lg text-muted-foreground mt-1">
-                  projected {projectedTotal >= data.daily_goal ? '🎉' : `(${data.daily_goal - projectedTotal} short)`}
-                </p>
               </div>
-            </div>
-            <Progress value={goalPercentage} className="mt-4 h-3" />
-          </CardContent>
-        </Card>
+              <Progress value={goalPercentage} className="mt-4 h-3" />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Chart + Leaderboard Row */}
       <div className="grid grid-cols-5 gap-6">
-        {/* Chart - 3/5 width */}
         <Card className="border-2 col-span-3">
           <CardHeader>
             <CardTitle className="text-3xl">Hourly Print Rate</CardTitle>
@@ -172,7 +203,6 @@ export default function TVDashboard() {
           </CardContent>
         </Card>
 
-        {/* Leaderboard - 2/5 width */}
         <div className="col-span-2">
           <PrinterLeaderboard leaderboard={data.printer_leaderboard} />
         </div>
