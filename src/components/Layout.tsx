@@ -5,6 +5,18 @@ import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, Me
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 
 interface LayoutProps {
   children: ReactNode;
@@ -41,74 +53,103 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
+  const operationsItems = [
+    { title: 'Scan', url: '/', icon: Package },
+    { title: 'Upload', url: '/upload', icon: Upload },
+    { title: 'All Orders', url: '/orders', icon: List },
+    { title: 'Print Jobs', url: '/print-jobs', icon: Printer },
+    { title: 'Batches', url: '/batches', icon: Package2 },
+  ];
+
+  const monitoringItems = [
+    { title: 'TV Dashboard', url: '/tv-dashboard', icon: Monitor },
+  ];
+
+  const communicationItems = [
+    { title: 'Messages', url: '/messages', icon: MessageSquare },
+    { title: 'Customers', url: '/customers', icon: Users },
+  ];
+
+  const systemItems = [
+    { title: 'Settings', url: '/settings', icon: Settings },
+    ...(isAdmin ? [{ title: 'Admin', url: '/admin', icon: Shield }] : []),
+  ];
+
+  const renderMenuItems = (items: { title: string; url: string; icon: any }[]) =>
+    items.map((item) => (
+      <SidebarMenuItem key={item.title}>
+        <SidebarMenuButton
+          asChild
+          isActive={item.url === '/' ? isActive('/') : location.pathname.startsWith(item.url)}
+          tooltip={item.title}
+        >
+          <Link to={item.url}>
+            <item.icon className="h-4 w-4" />
+            <span>{item.title}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    ));
+
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-2">
-              <Package className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold text-foreground">whatnot-labels</span>
-            </Link>
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <Sidebar collapsible="icon">
+          <SidebarContent className="pt-2">
+            <SidebarGroup>
+              <SidebarGroupLabel>Operations</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>{renderMenuItems(operationsItems)}</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
 
-            <nav className="flex items-center gap-2">
-              <Button variant={isActive('/') ? 'default' : 'ghost'} asChild className="gap-2">
-                <Link to="/"><Package className="h-4 w-4" />Scan</Link>
-              </Button>
-              
-              <Button variant={isActive('/upload') ? 'default' : 'ghost'} asChild className="gap-2">
-                <Link to="/upload"><Upload className="h-4 w-4" />Upload</Link>
-              </Button>
+            <SidebarGroup>
+              <SidebarGroupLabel>Monitoring</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>{renderMenuItems(monitoringItems)}</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
 
-              <Button variant={isActive('/orders') ? 'default' : 'ghost'} asChild className="gap-2">
-                <Link to="/orders"><List className="h-4 w-4" />All Orders</Link>
-              </Button>
+            {hasMessagingRole && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Communication</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>{renderMenuItems(communicationItems)}</SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
 
-              <Button variant={isActive('/print-jobs') ? 'default' : 'ghost'} asChild className="gap-2">
-                <Link to="/print-jobs"><Printer className="h-4 w-4" />Print Jobs</Link>
-              </Button>
+            <SidebarGroup>
+              <SidebarGroupLabel>System</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>{renderMenuItems(systemItems)}</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+        </Sidebar>
 
-              <Button variant={isActive('/batches') ? 'default' : 'ghost'} asChild className="gap-2">
-                <Link to="/batches"><Package2 className="h-4 w-4" />Batches</Link>
-              </Button>
-
-              <Button variant={isActive('/tv-dashboard') ? 'default' : 'ghost'} asChild className="gap-2">
-                <Link to="/tv-dashboard"><Monitor className="h-4 w-4" />TV Dashboard</Link>
-              </Button>
-
-              {hasMessagingRole && (
-                <>
-                  <Button variant={isActive('/messages') ? 'default' : 'ghost'} asChild className="gap-2">
-                    <Link to="/messages"><MessageSquare className="h-4 w-4" />Messages</Link>
-                  </Button>
-                  <Button variant={isActive('/customers') || location.pathname.startsWith('/customers/') ? 'default' : 'ghost'} asChild className="gap-2">
-                    <Link to="/customers"><Users className="h-4 w-4" />Customers</Link>
-                  </Button>
-                </>
-              )}
-
-              {isAdmin && (
-                <Button variant={isActive('/admin') ? 'default' : 'ghost'} asChild className="gap-2">
-                  <Link to="/admin"><Shield className="h-4 w-4" />Admin</Link>
-                </Button>
-              )}
-
-              <Button variant={isActive('/settings') ? 'default' : 'ghost'} asChild className="gap-2">
-                <Link to="/settings"><Settings className="h-4 w-4" />Settings</Link>
-              </Button>
-
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="h-12 border-b bg-card flex items-center justify-between px-4 shrink-0">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger />
+              <Link to="/" className="flex items-center gap-2">
+                <Package className="h-6 w-6 text-primary" />
+                <span className="text-lg font-bold text-foreground">whatnot-labels</span>
+              </Link>
+            </div>
+            <div className="flex items-center gap-1">
               <ThemeToggle />
               <Button variant="ghost" size="icon" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" />
               </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+            </div>
+          </header>
 
-      <main className="flex-1 container mx-auto px-4 py-6">
-        {children}
-      </main>
-    </div>
+          <main className="flex-1 p-6 overflow-auto">
+            {children}
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }
