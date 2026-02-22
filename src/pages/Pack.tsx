@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useZxing } from 'react-zxing';
+import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 
 interface PackStation {
   id: string;
@@ -183,8 +184,18 @@ export default function Pack() {
     return 'success';
   };
 
+  const barcodeHints = new Map();
+  barcodeHints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.ITF,
+    BarcodeFormat.CODABAR,
+  ]);
+  barcodeHints.set(DecodeHintType.TRY_HARDER, true);
+
   const { ref: cameraRef } = useZxing({
     paused: !cameraMode || cooldownActive,
+    hints: barcodeHints,
     onDecodeResult(result) {
       const text = result.getText();
       if (cooldownActive || text === lastScannedTracking) return;
