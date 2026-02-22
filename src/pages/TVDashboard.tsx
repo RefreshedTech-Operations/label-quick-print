@@ -166,35 +166,8 @@ export default function TVDashboard() {
         )}
       </div>
 
-      {/* Chart + Leaderboard Row */}
-      <div className="grid grid-cols-5 gap-6">
-        <Card className="border-2 col-span-3">
-          <CardHeader>
-            <CardTitle className="text-3xl">Hourly Print Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="name" className="text-muted-foreground" style={{ fontSize: '14px' }} />
-                <YAxis className="text-muted-foreground" style={{ fontSize: '14px' }} />
-                <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', fontSize: '16px' }} />
-                <ReferenceLine 
-                  y={data.avg_per_hour} 
-                  stroke="hsl(var(--accent))" 
-                  strokeDasharray="3 3"
-                  label={{ value: `Avg: ${data.avg_per_hour.toFixed(1)}`, position: 'right', fill: 'hsl(var(--accent))', fontSize: 16 }}
-                />
-                <Bar dataKey="count" fill="hsl(var(--primary))" name="Labels Printed" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <div className="col-span-2">
-          <PrinterLeaderboard leaderboard={data.printer_leaderboard} />
-        </div>
-      </div>
+      {/* Leaderboard */}
+      <PrinterLeaderboard leaderboard={data.printer_leaderboard} />
     </div>
   );
 }
