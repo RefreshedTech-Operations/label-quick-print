@@ -525,6 +525,37 @@ export default function AdminTools() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className={`h-8 w-8 ${isDisabled ? 'text-green-600 hover:text-green-700' : 'text-destructive hover:text-destructive'}`}
+                        title={isDisabled ? 'Enable user' : 'Disable user'}
+                        disabled={togglingUser === profile.id}
+                        onClick={async () => {
+                          setTogglingUser(profile.id);
+                          try {
+                            const res = await supabase.functions.invoke('admin-users', {
+                              body: { action: isDisabled ? 'enable_user' : 'disable_user', user_id: profile.id },
+                            });
+                            if (res.error) throw new Error(res.error.message);
+                            if (res.data?.error) throw new Error(res.data.error);
+                            toast.success(isDisabled ? `${profile.email} enabled` : `${profile.email} disabled`);
+                            loadUsersAndRoles();
+                          } catch (error: any) {
+                            toast.error('Failed to update user', { description: error.message });
+                          } finally {
+                            setTogglingUser(null);
+                          }
+                        }}
+                      >
+                        {togglingUser === profile.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isDisabled ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          <Ban className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-8 w-8"
                         title="Reset password"
                         onClick={() => {
