@@ -5,13 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Loader2, Link2, Unlink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import CustomerCombobox from '@/components/CustomerCombobox';
 
 interface Message {
   id: string;
