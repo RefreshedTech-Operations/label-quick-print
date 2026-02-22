@@ -121,6 +121,20 @@ export default function Messages() {
 
   const selectedConv = conversations.find((c) => c.id === selectedId);
 
+  const handleLinkCustomer = async (customerId: string | null) => {
+    if (!selectedId) return;
+    const { error } = await supabase
+      .from('sms_conversations')
+      .update({ customer_id: customerId })
+      .eq('id', selectedId);
+    if (error) {
+      toast.error('Failed to update customer link');
+      return;
+    }
+    toast.success(customerId ? 'Customer linked' : 'Customer unlinked');
+    loadConversations();
+  };
+
   const handleSend = async (body: string) => {
     if (!selectedConv) return;
     const { error } = await supabase.functions.invoke('send-sms', {
@@ -154,12 +168,23 @@ export default function Messages() {
       return;
     }
 
+    // Auto-match customer by phone number if none selected
+    let resolvedCustomerId = selectedCustomerId !== 'none' ? selectedCustomerId : null;
+    if (!resolvedCustomerId) {
+      const matchedCustomer = customers.find(
+        (c) => c.phone_number === newPhone.trim()
+      );
+      if (matchedCustomer) {
+        resolvedCustomerId = matchedCustomer.id;
+      }
+    }
+
     const { data, error } = await supabase
       .from('sms_conversations')
       .insert({
         phone_number: newPhone.trim(),
         contact_name: newName.trim() || null,
-        customer_id: selectedCustomerId !== 'none' ? selectedCustomerId : null,
+        customer_id: resolvedCustomerId,
       })
       .select()
       .single();
@@ -196,6 +221,10 @@ export default function Messages() {
           onSend={handleSend}
           loading={loadingMsgs}
           phoneNumber={selectedConv?.phone_number}
+          customerId={selectedConv?.customer_id}
+          customerName={(selectedConv?.customers as any)?.name}
+          customers={customers}
+          onLinkCustomer={handleLinkCustomer}
         />
       </div>
 
