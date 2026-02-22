@@ -50,15 +50,16 @@ export default function Pack() {
     }
   }, [selectedStation]);
 
-  // Keep input focused
+  // Keep input focused (only in text mode)
   useEffect(() => {
+    if (cameraMode) return;
     const interval = setInterval(() => {
       if (inputRef.current && document.activeElement !== inputRef.current) {
         inputRef.current.focus();
       }
     }, 500);
     return () => clearInterval(interval);
-  }, []);
+  }, [cameraMode]);
 
   const loadUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
