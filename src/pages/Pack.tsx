@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useZxing } from 'react-zxing';
+import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 
 interface PackStation {
   id: string;
