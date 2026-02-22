@@ -1,60 +1,59 @@
 
+# TV Dashboard Simplification + New Analytics Page
 
-# TV Dashboard Redesign with User Leaderboard
+## Overview
 
-## What's Changing
+Two changes:
+1. **Simplify TV Dashboard** -- remove date picker, always show today's data with all metrics (printed, unprinted, goal, projected)
+2. **Create new Analytics/Reporting page** -- detailed KPI reporting with single-day or date-range picker, using the existing analytics infrastructure
 
-The dashboard will keep all its current stats but get a cleaner layout and a new **Printer Leaderboard** showing who printed the most labels today, ranked by count.
+---
 
-## New Layout
+## 1. Simplify TV Dashboard (`src/pages/TVDashboard.tsx`)
 
-The page will be reorganized into a more balanced 2-column layout for the bottom section:
+- Remove all date picker UI (Calendar, Popover, "Back to Today" button)
+- Remove `selectedDate` state -- always use today
+- Remove conditional rendering -- always show unprinted count, daily goal, and projected total
+- Always auto-refresh every 30 seconds
+- Clean up unused imports (`Calendar`, `Popover`, `CalendarIcon`, `isToday`, `format`, `cn`)
 
-- **Top**: Header with clock and exit button (same as now)
-- **KPI Row**: 4 cards across -- Labels Printed Today, Daily Goal %, Hourly Average, Projected Total (same data, slightly refined)
-- **Bottom Left (wider)**: Hourly Print Rate bar chart (same as now)
-- **Bottom Right**: Printer Leaderboard card -- ranked list of team members with their print count for today, showing a trophy icon for #1, medal colors for top 3, and a progress bar relative to the top printer
+---
 
-The 3 bottom stat cards (Peak Hour, Remaining Unprinted, Last Print) will be condensed into a slim horizontal strip between the KPI row and the chart/leaderboard section.
+## 2. New Analytics Page
+
+### New file: `src/pages/Analytics.tsx`
+
+A reporting page wrapped in the standard Layout with:
+
+- **Date controls**: Toggle between "Single Day" and "Date Range" mode
+  - Single Day: calendar date picker (defaults to today)
+  - Date Range: uses the existing `DateRangeFilter` component with presets (Last 7 days, Last 30 days, etc.)
+- **KPI Cards row**: Total Orders, Printed, Unprinted, Bundles, Cancelled, Print Jobs, Success Rate -- using the existing `KPICard` component
+- **Charts section**: 
+  - Daily Activity (`DailyActivityChart`)
+  - Status Breakdown (`StatusStackedBarChart`)
+  - Print Status Pie (`PrintStatusPieChart`)
+  - Printer Performance (`PrinterPerformanceChart`)
+  - Hourly Print Rate (`HourlyPrintRateChart`)
+- **Printer Leaderboard**: Reuses the existing `PrinterLeaderboard` component
+- Data fetched via the existing `useAnalyticsData` hook (which calls `get_all_analytics` or falls back to individual RPCs)
+
+### Route and Navigation
+
+- Add route `/analytics` in `App.tsx` wrapped in `<Layout>`
+- Add "Analytics" nav item in `Layout.tsx` under the "Monitoring" group with a `BarChart3` icon
+
+---
 
 ## Technical Details
 
-### 1. Database: Update `get_tv_dashboard_stats` function
+### Files to modify:
+- `src/pages/TVDashboard.tsx` -- strip date picker, simplify to today-only
+- `src/App.tsx` -- add `/analytics` route
+- `src/components/Layout.tsx` -- add Analytics nav item
 
-Add a `printer_leaderboard` field to the returned JSON. This will query `shipments` joined with `profiles` to get each user's email and print count for the target date:
+### Files to create:
+- `src/pages/Analytics.tsx` -- new reporting page
 
-```sql
--- New section in get_tv_dashboard_stats
-SELECT jsonb_agg(
-  jsonb_build_object(
-    'email', p.email,
-    'count', sub.cnt
-  ) ORDER BY sub.cnt DESC
-)
-FROM (
-  SELECT printed_by_user_id, COUNT(*) as cnt
-  FROM shipments
-  WHERE printed = true
-    AND DATE(printed_at AT TIME ZONE 'America/New_York') = target_date
-  GROUP BY printed_by_user_id
-) sub
-JOIN profiles p ON p.id = sub.printed_by_user_id
-```
-
-This adds a ranked list of printers to the existing RPC response with no extra round trips.
-
-### 2. Hook: Update `useTVDashboardData.ts`
-
-- Add `printer_leaderboard` to the `TVDashboardData` interface as `{ email: string; count: number }[]`
-- Parse it from the RPC result
-
-### 3. Frontend: Rewrite `TVDashboard.tsx`
-
-- Keep the same 4 KPI cards at top
-- Add a compact stats strip (Peak Hour, Unprinted, Last Print) as inline badges
-- Replace the full-width chart with a 2-column grid: chart on the left (~60%), leaderboard on the right (~40%)
-- Leaderboard shows ranked rows with:
-  - Position number (gold/silver/bronze styling for top 3)
-  - Username (extracted from email, before the @)
-  - Print count
-  - Horizontal progress bar relative to the top printer's count
+### No database changes needed
+The existing `get_all_analytics` RPC (with fallback queries) and `get_tv_dashboard_stats` RPC already support everything needed.
