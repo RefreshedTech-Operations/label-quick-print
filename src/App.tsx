@@ -10,7 +10,7 @@ import Upload from "./pages/Upload";
 import Orders from "./pages/Orders";
 import PrintJobs from "./pages/PrintJobs";
 import Settings from "./pages/Settings";
-import BatchManagement from "./pages/BatchManagement";
+import Pack from "./pages/Pack";
 import AdminTools from "./pages/AdminTools";
 import TVDashboard from "./pages/TVDashboard";
 import Analytics from "./pages/Analytics";
