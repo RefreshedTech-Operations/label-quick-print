@@ -231,9 +231,9 @@ export default function TVDashboard() {
               <div>
                 <p className="text-lg text-muted-foreground">Peak Hour</p>
                 <p className="text-4xl font-bold text-foreground">
-                  {formatHour(data.peak_hour.hour)}
+                  {data.peak_hour ? formatHour(data.peak_hour.hour) : 'N/A'}
                 </p>
-                <p className="text-lg text-muted-foreground">{data.peak_hour.count} labels</p>
+                <p className="text-lg text-muted-foreground">{data.peak_hour ? `${data.peak_hour.count} labels` : 'No prints yet'}</p>
               </div>
             </div>
           </CardContent>
