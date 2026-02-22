@@ -12,6 +12,11 @@ interface PeakHourData {
   count: number;
 }
 
+interface LeaderboardEntry {
+  email: string;
+  count: number;
+}
+
 export interface TVDashboardData {
   total_printed: number;
   daily_goal: number;
@@ -22,6 +27,7 @@ export interface TVDashboardData {
   peak_hour: PeakHourData;
   last_print_time: string | null;
   goal_percentage: number;
+  printer_leaderboard: LeaderboardEntry[];
 }
 
 export function useTVDashboardData(targetDate?: Date, refreshInterval = 30000) {
@@ -50,6 +56,7 @@ export function useTVDashboardData(targetDate?: Date, refreshInterval = 30000) {
         peak_hour: result.peak_hour as PeakHourData | null,
         last_print_time: result.last_print_time as string | null,
         goal_percentage: Number(result.goal_percentage ?? 0),
+        printer_leaderboard: (result.printer_leaderboard as LeaderboardEntry[]) ?? [],
       } as TVDashboardData;
     },
     refetchInterval: refreshInterval,
