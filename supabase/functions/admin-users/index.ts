@@ -138,6 +138,60 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "disable_user": {
+        const { user_id } = params;
+        if (!user_id) {
+          return new Response(
+            JSON.stringify({ error: "User ID is required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Ban user in auth
+        const { error: banError } = await adminClient.auth.admin.updateUserById(user_id, {
+          ban_duration: "876600h", // ~100 years
+        });
+        if (banError) throw banError;
+
+        // Mark disabled in profiles
+        const { error: profileError } = await adminClient
+          .from("profiles")
+          .update({ disabled: true })
+          .eq("id", user_id);
+        if (profileError) throw profileError;
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "enable_user": {
+        const { user_id } = params;
+        if (!user_id) {
+          return new Response(
+            JSON.stringify({ error: "User ID is required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Unban user
+        const { error: unbanError } = await adminClient.auth.admin.updateUserById(user_id, {
+          ban_duration: "none",
+        });
+        if (unbanError) throw unbanError;
+
+        // Mark enabled in profiles
+        const { error: profileError } = await adminClient
+          .from("profiles")
+          .update({ disabled: false })
+          .eq("id", user_id);
+        if (profileError) throw profileError;
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: "Unknown action" }), {
           status: 400,
