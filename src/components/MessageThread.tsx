@@ -82,8 +82,63 @@ export default function MessageThread({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b">
-        <p className="font-semibold">{phoneNumber}</p>
+      <div className="p-3 border-b space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold">{phoneNumber}</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          {customerId && customerName ? (
+            <div className="flex items-center gap-2">
+              <Link2 className="h-3.5 w-3.5 text-primary" />
+              <span className="text-muted-foreground">Linked to</span>
+              <span className="font-medium">{customerName}</span>
+              {onLinkCustomer && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => onLinkCustomer(null)}
+                  title="Unlink customer"
+                >
+                  <Unlink className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ) : showLinkSelector ? (
+            <div className="flex items-center gap-2 flex-1">
+              <Select
+                onValueChange={(val) => {
+                  onLinkCustomer?.(val);
+                  setShowLinkSelector(false);
+                }}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select a customer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} {c.phone_number ? `(${c.phone_number})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" onClick={() => setShowLinkSelector(false)}>
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7 gap-1"
+              onClick={() => setShowLinkSelector(true)}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Link to customer
+            </Button>
+          )}
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
