@@ -184,13 +184,20 @@ export default function Pack() {
   };
 
   const { ref: cameraRef } = useZxing({
-    paused: !cameraMode,
+    paused: !cameraMode || cooldownActive,
     onDecodeResult(result) {
       const text = result.getText();
+      if (cooldownActive || text === lastScannedTracking) return;
+      setLastScannedTracking(text);
+      setCooldownActive(true);
       processTracking(text);
+      if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
+      cooldownTimeoutRef.current = setTimeout(() => {
+        setCooldownActive(false);
+        setLastScannedTracking(null);
+      }, 5000);
     },
     onError(err) {
-      // Silence continuous decode errors, only log real issues
       if (err instanceof DOMException) {
         toast.error('Camera access denied');
         setCameraMode(false);
