@@ -184,80 +184,6 @@ export default function Pack() {
     await processTracking(scanInput);
   };
 
-    if (!userId) {
-      toast.error('Not authenticated');
-      return;
-    }
-
-    const tracking = stripPrefix(scanInput);
-    setScanInput('');
-
-    // Look up shipment by tracking
-    const { data: shipments, error } = await supabase
-      .from('shipments')
-      .select('id, tracking, buyer, product_name, order_id, packed, packed_at, packed_by_user_id')
-      .ilike('tracking', tracking)
-      .limit(1);
-
-    if (error) {
-      toast.error('Failed to look up order', { description: error.message });
-      return;
-    }
-
-    if (!shipments || shipments.length === 0) {
-      toast.error('Order not found', { description: `No order found for tracking: ${tracking}` });
-      return;
-    }
-
-    const shipment = shipments[0];
-
-    if (shipment.packed) {
-      // Get who packed it
-      let packedByEmail = 'unknown';
-      if (shipment.packed_by_user_id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('id', shipment.packed_by_user_id)
-          .single();
-        if (profile) packedByEmail = profile.email || 'unknown';
-      }
-      toast.warning('Already packed', {
-        description: `Packed by ${packedByEmail} at ${shipment.packed_at ? new Date(shipment.packed_at).toLocaleString() : 'unknown time'}`,
-      });
-      return;
-    }
-
-    // Mark as packed
-    const now = new Date().toISOString();
-    const { error: updateError } = await supabase
-      .from('shipments')
-      .update({
-        packed: true,
-        packed_at: now,
-        packed_by_user_id: userId,
-        pack_station_id: selectedStation,
-      })
-      .eq('id', shipment.id);
-
-    if (updateError) {
-      toast.error('Failed to mark as packed', { description: updateError.message });
-      return;
-    }
-
-    toast.success('Packed!', {
-      description: `${shipment.buyer} — ${shipment.product_name}`,
-    });
-
-    setRecentPacks(prev => [{
-      tracking: shipment.tracking || tracking,
-      buyer: shipment.buyer || '',
-      product_name: shipment.product_name || '',
-      order_id: shipment.order_id,
-      packed_at: now,
-    }, ...prev]);
-  };
-
   const stationName = stations.find(s => s.id === selectedStation)?.name;
 
   return (
@@ -299,12 +225,29 @@ export default function Pack() {
       {/* Scan input */}
       <Card>
         <CardContent className="pt-6">
-          <form onSubmit={handleScan} className="flex items-end gap-3">
-            <div className="flex-1">
-              <Label htmlFor="scan" className="flex items-center gap-2 mb-2">
-                <ScanLine className="h-4 w-4" />
-                Scan Tracking Number
-              </Label>
+          <div className="flex items-center justify-between mb-2">
+            <Label htmlFor="scan" className="flex items-center gap-2">
+              <ScanLine className="h-4 w-4" />
+              Scan Tracking Number
+            </Label>
+            {isMobile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCameraMode(!cameraMode)}
+                className="gap-1.5"
+              >
+                {cameraMode ? <Keyboard className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                {cameraMode ? 'Type' : 'Camera'}
+              </Button>
+            )}
+          </div>
+          {cameraMode ? (
+            <div className="rounded-lg overflow-hidden border border-border bg-black">
+              <video ref={cameraRef} className="w-full aspect-[4/3] object-cover" />
+            </div>
+          ) : (
+            <form onSubmit={handleScan}>
               <Input
                 ref={inputRef}
                 id="scan"
@@ -315,8 +258,8 @@ export default function Pack() {
                 autoComplete="off"
                 className="text-lg h-12 font-mono"
               />
-            </div>
-          </form>
+            </form>
+          )}
         </CardContent>
       </Card>
 
