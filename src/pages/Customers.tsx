@@ -1,18 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -21,89 +11,82 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { UserPlus, Search, Users, Phone, Mail } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Search, Users, Package, DollarSign } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+
+interface BuyerSummary {
+  buyer: string;
+  order_count: number;
+  total_revenue: number;
+  last_order_date: string | null;
+  printed_count: number;
+}
 
 export default function Customers() {
   const navigate = useNavigate();
   const [authorized, setAuthorized] = useState(false);
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [buyers, setBuyers] = useState<BuyerSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newNotes, setNewNotes] = useState('');
-  const [conversations, setConversations] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/auth');
-        return;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { navigate('/auth'); return; }
       setAuthorized(true);
-      loadData();
+      loadBuyers();
     })();
   }, []);
 
-  const loadData = async () => {
-    const [custResult, convResult] = await Promise.all([
-      supabase.from('customers').select('*').order('name'),
-      supabase.from('sms_conversations').select('customer_id, last_message_at'),
-    ]);
-    setCustomers(custResult.data || []);
-    setConversations(convResult.data || []);
-  };
+  const loadBuyers = async () => {
+    setLoading(true);
+    // Get all shipments grouped by buyer
+    const { data, error } = await supabase
+      .from('shipments')
+      .select('buyer, price, printed, created_at')
+      .not('buyer', 'is', null)
+      .order('created_at', { ascending: false });
 
-  const getLastContact = (customerId: string) => {
-    const conv = conversations.find((c) => c.customer_id === customerId);
-    return conv?.last_message_at || null;
-  };
-
-  const handleAdd = async () => {
-    if (!newName.trim()) {
-      toast.error('Name is required');
+    if (error || !data) {
+      setLoading(false);
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Aggregate by buyer
+    const buyerMap = new Map<string, BuyerSummary>();
+    for (const row of data) {
+      const name = row.buyer?.trim();
+      if (!name) continue;
+      
+      const existing = buyerMap.get(name);
+      const price = parseFloat(row.price?.replace(/[^0-9.]/g, '') || '0') || 0;
 
-    const { error } = await supabase.from('customers').insert({
-      name: newName.trim(),
-      phone_number: newPhone.trim() || null,
-      email: newEmail.trim() || null,
-      notes: newNotes.trim() || null,
-      created_by_user_id: user?.id,
-    });
-
-    if (error) {
-      toast.error('Failed to add customer', { description: error.message });
-      return;
+      if (existing) {
+        existing.order_count += 1;
+        existing.total_revenue += price;
+        if (row.printed) existing.printed_count += 1;
+        if (!existing.last_order_date || (row.created_at && row.created_at > existing.last_order_date)) {
+          existing.last_order_date = row.created_at;
+        }
+      } else {
+        buyerMap.set(name, {
+          buyer: name,
+          order_count: 1,
+          total_revenue: price,
+          last_order_date: row.created_at,
+          printed_count: row.printed ? 1 : 0,
+        });
+      }
     }
 
-    toast.success('Customer added');
-    setShowAdd(false);
-    setNewName('');
-    setNewPhone('');
-    setNewEmail('');
-    setNewNotes('');
-    loadData();
+    const sorted = Array.from(buyerMap.values()).sort((a, b) => b.order_count - a.order_count);
+    setBuyers(sorted);
+    setLoading(false);
   };
 
-  const filtered = customers.filter((c) => {
+  const filtered = buyers.filter((b) => {
     if (!search) return true;
-    const term = search.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(term) ||
-      c.phone_number?.toLowerCase().includes(term) ||
-      c.email?.toLowerCase().includes(term)
-    );
+    return b.buyer.toLowerCase().includes(search.toLowerCase());
   });
 
   if (!authorized) return null;
@@ -116,12 +99,10 @@ export default function Customers() {
             <Users className="h-8 w-8" />
             Customers
           </h1>
-          <p className="text-muted-foreground">Manage your customer profiles</p>
+          <p className="text-muted-foreground">
+            {buyers.length} unique buyers across all orders
+          </p>
         </div>
-        <Button onClick={() => setShowAdd(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add Customer
-        </Button>
       </div>
 
       <Card>
@@ -129,7 +110,7 @@ export default function Customers() {
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search customers..."
+              placeholder="Search buyers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -137,118 +118,58 @@ export default function Customers() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Last Contact</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading buyers...</div>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    No customers found
-                  </TableCell>
+                  <TableHead>Buyer</TableHead>
+                  <TableHead className="text-right">Orders</TableHead>
+                  <TableHead className="text-right">Printed</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
                 </TableRow>
-              ) : (
-                filtered.map((c) => {
-                  const lastContact = getLastContact(c.id);
-                  return (
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      No buyers found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((b) => (
                     <TableRow
-                      key={c.id}
+                      key={b.buyer}
                       className="cursor-pointer hover:bg-accent/50"
-                      onClick={() => navigate(`/customers/${c.id}`)}
+                      onClick={() => navigate(`/customers/${encodeURIComponent(b.buyer)}`)}
                     >
-                      <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell>
-                        {c.phone_number ? (
-                          <span className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {c.phone_number}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                      <TableCell className="font-medium">{b.buyer}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="secondary" className="gap-1">
+                          <Package className="h-3 w-3" />
+                          {b.order_count}
+                        </Badge>
                       </TableCell>
-                      <TableCell>
-                        {c.email ? (
-                          <span className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {c.email}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                      <TableCell className="text-right">
+                        <span className="text-muted-foreground">
+                          {b.printed_count}/{b.order_count}
+                        </span>
                       </TableCell>
-                      <TableCell>
-                        {lastContact ? (
-                          formatDistanceToNow(new Date(lastContact), {
-                            addSuffix: true,
-                          })
-                        ) : (
-                          <span className="text-muted-foreground">Never</span>
-                        )}
+                      <TableCell className="text-right">
+                        <span className="flex items-center justify-end gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          {b.total_revenue.toFixed(2)}
+                        </span>
                       </TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
-
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Customer</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name *</Label>
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Customer name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input
-                value={newPhone}
-                onChange={(e) => setNewPhone(e.target.value)}
-                placeholder="+1234567890"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="email@example.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Input
-                value={newNotes}
-                onChange={(e) => setNewNotes(e.target.value)}
-                placeholder="Optional notes"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAdd}>Add Customer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
