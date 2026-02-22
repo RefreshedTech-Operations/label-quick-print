@@ -15,9 +15,10 @@ export function useUserPermissions() {
         return;
       }
 
-      const [{ data: rolesData }, { data: overridesData }] = await Promise.all([
+      const [{ data: rolesData }, { data: overridesData }, { data: roleDefaultsData }] = await Promise.all([
         supabase.from('user_roles').select('role').eq('user_id', user.id),
         supabase.from('user_page_permissions').select('page_path, allowed').eq('user_id', user.id),
+        supabase.from('role_page_defaults').select('role, page_path'),
       ]);
 
       const userRoles = (rolesData || []).map(r => r.role);
@@ -28,7 +29,12 @@ export function useUserPermissions() {
         allowed: o.allowed,
       }));
 
-      setAllowedPages(computeAllowedPages(userRoles, overrides));
+      const roleDefaults = (roleDefaultsData || []).map(rd => ({
+        role: rd.role,
+        page_path: rd.page_path,
+      }));
+
+      setAllowedPages(computeAllowedPages(userRoles, roleDefaults, overrides));
       setLoading(false);
     })();
   }, []);
