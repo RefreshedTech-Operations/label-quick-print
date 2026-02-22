@@ -446,10 +446,11 @@ export default function AdminTools() {
           </div>
 
           <div className="space-y-2">
-            {users.map((profile) => {
+            {users.filter(u => showDisabled || !u.disabled).map((profile) => {
               const roles = getUserRoles(profile.id);
               const isExpanded = expandedUserId === profile.id;
               const availableToAdd = availableRoles.filter(r => !roles.includes(r));
+              const isDisabled = profile.disabled;
 
               return (
                 <div key={profile.id} className="border rounded-lg">
