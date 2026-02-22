@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -9,7 +9,7 @@ import { useTVDashboardData } from '@/hooks/useTVDashboardData';
 import { Progress } from '@/components/ui/progress';
 import { PrinterLeaderboard } from '@/components/tv-dashboard/PrinterLeaderboard';
 import { format, isToday } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+
 import { cn } from '@/lib/utils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -23,18 +23,9 @@ const formatHour = (hour: number) => {
 
 export default function TVDashboard() {
   const navigate = useNavigate();
-  const EST_TIMEZONE = 'America/New_York';
-  const [currentTime, setCurrentTime] = useState(() => toZonedTime(new Date(), EST_TIMEZONE));
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const isViewingToday = isToday(selectedDate);
   const { data, isLoading } = useTVDashboardData(selectedDate, isViewingToday ? 30000 : 0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(toZonedTime(new Date(), EST_TIMEZONE));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   if (isLoading || !data) {
     return (
@@ -64,9 +55,6 @@ export default function TVDashboard() {
         <div>
           <h1 className="text-5xl font-bold text-foreground">Label Printing Dashboard</h1>
           <div className="flex items-center gap-4 mt-2">
-            <p className="text-2xl text-muted-foreground">
-              {format(currentTime, 'hh:mm:ss a')} EST
-            </p>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="lg" className="text-xl gap-2">
