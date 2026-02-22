@@ -5,9 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Package2, ScanLine } from 'lucide-react';
+import { Package2, ScanLine, Camera, Keyboard } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useZxing } from 'react-zxing';
 
 interface PackStation {
   id: string;
@@ -32,6 +35,8 @@ export default function Pack() {
   const [scanInput, setScanInput] = useState('');
   const [recentPacks, setRecentPacks] = useState<RecentPack[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [cameraMode, setCameraMode] = useState(false);
+  const isMobile = useIsMobile();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -45,15 +50,16 @@ export default function Pack() {
     }
   }, [selectedStation]);
 
-  // Keep input focused
+  // Keep input focused (only in text mode)
   useEffect(() => {
+    if (cameraMode) return;
     const interval = setInterval(() => {
       if (inputRef.current && document.activeElement !== inputRef.current) {
         inputRef.current.focus();
       }
     }, 500);
     return () => clearInterval(interval);
-  }, []);
+  }, [cameraMode]);
 
   const loadUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -77,9 +83,8 @@ export default function Pack() {
     return trimmed;
   };
 
-  const handleScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!scanInput.trim()) return;
+  const processTracking = async (rawInput: string) => {
+    if (!rawInput.trim()) return;
 
     if (!selectedStation) {
       toast.error('Please select a packing station first');
@@ -91,8 +96,7 @@ export default function Pack() {
       return;
     }
 
-    const tracking = stripPrefix(scanInput);
-    setScanInput('');
+    const tracking = stripPrefix(rawInput);
 
     // Look up shipment by tracking
     const { data: shipments, error } = await supabase
@@ -114,7 +118,6 @@ export default function Pack() {
     const shipment = shipments[0];
 
     if (shipment.packed) {
-      // Get who packed it
       let packedByEmail = 'unknown';
       if (shipment.packed_by_user_id) {
         const { data: profile } = await supabase
@@ -130,7 +133,6 @@ export default function Pack() {
       return;
     }
 
-    // Mark as packed
     const now = new Date().toISOString();
     const { error: updateError } = await supabase
       .from('shipments')
@@ -158,6 +160,28 @@ export default function Pack() {
       order_id: shipment.order_id,
       packed_at: now,
     }, ...prev]);
+  };
+
+  const { ref: cameraRef } = useZxing({
+    paused: !cameraMode,
+    onDecodeResult(result) {
+      const text = result.getText();
+      processTracking(text);
+    },
+    onError(err) {
+      // Silence continuous decode errors, only log real issues
+      if (err instanceof DOMException) {
+        toast.error('Camera access denied');
+        setCameraMode(false);
+      }
+    },
+  });
+
+  const handleScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scanInput.trim()) return;
+    setScanInput('');
+    await processTracking(scanInput);
   };
 
   const stationName = stations.find(s => s.id === selectedStation)?.name;
@@ -201,12 +225,29 @@ export default function Pack() {
       {/* Scan input */}
       <Card>
         <CardContent className="pt-6">
-          <form onSubmit={handleScan} className="flex items-end gap-3">
-            <div className="flex-1">
-              <Label htmlFor="scan" className="flex items-center gap-2 mb-2">
-                <ScanLine className="h-4 w-4" />
-                Scan Tracking Number
-              </Label>
+          <div className="flex items-center justify-between mb-2">
+            <Label htmlFor="scan" className="flex items-center gap-2">
+              <ScanLine className="h-4 w-4" />
+              Scan Tracking Number
+            </Label>
+            {isMobile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCameraMode(!cameraMode)}
+                className="gap-1.5"
+              >
+                {cameraMode ? <Keyboard className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                {cameraMode ? 'Type' : 'Camera'}
+              </Button>
+            )}
+          </div>
+          {cameraMode ? (
+            <div className="rounded-lg overflow-hidden border border-border bg-black">
+              <video ref={cameraRef} className="w-full aspect-[4/3] object-cover" />
+            </div>
+          ) : (
+            <form onSubmit={handleScan}>
               <Input
                 ref={inputRef}
                 id="scan"
@@ -217,8 +258,8 @@ export default function Pack() {
                 autoComplete="off"
                 className="text-lg h-12 font-mono"
               />
-            </div>
-          </form>
+            </form>
+          )}
         </CardContent>
       </Card>
 
