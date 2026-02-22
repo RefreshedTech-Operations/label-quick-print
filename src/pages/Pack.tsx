@@ -83,14 +83,106 @@ export default function Pack() {
     return trimmed;
   };
 
-  const handleScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!scanInput.trim()) return;
+  const processTracking = async (rawInput: string) => {
+    if (!rawInput.trim()) return;
 
     if (!selectedStation) {
       toast.error('Please select a packing station first');
       return;
     }
+
+    if (!userId) {
+      toast.error('Not authenticated');
+      return;
+    }
+
+    const tracking = stripPrefix(rawInput);
+
+    // Look up shipment by tracking
+    const { data: shipments, error } = await supabase
+      .from('shipments')
+      .select('id, tracking, buyer, product_name, order_id, packed, packed_at, packed_by_user_id')
+      .ilike('tracking', tracking)
+      .limit(1);
+
+    if (error) {
+      toast.error('Failed to look up order', { description: error.message });
+      return;
+    }
+
+    if (!shipments || shipments.length === 0) {
+      toast.error('Order not found', { description: `No order found for tracking: ${tracking}` });
+      return;
+    }
+
+    const shipment = shipments[0];
+
+    if (shipment.packed) {
+      let packedByEmail = 'unknown';
+      if (shipment.packed_by_user_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('id', shipment.packed_by_user_id)
+          .single();
+        if (profile) packedByEmail = profile.email || 'unknown';
+      }
+      toast.warning('Already packed', {
+        description: `Packed by ${packedByEmail} at ${shipment.packed_at ? new Date(shipment.packed_at).toLocaleString() : 'unknown time'}`,
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from('shipments')
+      .update({
+        packed: true,
+        packed_at: now,
+        packed_by_user_id: userId,
+        pack_station_id: selectedStation,
+      })
+      .eq('id', shipment.id);
+
+    if (updateError) {
+      toast.error('Failed to mark as packed', { description: updateError.message });
+      return;
+    }
+
+    toast.success('Packed!', {
+      description: `${shipment.buyer} — ${shipment.product_name}`,
+    });
+
+    setRecentPacks(prev => [{
+      tracking: shipment.tracking || tracking,
+      buyer: shipment.buyer || '',
+      product_name: shipment.product_name || '',
+      order_id: shipment.order_id,
+      packed_at: now,
+    }, ...prev]);
+  };
+
+  const { ref: cameraRef } = useZxing({
+    paused: !cameraMode,
+    onDecodeResult(result) {
+      const text = result.getText();
+      processTracking(text);
+    },
+    onError(err) {
+      // Silence continuous decode errors, only log real issues
+      if (err instanceof DOMException) {
+        toast.error('Camera access denied');
+        setCameraMode(false);
+      }
+    },
+  });
+
+  const handleScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scanInput.trim()) return;
+    setScanInput('');
+    await processTracking(scanInput);
+  };
 
     if (!userId) {
       toast.error('Not authenticated');
