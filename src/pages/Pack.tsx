@@ -184,8 +184,18 @@ export default function Pack() {
     return 'success';
   };
 
+  const barcodeHints = new Map();
+  barcodeHints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.ITF,
+    BarcodeFormat.CODABAR,
+  ]);
+  barcodeHints.set(DecodeHintType.TRY_HARDER, true);
+
   const { ref: cameraRef } = useZxing({
     paused: !cameraMode || cooldownActive,
+    hints: barcodeHints,
     onDecodeResult(result) {
       const text = result.getText();
       if (cooldownActive || text === lastScannedTracking) return;
