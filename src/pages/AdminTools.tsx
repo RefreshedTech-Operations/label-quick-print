@@ -291,6 +291,7 @@ export default function AdminTools() {
                 <option value="user">User</option>
                 <option value="moderator">Moderator</option>
                 <option value="admin">Admin</option>
+                <option value="messaging">Messaging</option>
               </select>
             </div>
 

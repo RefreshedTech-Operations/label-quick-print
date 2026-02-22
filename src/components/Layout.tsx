@@ -1,7 +1,7 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor } from 'lucide-react';
+import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, MessageSquare, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -13,8 +13,22 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [hasMessagingRole, setHasMessagingRole] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.rpc('has_role', {
+          _user_id: user.id,
+          _role: 'messaging' as any,
+        });
+        setHasMessagingRole(!!data);
+      }
+    })();
+  }, []);
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -36,81 +50,43 @@ export default function Layout({ children }: LayoutProps) {
             </Link>
 
             <nav className="flex items-center gap-2">
-              <Button
-                variant={isActive('/') ? 'default' : 'ghost'}
-                asChild
-                className="gap-2"
-              >
-                <Link to="/">
-                  <Package className="h-4 w-4" />
-                  Scan
-                </Link>
+              <Button variant={isActive('/') ? 'default' : 'ghost'} asChild className="gap-2">
+                <Link to="/"><Package className="h-4 w-4" />Scan</Link>
               </Button>
               
-              <Button
-                variant={isActive('/upload') ? 'default' : 'ghost'}
-                asChild
-                className="gap-2"
-              >
-                <Link to="/upload">
-                  <Upload className="h-4 w-4" />
-                  Upload
-                </Link>
+              <Button variant={isActive('/upload') ? 'default' : 'ghost'} asChild className="gap-2">
+                <Link to="/upload"><Upload className="h-4 w-4" />Upload</Link>
               </Button>
 
-              <Button
-                variant={isActive('/orders') ? 'default' : 'ghost'}
-                asChild
-                className="gap-2"
-              >
-                <Link to="/orders">
-                  <List className="h-4 w-4" />
-                  All Orders
-                </Link>
+              <Button variant={isActive('/orders') ? 'default' : 'ghost'} asChild className="gap-2">
+                <Link to="/orders"><List className="h-4 w-4" />All Orders</Link>
               </Button>
 
-              <Button
-                variant={isActive('/print-jobs') ? 'default' : 'ghost'}
-                asChild
-                className="gap-2"
-              >
-                <Link to="/print-jobs">
-                  <Printer className="h-4 w-4" />
-                  Print Jobs
-                </Link>
+              <Button variant={isActive('/print-jobs') ? 'default' : 'ghost'} asChild className="gap-2">
+                <Link to="/print-jobs"><Printer className="h-4 w-4" />Print Jobs</Link>
               </Button>
 
-              <Button
-                variant={isActive('/batches') ? 'default' : 'ghost'}
-                asChild
-                className="gap-2"
-              >
-                <Link to="/batches">
-                  <Package2 className="h-4 w-4" />
-                  Batches
-                </Link>
+              <Button variant={isActive('/batches') ? 'default' : 'ghost'} asChild className="gap-2">
+                <Link to="/batches"><Package2 className="h-4 w-4" />Batches</Link>
               </Button>
 
-              <Button
-                variant={isActive('/tv-dashboard') ? 'default' : 'ghost'}
-                asChild
-                className="gap-2"
-              >
-                <Link to="/tv-dashboard">
-                  <Monitor className="h-4 w-4" />
-                  TV Dashboard
-                </Link>
+              <Button variant={isActive('/tv-dashboard') ? 'default' : 'ghost'} asChild className="gap-2">
+                <Link to="/tv-dashboard"><Monitor className="h-4 w-4" />TV Dashboard</Link>
               </Button>
 
-              <Button
-                variant={isActive('/settings') ? 'default' : 'ghost'}
-                asChild
-                className="gap-2"
-              >
-                <Link to="/settings">
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </Link>
+              {hasMessagingRole && (
+                <>
+                  <Button variant={isActive('/messages') ? 'default' : 'ghost'} asChild className="gap-2">
+                    <Link to="/messages"><MessageSquare className="h-4 w-4" />Messages</Link>
+                  </Button>
+                  <Button variant={isActive('/customers') || location.pathname.startsWith('/customers/') ? 'default' : 'ghost'} asChild className="gap-2">
+                    <Link to="/customers"><Users className="h-4 w-4" />Customers</Link>
+                  </Button>
+                </>
+              )}
+
+              <Button variant={isActive('/settings') ? 'default' : 'ghost'} asChild className="gap-2">
+                <Link to="/settings"><Settings className="h-4 w-4" />Settings</Link>
               </Button>
 
               <ThemeToggle />
