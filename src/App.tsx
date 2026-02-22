@@ -37,6 +37,7 @@ const App = () => (
             <Route path="/print-jobs" element={<Layout><PrintJobs /></Layout>} />
             <Route path="/batches" element={<Layout><BatchManagement /></Layout>} />
             <Route path="/tv-dashboard" element={<TVDashboard />} />
+            <Route path="/analytics" element={<Layout><Analytics /></Layout>} />
             <Route path="/settings" element={<Layout><Settings /></Layout>} />
             <Route path="/admin" element={<Layout><AdminTools /></Layout>} />
             <Route path="/messages" element={<Layout><Messages /></Layout>} />

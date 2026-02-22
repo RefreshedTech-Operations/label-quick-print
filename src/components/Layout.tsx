@@ -30,6 +30,7 @@ const NAV_ITEMS = [
   { title: 'Print Jobs', url: '/print-jobs', icon: Printer, group: 'Operations' },
   { title: 'Batches', url: '/batches', icon: Package2, group: 'Operations' },
   { title: 'TV Dashboard', url: '/tv-dashboard', icon: Monitor, group: 'Monitoring' },
+  { title: 'Analytics', url: '/analytics', icon: BarChart3, group: 'Monitoring' },
   { title: 'Messages', url: '/messages', icon: MessageSquare, group: 'Communication' },
   { title: 'Customers', url: '/customers', icon: Users, group: 'Communication' },
   { title: 'Settings', url: '/settings', icon: Settings, group: 'System' },
