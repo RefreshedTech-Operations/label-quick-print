@@ -222,7 +222,7 @@ export default function AdminTools() {
   const addRoleToUser = async (userId: string, role: string) => {
     const { error } = await supabase
       .from('user_roles')
-      .insert({ user_id: userId, role });
+      .insert([{ user_id: userId, role: role as any }]);
 
     if (error) {
       if (error.code === '23505') {
