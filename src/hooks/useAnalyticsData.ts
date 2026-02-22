@@ -76,7 +76,7 @@ const defaultKpis: AnalyticsKPIs = {
   cancelledPercentage: '0.0',
 }
 
-export function useAnalyticsData(dateRange: DateRange | undefined) {
+export function useAnalyticsData(dateRange: DateRange | undefined, userId?: string | null) {
   // Convert DateRange to date strings
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null
   const endDate = dateRange?.to ? format(endOfDay(dateRange.to), "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null
