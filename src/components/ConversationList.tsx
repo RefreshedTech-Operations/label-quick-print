@@ -75,8 +75,10 @@ export default function ConversationList({
                 key={conv.id}
                 onClick={() => onSelect(conv.id)}
                 className={cn(
-                  'w-full text-left p-3 border-b hover:bg-accent/50 transition-colors',
-                  selectedId === conv.id && 'bg-accent'
+                  'w-full text-left p-3 border-b hover:bg-accent/50 transition-all',
+                  selectedId === conv.id
+                    ? 'bg-card shadow-md scale-[1.02] border-l-4 border-l-primary rounded-r-md z-10 relative'
+                    : ''
                 )}
               >
                 <div className="flex items-center gap-2">
