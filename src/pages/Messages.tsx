@@ -63,10 +63,12 @@ export default function Messages() {
 
   const loadCustomers = async () => {
     const { data } = await supabase
-      .from('customers')
-      .select('id, name, phone_number')
-      .order('name');
-    setCustomers(data || []);
+      .from('shipments')
+      .select('buyer')
+      .not('buyer', 'is', null);
+    // Deduplicate buyers and map to customer-like objects
+    const unique = [...new Set((data || []).map((s) => s.buyer).filter(Boolean))].sort();
+    setCustomers(unique.map((name) => ({ id: name, name, phone_number: null })));
   };
 
   const loadMessages = useCallback(async (conversationId: string) => {
