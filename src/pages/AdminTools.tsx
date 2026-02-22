@@ -98,8 +98,46 @@ export default function AdminTools() {
       loadArchiveStats();
       loadPagePermissions();
       loadRoleDefaults();
+      loadPackStations();
     }
   }, [isAdmin]);
+
+  const loadPackStations = async () => {
+    const { data } = await supabase
+      .from('pack_stations')
+      .select('*')
+      .order('sort_order');
+    setPackStations(data || []);
+  };
+
+  const addPackStation = async () => {
+    const name = newStationName.trim();
+    if (!name) return;
+    const maxOrder = packStations.length > 0 ? Math.max(...packStations.map(s => s.sort_order)) + 1 : 0;
+    const { error } = await supabase.from('pack_stations').insert({ name, sort_order: maxOrder });
+    if (error) {
+      if (error.code === '23505') toast.error('Station name already exists');
+      else toast.error('Failed to add station');
+      return;
+    }
+    toast.success(`Station "${name}" added`);
+    setNewStationName('');
+    loadPackStations();
+  };
+
+  const toggleStationActive = async (id: string, currentActive: boolean) => {
+    await supabase.from('pack_stations').update({ is_active: !currentActive }).eq('id', id);
+    loadPackStations();
+  };
+
+  const deletePackStation = async (id: string) => {
+    const { error } = await supabase.from('pack_stations').delete().eq('id', id);
+    if (error) {
+      toast.error('Failed to delete station', { description: error.message });
+      return;
+    }
+    loadPackStations();
+  };
 
   const loadRoleDefaults = async () => {
     const { data } = await supabase.from('role_page_defaults').select('*');
