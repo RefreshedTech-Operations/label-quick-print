@@ -179,6 +179,30 @@ export type Database = {
         }
         Relationships: []
       }
+      pack_stations: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       print_jobs: {
         Row: {
           created_at: string | null
@@ -294,6 +318,10 @@ export type Database = {
           manifest_url: string | null
           order_group_id: string | null
           order_id: string
+          pack_station_id: string | null
+          packed: boolean | null
+          packed_at: string | null
+          packed_by_user_id: string | null
           price: string | null
           printed: boolean | null
           printed_at: string | null
@@ -329,6 +357,10 @@ export type Database = {
           manifest_url?: string | null
           order_group_id?: string | null
           order_id: string
+          pack_station_id?: string | null
+          packed?: boolean | null
+          packed_at?: string | null
+          packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
@@ -364,6 +396,10 @@ export type Database = {
           manifest_url?: string | null
           order_group_id?: string | null
           order_id?: string
+          pack_station_id?: string | null
+          packed?: boolean | null
+          packed_at?: string | null
+          packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
@@ -383,6 +419,13 @@ export type Database = {
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_pack_station_id_fkey"
+            columns: ["pack_station_id"]
+            isOneToOne: false
+            referencedRelation: "pack_stations"
             referencedColumns: ["id"]
           },
         ]
@@ -411,6 +454,10 @@ export type Database = {
           manifest_url: string | null
           order_group_id: string | null
           order_id: string
+          pack_station_id: string | null
+          packed: boolean | null
+          packed_at: string | null
+          packed_by_user_id: string | null
           price: string | null
           printed: boolean | null
           printed_at: string | null
@@ -447,6 +494,10 @@ export type Database = {
           manifest_url?: string | null
           order_group_id?: string | null
           order_id: string
+          pack_station_id?: string | null
+          packed?: boolean | null
+          packed_at?: string | null
+          packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
@@ -483,6 +534,10 @@ export type Database = {
           manifest_url?: string | null
           order_group_id?: string | null
           order_id?: string
+          pack_station_id?: string | null
+          packed?: boolean | null
+          packed_at?: string | null
+          packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
           printed_at?: string | null
