@@ -23,18 +23,9 @@ const formatHour = (hour: number) => {
 
 export default function TVDashboard() {
   const navigate = useNavigate();
-  const EST_TIMEZONE = 'America/New_York';
-  const [currentTime, setCurrentTime] = useState(() => toZonedTime(new Date(), EST_TIMEZONE));
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const isViewingToday = isToday(selectedDate);
   const { data, isLoading } = useTVDashboardData(selectedDate, isViewingToday ? 30000 : 0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(toZonedTime(new Date(), EST_TIMEZONE));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   if (isLoading || !data) {
     return (
