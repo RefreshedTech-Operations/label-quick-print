@@ -101,12 +101,13 @@ export function useAnalyticsData(dateRange: DateRange | undefined, userId?: stri
         console.log('Optimized function not available, using fallback queries')
         
         // Fallback: Run the 5 separate queries
+        const userParam = userId ? { p_user_id: userId } : {}
         const [kpisResult, dailyResult, printerResult, statusResult, hourlyResult] = await Promise.all([
-          supabase.rpc('get_analytics_kpis', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_daily_analytics', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_printer_performance', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_print_status_breakdown', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_hourly_print_rate', { start_date: startDate, end_date: endDate }),
+          supabase.rpc('get_analytics_kpis', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_daily_analytics', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_printer_performance', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_print_status_breakdown', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_hourly_print_rate', { start_date: startDate, end_date: endDate, ...userParam }),
         ])
 
         if (kpisResult.error) throw kpisResult.error
