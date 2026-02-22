@@ -36,8 +36,13 @@ export default function Pack() {
   const [recentPacks, setRecentPacks] = useState<RecentPack[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState(false);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [cooldownActive, setCooldownActive] = useState(false);
+  const [lastScannedTracking, setLastScannedTracking] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const inputRef = useRef<HTMLInputElement>(null);
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     loadStations();
@@ -83,17 +88,25 @@ export default function Pack() {
     return trimmed;
   };
 
-  const processTracking = async (rawInput: string) => {
-    if (!rawInput.trim()) return;
+  const flashStatus = (status: 'success' | 'error') => {
+    setScanStatus(status);
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    statusTimeoutRef.current = setTimeout(() => setScanStatus('idle'), 2000);
+  };
+
+  const processTracking = async (rawInput: string): Promise<'success' | 'error'> => {
+    if (!rawInput.trim()) return 'error';
 
     if (!selectedStation) {
       toast.error('Please select a packing station first');
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     if (!userId) {
       toast.error('Not authenticated');
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     const tracking = stripPrefix(rawInput);
@@ -107,12 +120,14 @@ export default function Pack() {
 
     if (error) {
       toast.error('Failed to look up order', { description: error.message });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     if (!shipments || shipments.length === 0) {
       toast.error('Order not found', { description: `No order found for tracking: ${tracking}` });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     const shipment = shipments[0];
@@ -130,7 +145,8 @@ export default function Pack() {
       toast.warning('Already packed', {
         description: `Packed by ${packedByEmail} at ${shipment.packed_at ? new Date(shipment.packed_at).toLocaleString() : 'unknown time'}`,
       });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     const now = new Date().toISOString();
@@ -146,12 +162,15 @@ export default function Pack() {
 
     if (updateError) {
       toast.error('Failed to mark as packed', { description: updateError.message });
-      return;
+      flashStatus('error');
+      return 'error';
     }
 
     toast.success('Packed!', {
       description: `${shipment.buyer} — ${shipment.product_name}`,
     });
+
+    flashStatus('success');
 
     setRecentPacks(prev => [{
       tracking: shipment.tracking || tracking,
@@ -160,16 +179,25 @@ export default function Pack() {
       order_id: shipment.order_id,
       packed_at: now,
     }, ...prev]);
+
+    return 'success';
   };
 
   const { ref: cameraRef } = useZxing({
-    paused: !cameraMode,
+    paused: !cameraMode || cooldownActive,
     onDecodeResult(result) {
       const text = result.getText();
+      if (cooldownActive || text === lastScannedTracking) return;
+      setLastScannedTracking(text);
+      setCooldownActive(true);
       processTracking(text);
+      if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
+      cooldownTimeoutRef.current = setTimeout(() => {
+        setCooldownActive(false);
+        setLastScannedTracking(null);
+      }, 5000);
     },
     onError(err) {
-      // Silence continuous decode errors, only log real issues
       if (err instanceof DOMException) {
         toast.error('Camera access denied');
         setCameraMode(false);
@@ -223,7 +251,10 @@ export default function Pack() {
       </Card>
 
       {/* Scan input */}
-      <Card>
+      <Card className={`transition-colors duration-500 ${
+        scanStatus === 'success' ? 'bg-green-500/20 border-green-500' :
+        scanStatus === 'error' ? 'bg-red-500/20 border-red-500' : ''
+      }`}>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-2">
             <Label htmlFor="scan" className="flex items-center gap-2">
