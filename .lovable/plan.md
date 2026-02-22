@@ -1,99 +1,60 @@
 
 
-# Roles Management Page + Users Page Redesign
+# TV Dashboard Redesign with User Leaderboard
 
-## Overview
+## What's Changing
 
-Add a new "Roles" tab to the Admin panel where you can configure which pages each role grants access to by default. Also redesign the Users tab into a clean unified table with inline actions.
+The dashboard will keep all its current stats but get a cleaner layout and a new **Printer Leaderboard** showing who printed the most labels today, ranked by count.
 
-## Changes
+## New Layout
 
-### 1. New database table: `role_page_defaults`
+The page will be reorganized into a more balanced 2-column layout for the bottom section:
 
-Stores which pages each role grants access to, replacing the hardcoded `ROLE_DEFAULTS` in code.
+- **Top**: Header with clock and exit button (same as now)
+- **KPI Row**: 4 cards across -- Labels Printed Today, Daily Goal %, Hourly Average, Projected Total (same data, slightly refined)
+- **Bottom Left (wider)**: Hourly Print Rate bar chart (same as now)
+- **Bottom Right**: Printer Leaderboard card -- ranked list of team members with their print count for today, showing a trophy icon for #1, medal colors for top 3, and a progress bar relative to the top printer
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | Primary key |
-| role | text | e.g. "admin", "user" |
-| page_path | text | e.g. "/orders" |
-| created_at | timestamptz | Default now() |
-
-Unique constraint on (role, page_path). RLS: admins can manage, authenticated can read. On creation, seed with the current hardcoded defaults.
-
-### 2. Update `src/lib/pagePermissions.ts`
-
-- Remove the hardcoded `ROLE_DEFAULTS` constant
-- Update `computeAllowedPages` to accept role defaults as a parameter (fetched from DB)
-- Keep `ALL_PAGES` as-is
-
-### 3. Update `src/hooks/useUserPermissions.ts`
-
-- Also fetch `role_page_defaults` from DB to pass into `computeAllowedPages`
-
-### 4. Redesign `src/pages/AdminTools.tsx`
-
-**Three tabs**: Users | Roles | System
-
-**Users tab** -- Single unified table:
-- Each row: email, join date, role badges with (x) to remove, "Add role" dropdown, reset password button, expandable page permission toggles
-- "Create User" button at top
-- Remove the separate "Add Role by Email" card and "Current Roles" card
-
-**Roles tab** (new):
-- Shows each role (admin, moderator, user, messaging) as an expandable card
-- Inside each role card: a list of all pages with toggle switches to include/exclude from that role's defaults
-- Changes are saved to the `role_page_defaults` table
-
-**System tab** -- unchanged (archiving)
-
-### 5. Update `src/components/Layout.tsx`
-
-- Update `useUserPermissions` usage to work with the new DB-driven role defaults
+The 3 bottom stat cards (Peak Hour, Remaining Unprinted, Last Print) will be condensed into a slim horizontal strip between the KPI row and the chart/leaderboard section.
 
 ## Technical Details
 
-### Database migration
+### 1. Database: Update `get_tv_dashboard_stats` function
+
+Add a `printer_leaderboard` field to the returned JSON. This will query `shipments` joined with `profiles` to get each user's email and print count for the target date:
 
 ```sql
-CREATE TABLE role_page_defaults (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  role text NOT NULL,
-  page_path text NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(role, page_path)
-);
-
-ALTER TABLE role_page_defaults ENABLE ROW LEVEL SECURITY;
-
--- Authenticated users can read
-CREATE POLICY "Authenticated users can view role defaults"
-  ON role_page_defaults FOR SELECT TO authenticated USING (true);
-
--- Admins can manage
-CREATE POLICY "Admins can manage role defaults"
-  ON role_page_defaults FOR ALL TO authenticated
-  USING (has_role(auth.uid(), 'admin'))
-  WITH CHECK (has_role(auth.uid(), 'admin'));
-
--- Seed with current hardcoded defaults
-INSERT INTO role_page_defaults (role, page_path) VALUES
-  ('admin', '/'), ('admin', '/upload'), ('admin', '/orders'),
-  ('admin', '/print-jobs'), ('admin', '/batches'), ('admin', '/tv-dashboard'),
-  ('admin', '/messages'), ('admin', '/customers'), ('admin', '/settings'), ('admin', '/admin'),
-  ('moderator', '/'), ('moderator', '/upload'), ('moderator', '/orders'),
-  ('moderator', '/print-jobs'), ('moderator', '/batches'), ('moderator', '/tv-dashboard'),
-  ('moderator', '/settings'),
-  ('user', '/'), ('user', '/upload'), ('user', '/orders'),
-  ('user', '/print-jobs'), ('user', '/batches'), ('user', '/tv-dashboard'),
-  ('user', '/settings'),
-  ('messaging', '/messages'), ('messaging', '/customers');
+-- New section in get_tv_dashboard_stats
+SELECT jsonb_agg(
+  jsonb_build_object(
+    'email', p.email,
+    'count', sub.cnt
+  ) ORDER BY sub.cnt DESC
+)
+FROM (
+  SELECT printed_by_user_id, COUNT(*) as cnt
+  FROM shipments
+  WHERE printed = true
+    AND DATE(printed_at AT TIME ZONE 'America/New_York') = target_date
+  GROUP BY printed_by_user_id
+) sub
+JOIN profiles p ON p.id = sub.printed_by_user_id
 ```
 
-### File changes summary
+This adds a ranked list of printers to the existing RPC response with no extra round trips.
 
-- **New migration**: Create `role_page_defaults` table with seed data
-- **`src/lib/pagePermissions.ts`**: Remove hardcoded `ROLE_DEFAULTS`, update `computeAllowedPages` signature to accept role defaults as parameter
-- **`src/hooks/useUserPermissions.ts`**: Fetch `role_page_defaults` from DB, pass to `computeAllowedPages`
-- **`src/pages/AdminTools.tsx`**: Full rewrite of Users tab into unified table, add Roles tab with per-role page toggles, remove Page Permissions tab
+### 2. Hook: Update `useTVDashboardData.ts`
 
+- Add `printer_leaderboard` to the `TVDashboardData` interface as `{ email: string; count: number }[]`
+- Parse it from the RPC result
+
+### 3. Frontend: Rewrite `TVDashboard.tsx`
+
+- Keep the same 4 KPI cards at top
+- Add a compact stats strip (Peak Hour, Unprinted, Last Print) as inline badges
+- Replace the full-width chart with a 2-column grid: chart on the left (~60%), leaderboard on the right (~40%)
+- Leaderboard shows ranked rows with:
+  - Position number (gold/silver/bronze styling for top 3)
+  - Username (extracted from email, before the @)
+  - Print count
+  - Horizontal progress bar relative to the top printer's count
