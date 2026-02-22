@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { X, Activity, Target, Package, Clock, Zap } from 'lucide-react';
+import { X, Activity, Target, Package, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTVDashboardData } from '@/hooks/useTVDashboardData';
 import { Progress } from '@/components/ui/progress';
