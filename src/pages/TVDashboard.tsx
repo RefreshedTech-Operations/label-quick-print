@@ -11,15 +11,6 @@ import { PrinterLeaderboard } from '@/components/tv-dashboard/PrinterLeaderboard
 import { format, isToday } from 'date-fns';
 
 import { cn } from '@/lib/utils';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
-} from 'recharts';
-
-const formatHour = (hour: number) => {
-  const period = hour >= 12 ? 'PM' : 'AM';
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${displayHour}:00 ${period}`;
-};
 
 export default function TVDashboard() {
   const navigate = useNavigate();
@@ -41,12 +32,6 @@ export default function TVDashboard() {
     : data.total_printed;
 
   const isActive = isViewingToday && data.last_hour_count > 0;
-
-  const chartData = data.hourly_breakdown.map(h => ({
-    hour: h.hour,
-    count: h.count,
-    name: formatHour(h.hour),
-  }));
 
   return (
     <div className="min-h-screen bg-background p-6 overflow-hidden">
@@ -166,35 +151,8 @@ export default function TVDashboard() {
         )}
       </div>
 
-      {/* Chart + Leaderboard Row */}
-      <div className="grid grid-cols-5 gap-6">
-        <Card className="border-2 col-span-3">
-          <CardHeader>
-            <CardTitle className="text-3xl">Hourly Print Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="name" className="text-muted-foreground" style={{ fontSize: '14px' }} />
-                <YAxis className="text-muted-foreground" style={{ fontSize: '14px' }} />
-                <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', fontSize: '16px' }} />
-                <ReferenceLine 
-                  y={data.avg_per_hour} 
-                  stroke="hsl(var(--accent))" 
-                  strokeDasharray="3 3"
-                  label={{ value: `Avg: ${data.avg_per_hour.toFixed(1)}`, position: 'right', fill: 'hsl(var(--accent))', fontSize: 16 }}
-                />
-                <Bar dataKey="count" fill="hsl(var(--primary))" name="Labels Printed" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <div className="col-span-2">
-          <PrinterLeaderboard leaderboard={data.printer_leaderboard} />
-        </div>
-      </div>
+      {/* Leaderboard */}
+      <PrinterLeaderboard leaderboard={data.printer_leaderboard} />
     </div>
   );
 }
