@@ -30,7 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const AVAILABLE_ROLES = ['admin', 'moderator', 'user', 'messaging'] as const;
+// No hardcoded roles — derived dynamically from DB
 
 export default function AdminTools() {
   const [user, setUser] = useState<any>(null);
@@ -72,6 +72,15 @@ export default function AdminTools() {
 
   // Inline role adding
   const [addingRoleForUser, setAddingRoleForUser] = useState<string | null>(null);
+
+  // New role creation
+  const [newRoleName, setNewRoleName] = useState('');
+
+  // Derive available roles from DB data
+  const availableRoles = Array.from(new Set([
+    ...roleDefaults.map(rd => rd.role),
+    ...userRoles.map(r => r.role),
+  ])).sort();
 
   useEffect(() => {
     checkAuth();
@@ -427,7 +436,7 @@ export default function AdminTools() {
             {users.map((profile) => {
               const roles = getUserRoles(profile.id);
               const isExpanded = expandedUserId === profile.id;
-              const availableToAdd = AVAILABLE_ROLES.filter(r => !roles.includes(r));
+              const availableToAdd = availableRoles.filter(r => !roles.includes(r));
 
               return (
                 <div key={profile.id} className="border rounded-lg">
@@ -560,11 +569,41 @@ export default function AdminTools() {
 
         {/* ===== ROLES TAB ===== */}
         <TabsContent value="roles" className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Configure which pages each role grants access to by default. Per-user overrides (set in the Users tab) take priority.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Configure which pages each role grants access to by default.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="New role name"
+                value={newRoleName}
+                onChange={(e) => setNewRoleName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                className="h-8 w-[160px] text-sm"
+              />
+              <Button
+                size="sm"
+                disabled={!newRoleName.trim() || availableRoles.includes(newRoleName.trim())}
+                onClick={async () => {
+                  const name = newRoleName.trim();
+                  if (!name) return;
+                  // Insert a placeholder entry so the role appears (no pages yet)
+                  // We'll add a dummy then delete it — or just insert the first page
+                  // Actually just add nothing — the role will show once a page is toggled
+                  // For UX, add all pages by default for new role
+                  const inserts = ALL_PAGES.map(p => ({ role: name, page_path: p.path }));
+                  await supabase.from('role_page_defaults').insert(inserts);
+                  setNewRoleName('');
+                  loadRoleDefaults();
+                  toast.success(`Role "${name}" created`);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Role
+              </Button>
+            </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
-            {AVAILABLE_ROLES.map((role) => {
+            {availableRoles.map((role) => {
               const pageCount = roleDefaults.filter(rd => rd.role === role).length;
               return (
                 <Card key={role}>
@@ -573,9 +612,26 @@ export default function AdminTools() {
                       <Badge variant={role === 'admin' ? 'default' : 'secondary'} className="text-sm px-3 py-1">
                         {role}
                       </Badge>
-                      <span className="text-xs text-muted-foreground font-normal">
-                        {pageCount}/{ALL_PAGES.length} pages
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-normal">
+                          {pageCount}/{ALL_PAGES.length} pages
+                        </span>
+                        {role !== 'admin' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            title="Delete role"
+                            onClick={async () => {
+                              await supabase.from('role_page_defaults').delete().eq('role', role);
+                              loadRoleDefaults();
+                              toast.success(`Role "${role}" deleted`);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
