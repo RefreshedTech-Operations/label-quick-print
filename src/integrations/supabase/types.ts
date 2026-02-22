@@ -669,17 +669,29 @@ export type Database = {
         Args: { p_location_code: string; p_order_group_id: string }
         Returns: undefined
       }
-      get_analytics_kpis: {
-        Args: { end_date: string; start_date: string }
-        Returns: {
-          bundle_orders: number
-          cancelled_orders: number
-          printed_orders: number
-          successful_prints: number
-          total_orders: number
-          total_print_jobs: number
-        }[]
-      }
+      get_analytics_kpis:
+        | {
+            Args: { end_date: string; start_date: string }
+            Returns: {
+              bundle_orders: number
+              cancelled_orders: number
+              printed_orders: number
+              successful_prints: number
+              total_orders: number
+              total_print_jobs: number
+            }[]
+          }
+        | {
+            Args: { end_date: string; p_user_id?: string; start_date: string }
+            Returns: {
+              bundle_orders: number
+              cancelled_orders: number
+              printed_orders: number
+              successful_prints: number
+              total_orders: number
+              total_print_jobs: number
+            }[]
+          }
       get_archive_stats: {
         Args: never
         Returns: {
@@ -697,25 +709,46 @@ export type Database = {
           total_packages: number
         }[]
       }
-      get_daily_analytics: {
-        Args: { end_date: string; start_date: string }
-        Returns: {
-          bundle_orders: number
-          cancelled_orders: number
-          date: string
-          print_jobs_count: number
-          printed_orders: number
-          total_orders: number
-          unprinted_orders: number
-        }[]
-      }
-      get_hourly_print_rate: {
-        Args: { end_date: string; start_date: string }
-        Returns: {
-          hour: number
-          print_count: number
-        }[]
-      }
+      get_daily_analytics:
+        | {
+            Args: { end_date: string; start_date: string }
+            Returns: {
+              bundle_orders: number
+              cancelled_orders: number
+              date: string
+              print_jobs_count: number
+              printed_orders: number
+              total_orders: number
+              unprinted_orders: number
+            }[]
+          }
+        | {
+            Args: { end_date: string; p_user_id?: string; start_date: string }
+            Returns: {
+              bundle_orders: number
+              cancelled_orders: number
+              date: string
+              print_jobs_count: number
+              printed_orders: number
+              total_orders: number
+              unprinted_orders: number
+            }[]
+          }
+      get_hourly_print_rate:
+        | {
+            Args: { end_date: string; start_date: string }
+            Returns: {
+              hour: number
+              print_count: number
+            }[]
+          }
+        | {
+            Args: { end_date: string; p_user_id?: string; start_date: string }
+            Returns: {
+              hour: number
+              print_count: number
+            }[]
+          }
       get_incomplete_bundles_for_date: {
         Args: { p_printed_date?: string; p_show_date: string }
         Returns: {
@@ -743,20 +776,41 @@ export type Database = {
         }[]
       }
       get_next_available_location: { Args: never; Returns: string }
-      get_print_status_breakdown: {
-        Args: { end_date: string; start_date: string }
-        Returns: {
-          count: number
-          status: string
-        }[]
-      }
-      get_printer_performance: {
-        Args: { end_date: string; start_date: string; top_limit?: number }
-        Returns: {
-          job_count: number
-          printer_id: string
-        }[]
-      }
+      get_print_status_breakdown:
+        | {
+            Args: { end_date: string; start_date: string }
+            Returns: {
+              count: number
+              status: string
+            }[]
+          }
+        | {
+            Args: { end_date: string; p_user_id?: string; start_date: string }
+            Returns: {
+              count: number
+              status: string
+            }[]
+          }
+      get_printer_performance:
+        | {
+            Args: { end_date: string; start_date: string; top_limit?: number }
+            Returns: {
+              job_count: number
+              printer_id: string
+            }[]
+          }
+        | {
+            Args: {
+              end_date: string
+              p_user_id?: string
+              start_date: string
+              top_limit?: number
+            }
+            Returns: {
+              job_count: number
+              printer_id: string
+            }[]
+          }
       get_scan_eligible_shipments: {
         Args: { p_batch_id?: string; p_limit?: number; p_show_date: string }
         Returns: {

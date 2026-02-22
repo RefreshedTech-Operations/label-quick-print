@@ -76,34 +76,38 @@ const defaultKpis: AnalyticsKPIs = {
   cancelledPercentage: '0.0',
 }
 
-export function useAnalyticsData(dateRange: DateRange | undefined) {
+export function useAnalyticsData(dateRange: DateRange | undefined, userId?: string | null) {
   // Convert DateRange to date strings
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null
   const endDate = dateRange?.to ? format(endOfDay(dateRange.to), "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null
 
   // Try optimized combined query first, fallback to individual queries if function doesn't exist
   const { data: combinedData, isLoading, error } = useQuery({
-    queryKey: ['analytics-combined', startDate, endDate],
+    queryKey: ['analytics-combined', startDate, endDate, userId],
     queryFn: async () => {
       if (!startDate || !endDate) return null
 
-      // Try the optimized function first
-      const { data, error } = await supabase.rpc('get_all_analytics' as any, {
+      const rpcParams: any = {
         start_date: startDate,
         end_date: endDate,
-      })
+      }
+      if (userId) rpcParams.p_user_id = userId
+
+      // Try the optimized function first
+      const { data, error } = await supabase.rpc('get_all_analytics' as any, rpcParams)
 
       // If optimized function doesn't exist (PGRST202), fall back to individual queries
       if (error && error.code === 'PGRST202') {
         console.log('Optimized function not available, using fallback queries')
         
         // Fallback: Run the 5 separate queries
+        const userParam = userId ? { p_user_id: userId } : {}
         const [kpisResult, dailyResult, printerResult, statusResult, hourlyResult] = await Promise.all([
-          supabase.rpc('get_analytics_kpis', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_daily_analytics', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_printer_performance', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_print_status_breakdown', { start_date: startDate, end_date: endDate }),
-          supabase.rpc('get_hourly_print_rate', { start_date: startDate, end_date: endDate }),
+          supabase.rpc('get_analytics_kpis', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_daily_analytics', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_printer_performance', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_print_status_breakdown', { start_date: startDate, end_date: endDate, ...userParam }),
+          supabase.rpc('get_hourly_print_rate', { start_date: startDate, end_date: endDate, ...userParam }),
         ])
 
         if (kpisResult.error) throw kpisResult.error
