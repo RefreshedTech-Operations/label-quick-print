@@ -7,6 +7,7 @@ export const ALL_PAGES = [
   { path: '/print-jobs', label: 'Print Jobs', group: 'Operations' },
   { path: '/batches', label: 'Batches', group: 'Operations' },
   { path: '/tv-dashboard', label: 'TV Dashboard', group: 'Monitoring' },
+  { path: '/analytics', label: 'Analytics', group: 'Monitoring' },
   { path: '/messages', label: 'Messages', group: 'Communication' },
   { path: '/customers', label: 'Customers', group: 'Communication' },
   { path: '/settings', label: 'Settings', group: 'System' },
