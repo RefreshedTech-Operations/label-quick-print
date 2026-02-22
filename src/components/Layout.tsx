@@ -5,6 +5,7 @@ import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, Me
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { computeAllowedPages } from '@/lib/pagePermissions';
 import {
   Sidebar,
   SidebarContent,
@@ -22,25 +23,48 @@ interface LayoutProps {
   children: ReactNode;
 }
 
+const NAV_ITEMS = [
+  { title: 'Scan', url: '/', icon: Package, group: 'Operations' },
+  { title: 'Upload', url: '/upload', icon: Upload, group: 'Operations' },
+  { title: 'All Orders', url: '/orders', icon: List, group: 'Operations' },
+  { title: 'Print Jobs', url: '/print-jobs', icon: Printer, group: 'Operations' },
+  { title: 'Batches', url: '/batches', icon: Package2, group: 'Operations' },
+  { title: 'TV Dashboard', url: '/tv-dashboard', icon: Monitor, group: 'Monitoring' },
+  { title: 'Messages', url: '/messages', icon: MessageSquare, group: 'Communication' },
+  { title: 'Customers', url: '/customers', icon: Users, group: 'Communication' },
+  { title: 'Settings', url: '/settings', icon: Settings, group: 'System' },
+  { title: 'Admin', url: '/admin', icon: Shield, group: 'System' },
+];
+
+const GROUPS = ['Operations', 'Monitoring', 'Communication', 'System'];
+
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [hasMessagingRole, setHasMessagingRole] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [allowedPages, setAllowedPages] = useState<Set<string>>(new Set());
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => 
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const [{ data: msgData }, { data: adminData }] = await Promise.all([
-          supabase.rpc('has_role', { _user_id: user.id, _role: 'messaging' as any }),
-          supabase.rpc('has_role', { _user_id: user.id, _role: 'admin' as any }),
+        const [{ data: rolesData }, { data: overridesData }] = await Promise.all([
+          supabase.from('user_roles').select('role').eq('user_id', user.id),
+          supabase.from('user_page_permissions').select('page_path, allowed').eq('user_id', user.id),
         ]);
-        setHasMessagingRole(!!msgData);
-        setIsAdmin(!!adminData);
+
+        const roles = (rolesData || []).map(r => r.role);
+        const overrides = (overridesData || []).map(o => ({
+          page_path: o.page_path,
+          allowed: o.allowed,
+        }));
+
+        setAllowedPages(computeAllowedPages(roles, overrides));
       }
+      setPermissionsLoaded(true);
     })();
   }, []);
 
@@ -53,78 +77,44 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  const operationsItems = [
-    { title: 'Scan', url: '/', icon: Package },
-    { title: 'Upload', url: '/upload', icon: Upload },
-    { title: 'All Orders', url: '/orders', icon: List },
-    { title: 'Print Jobs', url: '/print-jobs', icon: Printer },
-    { title: 'Batches', url: '/batches', icon: Package2 },
-  ];
+  // Filter nav items by permission
+  const visibleItems = NAV_ITEMS.filter(item => allowedPages.has(item.url));
 
-  const monitoringItems = [
-    { title: 'TV Dashboard', url: '/tv-dashboard', icon: Monitor },
-  ];
+  const renderGroup = (groupName: string) => {
+    const items = visibleItems.filter(i => i.group === groupName);
+    if (items.length === 0) return null;
 
-  const communicationItems = [
-    { title: 'Messages', url: '/messages', icon: MessageSquare },
-    { title: 'Customers', url: '/customers', icon: Users },
-  ];
-
-  const systemItems = [
-    { title: 'Settings', url: '/settings', icon: Settings },
-    ...(isAdmin ? [{ title: 'Admin', url: '/admin', icon: Shield }] : []),
-  ];
-
-  const renderMenuItems = (items: { title: string; url: string; icon: any }[]) =>
-    items.map((item) => (
-      <SidebarMenuItem key={item.title}>
-        <SidebarMenuButton
-          asChild
-          isActive={item.url === '/' ? isActive('/') : location.pathname.startsWith(item.url)}
-          tooltip={item.title}
-        >
-          <Link to={item.url}>
-            <item.icon className="h-4 w-4" />
-            <span>{item.title}</span>
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    ));
+    return (
+      <SidebarGroup key={groupName}>
+        <SidebarGroupLabel>{groupName}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {items.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive(item.url)}
+                  tooltip={item.title}
+                >
+                  <Link to={item.url}>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  };
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
         <Sidebar collapsible="icon">
           <SidebarContent className="pt-2">
-            <SidebarGroup>
-              <SidebarGroupLabel>Operations</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>{renderMenuItems(operationsItems)}</SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Monitoring</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>{renderMenuItems(monitoringItems)}</SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            {hasMessagingRole && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Communication</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>{renderMenuItems(communicationItems)}</SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            <SidebarGroup>
-              <SidebarGroupLabel>System</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>{renderMenuItems(systemItems)}</SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {GROUPS.map(renderGroup)}
           </SidebarContent>
         </Sidebar>
 
