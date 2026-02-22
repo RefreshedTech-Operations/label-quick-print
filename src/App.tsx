@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import BatchManagement from "./pages/BatchManagement";
 import AdminTools from "./pages/AdminTools";
 import TVDashboard from "./pages/TVDashboard";
+import Analytics from "./pages/Analytics";
 import Messages from "./pages/Messages";
 import Customers from "./pages/Customers";
 import CustomerProfile from "./pages/CustomerProfile";
