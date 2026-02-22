@@ -2,9 +2,16 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Link2, Unlink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Message {
   id: string;
@@ -15,11 +22,21 @@ interface Message {
   sent_by_user_id: string | null;
 }
 
+interface Customer {
+  id: string;
+  name: string;
+  phone_number: string | null;
+}
+
 interface MessageThreadProps {
   messages: Message[];
   onSend: (body: string) => Promise<void>;
   loading?: boolean;
   phoneNumber?: string;
+  customerId?: string | null;
+  customerName?: string | null;
+  customers?: Customer[];
+  onLinkCustomer?: (customerId: string | null) => void;
 }
 
 export default function MessageThread({
