@@ -436,7 +436,7 @@ export default function AdminTools() {
             {users.map((profile) => {
               const roles = getUserRoles(profile.id);
               const isExpanded = expandedUserId === profile.id;
-              const availableToAdd = AVAILABLE_ROLES.filter(r => !roles.includes(r));
+              const availableToAdd = availableRoles.filter(r => !roles.includes(r));
 
               return (
                 <div key={profile.id} className="border rounded-lg">
