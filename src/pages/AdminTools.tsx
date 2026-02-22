@@ -41,10 +41,6 @@ export default function AdminTools() {
   const [showDisabled, setShowDisabled] = useState(false);
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
 
-  // Pack stations state
-  const [packStations, setPackStations] = useState<{ id: string; name: string; is_active: boolean; sort_order: number }[]>([]);
-  const [newStationName, setNewStationName] = useState('');
-
   // Archive state
   const [archiveStats, setArchiveStats] = useState<{ active_count: number; archived_count: number; oldest_active_date: string | null; newest_archived_date: string | null } | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
