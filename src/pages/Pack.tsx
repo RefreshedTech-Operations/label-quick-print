@@ -36,8 +36,13 @@ export default function Pack() {
   const [recentPacks, setRecentPacks] = useState<RecentPack[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState(false);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [cooldownActive, setCooldownActive] = useState(false);
+  const [lastScannedTracking, setLastScannedTracking] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const inputRef = useRef<HTMLInputElement>(null);
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     loadStations();
