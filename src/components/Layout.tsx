@@ -87,6 +87,12 @@ export default function Layout({ children }: LayoutProps) {
                 </>
               )}
 
+              {isAdmin && (
+                <Button variant={isActive('/admin') ? 'default' : 'ghost'} asChild className="gap-2">
+                  <Link to="/admin"><Shield className="h-4 w-4" />Admin</Link>
+                </Button>
+              )}
+
               <Button variant={isActive('/settings') ? 'default' : 'ghost'} asChild className="gap-2">
                 <Link to="/settings"><Settings className="h-4 w-4" />Settings</Link>
               </Button>
