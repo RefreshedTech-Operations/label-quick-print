@@ -1068,6 +1068,10 @@ export default function Settings() {
           <BundleLocationsTab />
         </TabsContent>
 
+        <TabsContent value="pack-stations">
+          <PackStationsTab />
+        </TabsContent>
+
         <TabsContent value="kit-devices">
           <KitDevicesTab />
         </TabsContent>
