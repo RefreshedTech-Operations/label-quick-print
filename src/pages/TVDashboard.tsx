@@ -64,9 +64,6 @@ export default function TVDashboard() {
         <div>
           <h1 className="text-5xl font-bold text-foreground">Label Printing Dashboard</h1>
           <div className="flex items-center gap-4 mt-2">
-            <p className="text-2xl text-muted-foreground">
-              {format(currentTime, 'hh:mm:ss a')} EST
-            </p>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="lg" className="text-xl gap-2">
