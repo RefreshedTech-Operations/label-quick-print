@@ -73,6 +73,15 @@ export default function AdminTools() {
   // Inline role adding
   const [addingRoleForUser, setAddingRoleForUser] = useState<string | null>(null);
 
+  // New role creation
+  const [newRoleName, setNewRoleName] = useState('');
+
+  // Derive available roles from DB data
+  const availableRoles = Array.from(new Set([
+    ...roleDefaults.map(rd => rd.role),
+    ...userRoles.map(r => r.role),
+  ])).sort();
+
   useEffect(() => {
     checkAuth();
   }, []);
