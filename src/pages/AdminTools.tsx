@@ -6,10 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, UserPlus, Trash2, Archive, Loader2, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Shield, UserPlus, X, Archive, Loader2, KeyRound, Eye, EyeOff, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { ALL_PAGES, computeAllowedPages, type PagePath } from '@/lib/pagePermissions';
+import { ALL_PAGES, computeAllowedPages } from '@/lib/pagePermissions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,14 +30,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+const AVAILABLE_ROLES = ['admin', 'moderator', 'user', 'messaging'] as const;
+
 export default function AdminTools() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
-  const [emailToAdd, setEmailToAdd] = useState('');
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator' | 'user' | 'messaging'>('user');
+
+  // Archive state
   const [archiveStats, setArchiveStats] = useState<{ active_count: number; archived_count: number; oldest_active_date: string | null; newest_archived_date: string | null } | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -62,7 +65,13 @@ export default function AdminTools() {
 
   // Page permissions
   const [pagePermissions, setPagePermissions] = useState<Record<string, { page_path: string; allowed: boolean; id?: string }[]>>({});
-  const [editingPermissionsUserId, setEditingPermissionsUserId] = useState<string | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+
+  // Role defaults from DB
+  const [roleDefaults, setRoleDefaults] = useState<{ id: string; role: string; page_path: string }[]>([]);
+
+  // Inline role adding
+  const [addingRoleForUser, setAddingRoleForUser] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -73,8 +82,14 @@ export default function AdminTools() {
       loadUsersAndRoles();
       loadArchiveStats();
       loadPagePermissions();
+      loadRoleDefaults();
     }
   }, [isAdmin]);
+
+  const loadRoleDefaults = async () => {
+    const { data } = await supabase.from('role_page_defaults').select('*');
+    setRoleDefaults(data || []);
+  };
 
   const loadPagePermissions = async () => {
     const { data } = await supabase.from('user_page_permissions').select('*');
@@ -204,24 +219,10 @@ export default function AdminTools() {
     return userRoles.filter(r => r.user_id === userId).map(r => r.role);
   };
 
-  const addRoleByEmail = async () => {
-    if (!emailToAdd.trim()) {
-      toast.error('Please enter an email address');
-      return;
-    }
-
-    const userProfile = users.find(u => u.email?.toLowerCase() === emailToAdd.toLowerCase());
-    if (!userProfile) {
-      toast.error('User not found');
-      return;
-    }
-
+  const addRoleToUser = async (userId: string, role: string) => {
     const { error } = await supabase
       .from('user_roles')
-      .insert({
-        user_id: userProfile.id,
-        role: selectedRole
-      });
+      .insert({ user_id: userId, role });
 
     if (error) {
       if (error.code === '23505') {
@@ -232,8 +233,8 @@ export default function AdminTools() {
       return;
     }
 
-    toast.success(`Assigned ${selectedRole} role to ${emailToAdd}`);
-    setEmailToAdd('');
+    toast.success(`Role "${role}" assigned`);
+    setAddingRoleForUser(null);
     loadUsersAndRoles();
   };
 
@@ -264,7 +265,6 @@ export default function AdminTools() {
 
     setCreatingUser(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke('admin-users', {
         body: { action: 'create_user', email: newUserEmail.trim(), password: newUserPassword },
       });
@@ -276,7 +276,6 @@ export default function AdminTools() {
       setShowCreateUserDialog(false);
       setNewUserEmail('');
       setNewUserPassword('');
-      // Reload users after a brief delay for profile trigger
       setTimeout(() => loadUsersAndRoles(), 1000);
     } catch (error: any) {
       toast.error('Failed to create user', { description: error.message });
@@ -318,20 +317,17 @@ export default function AdminTools() {
     const userOverrides = pagePermissions[userId] || [];
     const existing = userOverrides.find(o => o.page_path === pagePath);
 
-    // Get role defaults for this user
     const roles = getUserRoles(userId);
-    const defaultAllowed = computeAllowedPages(roles, []);
+    const defaultAllowed = computeAllowedPages(roles, roleDefaults, []);
     const isDefaultValue = currentlyAllowed === defaultAllowed.has(pagePath);
 
     if (existing?.id) {
       if (isDefaultValue) {
-        // Remove the override since it matches the default
         await supabase.from('user_page_permissions').delete().eq('id', existing.id);
       } else {
         await supabase.from('user_page_permissions').update({ allowed: !currentlyAllowed }).eq('id', existing.id);
       }
     } else {
-      // Insert new override
       await supabase.from('user_page_permissions').insert({
         user_id: userId,
         page_path: pagePath,
@@ -345,13 +341,28 @@ export default function AdminTools() {
   const getEffectivePageAccess = (userId: string, pagePath: string): boolean => {
     const roles = getUserRoles(userId);
     const overrides = pagePermissions[userId] || [];
-    const allowed = computeAllowedPages(roles, overrides);
+    const allowed = computeAllowedPages(roles, roleDefaults, overrides);
     return allowed.has(pagePath);
   };
 
   const isOverridden = (userId: string, pagePath: string): boolean => {
     const overrides = pagePermissions[userId] || [];
     return overrides.some(o => o.page_path === pagePath);
+  };
+
+  // Role defaults management
+  const roleHasPage = (role: string, pagePath: string): boolean => {
+    return roleDefaults.some(rd => rd.role === role && rd.page_path === pagePath);
+  };
+
+  const toggleRoleDefault = async (role: string, pagePath: string) => {
+    const existing = roleDefaults.find(rd => rd.role === role && rd.page_path === pagePath);
+    if (existing) {
+      await supabase.from('role_page_defaults').delete().eq('id', existing.id);
+    } else {
+      await supabase.from('role_page_defaults').insert({ role, page_path: pagePath });
+    }
+    loadRoleDefaults();
   };
 
   if (loading) {
@@ -397,234 +408,205 @@ export default function AdminTools() {
 
       <Tabs defaultValue="users" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="users">Users & Roles</TabsTrigger>
-          <TabsTrigger value="permissions">Page Permissions</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users" className="space-y-6">
-          <div className="flex gap-2 mb-4">
-            <Button onClick={() => setShowCreateUserDialog(true)} className="gap-2">
+        {/* ===== USERS TAB ===== */}
+        <TabsContent value="users" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-muted-foreground">{users.length} users</p>
+            <Button onClick={() => setShowCreateUserDialog(true)} size="sm" className="gap-2">
               <UserPlus className="h-4 w-4" />
               Create User
             </Button>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="h-5 w-5" />
-                  Add Role by Email
-                </CardTitle>
-                <CardDescription>Assign roles to existing users</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">User Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={emailToAdd}
-                    onChange={(e) => setEmailToAdd(e.target.value)}
-                    placeholder="user@example.com"
-                  />
-                </div>
+          <div className="space-y-2">
+            {users.map((profile) => {
+              const roles = getUserRoles(profile.id);
+              const isExpanded = expandedUserId === profile.id;
+              const availableToAdd = AVAILABLE_ROLES.filter(r => !roles.includes(r));
 
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <select
-                    id="role"
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value as any)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                  >
-                    <option value="user">User</option>
-                    <option value="moderator">Moderator</option>
-                    <option value="admin">Admin</option>
-                    <option value="messaging">Messaging</option>
-                  </select>
-                </div>
+              return (
+                <div key={profile.id} className="border rounded-lg">
+                  <div className="p-3 flex items-center gap-3">
+                    {/* Email & date */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate text-sm">{profile.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Joined {new Date(profile.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
 
-                <Button onClick={addRoleByEmail} className="w-full">
-                  Assign Role
-                </Button>
-              </CardContent>
-            </Card>
+                    {/* Role badges */}
+                    <div className="flex flex-wrap gap-1 items-center">
+                      {roles.length > 0 ? (
+                        roles.map((role) => {
+                          const roleRecord = userRoles.find(
+                            r => r.user_id === profile.id && r.role === role
+                          );
+                          return (
+                            <Badge
+                              key={role}
+                              variant={role === 'admin' ? 'default' : 'secondary'}
+                              className="flex items-center gap-1 text-xs"
+                            >
+                              {role}
+                              <button
+                                onClick={() => roleRecord && removeRole(roleRecord.id)}
+                                className="ml-0.5 hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          );
+                        })
+                      ) : (
+                        <Badge variant="outline" className="text-xs">No roles</Badge>
+                      )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Roles</CardTitle>
-                <CardDescription>View and manage existing role assignments</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {users.map((profile) => {
-                    const roles = getUserRoles(profile.id);
-                    if (roles.length === 0) return null;
-
-                    return (
-                      <div key={profile.id} className="border rounded-lg p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{profile.email}</p>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {roles.map((role) => {
-                                const roleRecord = userRoles.find(
-                                  r => r.user_id === profile.id && r.role === role
-                                );
-                                return (
-                                  <Badge
-                                    key={role}
-                                    variant={role === 'admin' ? 'default' : 'secondary'}
-                                    className="flex items-center gap-1"
-                                  >
-                                    {role}
-                                    <button
-                                      onClick={() => roleRecord && removeRole(roleRecord.id)}
-                                      className="ml-1 hover:text-destructive"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
-                                  </Badge>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>Complete list of users in the system</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {users.map((profile) => {
-                  const roles = getUserRoles(profile.id);
-                  return (
-                    <div key={profile.id} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{profile.email}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Joined {new Date(profile.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex flex-wrap gap-1">
-                            {roles.length > 0 ? (
-                              roles.map((role) => (
-                                <Badge
-                                  key={role}
-                                  variant={role === 'admin' ? 'default' : 'secondary'}
-                                >
-                                  {role}
-                                </Badge>
-                              ))
-                            ) : (
-                              <Badge variant="outline">No roles</Badge>
-                            )}
-                          </div>
+                      {/* Add role */}
+                      {addingRoleForUser === profile.id ? (
+                        <Select onValueChange={(v) => addRoleToUser(profile.id, v)}>
+                          <SelectTrigger className="h-7 w-[120px] text-xs">
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableToAdd.map(r => (
+                              <SelectItem key={r} value={r} className="text-xs">{r}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        availableToAdd.length > 0 && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
-                            title="Reset password"
-                            onClick={() => {
-                              setResetUserId(profile.id);
-                              setResetUserEmail(profile.email);
-                              setResetPassword('');
-                              setShowResetDialog(true);
-                            }}
+                            className="h-6 w-6"
+                            onClick={() => setAddingRoleForUser(profile.id)}
+                            title="Add role"
                           >
-                            <KeyRound className="h-4 w-4" />
+                            <Plus className="h-3 w-3" />
                           </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="permissions" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Page Permissions</CardTitle>
-              <CardDescription>
-                Roles define default page access. Toggle switches to override per-user. 
-                <span className="text-primary font-medium"> Highlighted</span> toggles indicate a per-user override.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                {users.map((profile) => {
-                  const roles = getUserRoles(profile.id);
-                  const isExpanded = editingPermissionsUserId === profile.id;
-
-                  return (
-                    <div key={profile.id} className="border rounded-lg">
-                      <button
-                        className="w-full p-3 flex items-center justify-between text-left hover:bg-muted/50 rounded-lg"
-                        onClick={() => setEditingPermissionsUserId(isExpanded ? null : profile.id)}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{profile.email}</p>
-                          <div className="flex gap-1 mt-1">
-                            {roles.map(r => (
-                              <Badge key={r} variant="outline" className="text-xs">{r}</Badge>
-                            ))}
-                            {roles.length === 0 && <Badge variant="outline" className="text-xs">No roles</Badge>}
-                          </div>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {ALL_PAGES.filter(p => getEffectivePageAccess(profile.id, p.path)).length}/{ALL_PAGES.length} pages
-                        </span>
-                      </button>
-                      {isExpanded && (
-                        <div className="px-3 pb-3 border-t">
-                          <div className="grid gap-2 mt-3">
-                            {ALL_PAGES.map((page) => {
-                              const allowed = getEffectivePageAccess(profile.id, page.path);
-                              const overridden = isOverridden(profile.id, page.path);
-                              return (
-                                <div
-                                  key={page.path}
-                                  className={`flex items-center justify-between py-1.5 px-2 rounded ${overridden ? 'bg-primary/10 border border-primary/20' : ''}`}
-                                >
-                                  <div>
-                                    <span className="text-sm font-medium">{page.label}</span>
-                                    <span className="text-xs text-muted-foreground ml-2">{page.group}</span>
-                                    {overridden && <Badge variant="outline" className="ml-2 text-xs text-primary">override</Badge>}
-                                  </div>
-                                  <Switch
-                                    checked={allowed}
-                                    onCheckedChange={() => togglePagePermission(profile.id, page.path, allowed)}
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                        )
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Reset password"
+                        onClick={() => {
+                          setResetUserId(profile.id);
+                          setResetUserEmail(profile.email);
+                          setResetPassword('');
+                          setShowResetDialog(true);
+                        }}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Page permissions"
+                        onClick={() => setExpandedUserId(isExpanded ? null : profile.id)}
+                      >
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Expanded page permissions */}
+                  {isExpanded && (
+                    <div className="px-3 pb-3 border-t">
+                      <p className="text-xs text-muted-foreground mt-2 mb-2">
+                        Page access · <span className="text-primary">Highlighted</span> = per-user override
+                      </p>
+                      <div className="grid gap-1.5">
+                        {ALL_PAGES.map((page) => {
+                          const allowed = getEffectivePageAccess(profile.id, page.path);
+                          const overridden = isOverridden(profile.id, page.path);
+                          return (
+                            <div
+                              key={page.path}
+                              className={`flex items-center justify-between py-1 px-2 rounded text-sm ${overridden ? 'bg-primary/10 border border-primary/20' : ''}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{page.label}</span>
+                                <span className="text-xs text-muted-foreground">{page.group}</span>
+                                {overridden && <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary">override</Badge>}
+                              </div>
+                              <Switch
+                                checked={allowed}
+                                onCheckedChange={() => togglePagePermission(profile.id, page.path, allowed)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </TabsContent>
 
+        {/* ===== ROLES TAB ===== */}
+        <TabsContent value="roles" className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Configure which pages each role grants access to by default. Per-user overrides (set in the Users tab) take priority.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {AVAILABLE_ROLES.map((role) => {
+              const pageCount = roleDefaults.filter(rd => rd.role === role).length;
+              return (
+                <Card key={role}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center justify-between">
+                      <Badge variant={role === 'admin' ? 'default' : 'secondary'} className="text-sm px-3 py-1">
+                        {role}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground font-normal">
+                        {pageCount}/{ALL_PAGES.length} pages
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-1.5">
+                      {ALL_PAGES.map((page) => {
+                        const hasAccess = roleHasPage(role, page.path);
+                        return (
+                          <div
+                            key={page.path}
+                            className="flex items-center justify-between py-1 px-2 rounded text-sm hover:bg-muted/50"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{page.label}</span>
+                              <span className="text-xs text-muted-foreground">{page.group}</span>
+                            </div>
+                            <Switch
+                              checked={hasAccess}
+                              onCheckedChange={() => toggleRoleDefault(role, page.path)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+
+        {/* ===== SYSTEM TAB ===== */}
         <TabsContent value="system" className="space-y-6">
           <Card>
             <CardHeader>
