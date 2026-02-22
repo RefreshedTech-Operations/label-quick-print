@@ -251,7 +251,10 @@ export default function Pack() {
       </Card>
 
       {/* Scan input */}
-      <Card>
+      <Card className={`transition-colors duration-500 ${
+        scanStatus === 'success' ? 'bg-green-500/20 border-green-500' :
+        scanStatus === 'error' ? 'bg-red-500/20 border-red-500' : ''
+      }`}>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-2">
             <Label htmlFor="scan" className="flex items-center gap-2">
