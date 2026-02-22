@@ -52,7 +52,7 @@ export function PrinterLeaderboard({ leaderboard }: PrinterLeaderboardProps) {
                 {/* Name + bar */}
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-baseline mb-1">
-                    <span className={`text-base font-semibold truncate ${rank === 1 ? 'text-yellow-500' : 'text-foreground'}`}>
+                    <span className={`text-base font-semibold truncate ${rank === 1 ? 'text-warning' : 'text-foreground'}`}>
                       {extractUsername(entry.email)}
                     </span>
                     <span className="text-lg font-bold text-primary ml-2 shrink-0">
