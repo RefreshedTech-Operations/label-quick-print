@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, UserPlus, X, Archive, Loader2, KeyRound, Eye, EyeOff, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Shield, UserPlus, X, Archive, Loader2, KeyRound, Eye, EyeOff, ChevronDown, ChevronRight, Plus, Ban, CheckCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { ALL_PAGES, computeAllowedPages } from '@/lib/pagePermissions';
@@ -38,6 +38,8 @@ export default function AdminTools() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
+  const [showDisabled, setShowDisabled] = useState(false);
+  const [togglingUser, setTogglingUser] = useState<string | null>(null);
 
   // Archive state
   const [archiveStats, setArchiveStats] = useState<{ active_count: number; archived_count: number; oldest_active_date: string | null; newest_archived_date: string | null } | null>(null);
@@ -425,7 +427,18 @@ export default function AdminTools() {
         {/* ===== USERS TAB ===== */}
         <TabsContent value="users" className="space-y-4">
           <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">{users.length} users</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                {users.filter(u => showDisabled || !u.disabled).length} users
+                {!showDisabled && users.some(u => u.disabled) && (
+                  <span className="ml-1">({users.filter(u => u.disabled).length} hidden)</span>
+                )}
+              </p>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <Switch checked={showDisabled} onCheckedChange={setShowDisabled} className="scale-75" />
+                Show disabled
+              </label>
+            </div>
             <Button onClick={() => setShowCreateUserDialog(true)} size="sm" className="gap-2">
               <UserPlus className="h-4 w-4" />
               Create User
@@ -433,17 +446,21 @@ export default function AdminTools() {
           </div>
 
           <div className="space-y-2">
-            {users.map((profile) => {
+            {users.filter(u => showDisabled || !u.disabled).map((profile) => {
               const roles = getUserRoles(profile.id);
               const isExpanded = expandedUserId === profile.id;
               const availableToAdd = availableRoles.filter(r => !roles.includes(r));
+              const isDisabled = profile.disabled;
 
               return (
-                <div key={profile.id} className="border rounded-lg">
+                <div key={profile.id} className={`border rounded-lg ${isDisabled ? 'opacity-60' : ''}`}>
                   <div className="p-3 flex items-center gap-3">
                     {/* Email & date */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{profile.email}</p>
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium truncate text-sm ${isDisabled ? 'line-through' : ''}`}>{profile.email}</p>
+                        {isDisabled && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">disabled</Badge>}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Joined {new Date(profile.created_at).toLocaleDateString()}
                       </p>
@@ -505,6 +522,37 @@ export default function AdminTools() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-8 w-8 ${isDisabled ? 'text-green-600 hover:text-green-700' : 'text-destructive hover:text-destructive'}`}
+                        title={isDisabled ? 'Enable user' : 'Disable user'}
+                        disabled={togglingUser === profile.id}
+                        onClick={async () => {
+                          setTogglingUser(profile.id);
+                          try {
+                            const res = await supabase.functions.invoke('admin-users', {
+                              body: { action: isDisabled ? 'enable_user' : 'disable_user', user_id: profile.id },
+                            });
+                            if (res.error) throw new Error(res.error.message);
+                            if (res.data?.error) throw new Error(res.data.error);
+                            toast.success(isDisabled ? `${profile.email} enabled` : `${profile.email} disabled`);
+                            loadUsersAndRoles();
+                          } catch (error: any) {
+                            toast.error('Failed to update user', { description: error.message });
+                          } finally {
+                            setTogglingUser(null);
+                          }
+                        }}
+                      >
+                        {togglingUser === profile.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isDisabled ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          <Ban className="h-4 w-4" />
+                        )}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
