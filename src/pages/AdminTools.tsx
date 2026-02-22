@@ -842,67 +842,6 @@ export default function AdminTools() {
               )}
             </CardContent>
           </Card>
-          {/* Pack Stations */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package2 className="h-5 w-5" />
-                Pack Stations
-              </CardTitle>
-              <CardDescription>Manage packing stations used on the Pack page</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="New station name"
-                  value={newStationName}
-                  onChange={(e) => setNewStationName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addPackStation()}
-                  className="max-w-xs"
-                />
-                <Button onClick={addPackStation} disabled={!newStationName.trim()} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-              </div>
-              <div className="space-y-1">
-                {packStations.map((station) => (
-                  <div
-                    key={station.id}
-                    className={`flex items-center justify-between p-2 rounded border text-sm ${!station.is_active ? 'opacity-50' : ''}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{station.name}</span>
-                      {!station.is_active && <Badge variant="outline" className="text-[10px]">inactive</Badge>}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        title={station.is_active ? 'Deactivate' : 'Activate'}
-                        onClick={() => toggleStationActive(station.id, station.is_active)}
-                      >
-                        {station.is_active ? <Ban className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        title="Delete station"
-                        onClick={() => deletePackStation(station.id)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {packStations.length === 0 && (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No pack stations configured yet</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
 
