@@ -203,7 +203,7 @@ export default function Pack() {
         <CardContent className="pt-6">
           <form onSubmit={handleScan} className="flex items-end gap-3">
             <div className="flex-1">
-              <Label htmlFor="scan" className="flex items-center gap-2">
+              <Label htmlFor="scan" className="flex items-center gap-2 mb-2">
                 <ScanLine className="h-4 w-4" />
                 Scan Tracking Number
               </Label>
