@@ -427,7 +427,18 @@ export default function AdminTools() {
         {/* ===== USERS TAB ===== */}
         <TabsContent value="users" className="space-y-4">
           <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">{users.length} users</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                {users.filter(u => showDisabled || !u.disabled).length} users
+                {!showDisabled && users.some(u => u.disabled) && (
+                  <span className="ml-1">({users.filter(u => u.disabled).length} hidden)</span>
+                )}
+              </p>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <Switch checked={showDisabled} onCheckedChange={setShowDisabled} className="scale-75" />
+                Show disabled
+              </label>
+            </div>
             <Button onClick={() => setShowCreateUserDialog(true)} size="sm" className="gap-2">
               <UserPlus className="h-4 w-4" />
               Create User
