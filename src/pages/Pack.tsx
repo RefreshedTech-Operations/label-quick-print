@@ -35,6 +35,8 @@ export default function Pack() {
   const [scanInput, setScanInput] = useState('');
   const [recentPacks, setRecentPacks] = useState<RecentPack[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [cameraMode, setCameraMode] = useState(false);
+  const isMobile = useIsMobile();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
