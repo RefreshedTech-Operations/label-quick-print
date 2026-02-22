@@ -15,28 +15,20 @@ export const ALL_PAGES = [
 
 export type PagePath = typeof ALL_PAGES[number]['path'];
 
-// Role-based default access. If a role isn't listed, it gets no pages by default.
-const ROLE_DEFAULTS: Record<string, PagePath[]> = {
-  admin: ['/', '/upload', '/orders', '/print-jobs', '/batches', '/tv-dashboard', '/messages', '/customers', '/settings', '/admin'],
-  moderator: ['/', '/upload', '/orders', '/print-jobs', '/batches', '/tv-dashboard', '/settings'],
-  user: ['/', '/upload', '/orders', '/print-jobs', '/batches', '/tv-dashboard', '/settings'],
-  messaging: ['/messages', '/customers'],
-};
-
 /**
- * Given a user's roles and their per-user page overrides,
+ * Given a user's roles, DB-driven role defaults, and per-user overrides,
  * compute the final set of allowed page paths.
  */
 export function computeAllowedPages(
   roles: string[],
+  roleDefaults: { role: string; page_path: string }[],
   overrides: { page_path: string; allowed: boolean }[]
 ): Set<string> {
-  // Start with the union of all role defaults
+  // Start with the union of all role defaults from DB
   const allowed = new Set<string>();
-  for (const role of roles) {
-    const defaults = ROLE_DEFAULTS[role];
-    if (defaults) {
-      for (const p of defaults) allowed.add(p);
+  for (const rd of roleDefaults) {
+    if (roles.includes(rd.role)) {
+      allowed.add(rd.page_path);
     }
   }
 
