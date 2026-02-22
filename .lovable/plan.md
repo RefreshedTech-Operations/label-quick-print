@@ -1,120 +1,40 @@
 
+# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-# Replace Batches with Pack Page
+## What will change
 
-## Overview
-Remove the Batches page and replace it with a new **Pack** page. The Pack page lets users scan tracking numbers to find orders and mark them as "packed." Each pack event records the user, timestamp, and which packing station was used. Station IDs are managed by admins in a predefined list.
+The Pack page will be enhanced with three improvements:
 
-## Database Changes
+1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
 
-### 1. New table: `pack_stations`
-Stores the predefined list of packing stations that admins manage.
-- `id` (uuid, PK)
-- `name` (text, not null, unique) -- e.g. "Station 1", "Table A"
-- `is_active` (boolean, default true)
-- `sort_order` (integer)
-- `created_at` (timestamptz)
+2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
 
-RLS: Admins can manage (ALL), authenticated users can view (SELECT).
+3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
 
-### 2. Add columns to `shipments` table
-- `packed` (boolean, default false)
-- `packed_at` (timestamptz, nullable)
-- `packed_by_user_id` (uuid, nullable)
-- `pack_station_id` (uuid, nullable, FK to pack_stations.id)
-
-### 3. Add same columns to `shipments_archive` table
-To keep schema parity for archiving.
-
-## Frontend Changes
-
-### 1. New page: `src/pages/Pack.tsx`
-- **Station selector** at the top -- dropdown of active stations from `pack_stations`. Selection persists in localStorage for the session.
-- **Tracking scan input** -- text field with auto-focus. On submit:
-  - Apply same prefix-stripping logic as batch scanning (strip first 12 chars if length > 22)
-  - Look up shipment by tracking number (case-insensitive)
-  - If not found: show error toast
-  - If already packed: show warning with who packed it and when
-  - If found and not packed: mark as packed (update `packed`, `packed_at`, `packed_by_user_id`, `pack_station_id`)
-  - Show success toast with order details
-- **Recent packs list** -- table of recently packed items in current session showing tracking, buyer, product, time
-
-### 2. Update routing
-- `src/App.tsx`: Replace `/batches` route with `/pack` pointing to new Pack page
-- `src/components/Layout.tsx`: Change nav item from "Batches" to "Pack" at `/pack`, keep `Package2` icon
-- `src/lib/pagePermissions.ts`: Update `ALL_PAGES` -- replace `/batches` entry with `/pack`
-
-### 3. Admin station management
-- Add a "Pack Stations" section in the existing **Admin Tools** page (`src/pages/AdminTools.tsx`) or in **Settings** where admins can add/edit/deactivate stations
-
-### 4. Update `role_page_defaults`
-- Insert data to replace `/batches` with `/pack` for any roles that had batch access
+---
 
 ## Technical Details
 
-### Migration SQL (single migration)
-```sql
--- Pack stations table
-CREATE TABLE public.pack_stations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL UNIQUE,
-  is_active boolean DEFAULT true,
-  sort_order integer NOT NULL DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
+All changes are in `src/pages/Pack.tsx`:
 
-ALTER TABLE public.pack_stations ENABLE ROW LEVEL SECURITY;
+### New state
+- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
+- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
 
-CREATE POLICY "Admins can manage stations" ON public.pack_stations
-  FOR ALL USING (has_role(auth.uid(), 'admin')) WITH CHECK (has_role(auth.uid(), 'admin'));
+### `processTracking` changes
+- Returns a result (`'success' | 'error'`) so callers can react
+- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
+- On success, sets `scanStatus` to `'success'`
+- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
 
-CREATE POLICY "Authenticated users can view stations" ON public.pack_stations
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+### Camera cooldown
+- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
+- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
+- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
 
--- Add pack columns to shipments
-ALTER TABLE public.shipments
-  ADD COLUMN packed boolean DEFAULT false,
-  ADD COLUMN packed_at timestamptz,
-  ADD COLUMN packed_by_user_id uuid,
-  ADD COLUMN pack_station_id uuid REFERENCES public.pack_stations(id);
-
--- Add pack columns to shipments_archive
-ALTER TABLE public.shipments_archive
-  ADD COLUMN packed boolean DEFAULT false,
-  ADD COLUMN packed_at timestamptz,
-  ADD COLUMN packed_by_user_id uuid,
-  ADD COLUMN pack_station_id uuid;
-
--- Update role_page_defaults: replace /batches with /pack
-UPDATE public.role_page_defaults SET page_path = '/pack' WHERE page_path = '/batches';
-
--- Update user_page_permissions: replace /batches with /pack
-UPDATE public.user_page_permissions SET page_path = '/pack' WHERE page_path = '/batches';
-```
-
-### Pack page core logic
-```typescript
-const packOrder = async () => {
-  // 1. Strip prefix if needed
-  // 2. Query shipments by tracking (ilike)
-  // 3. Check if already packed
-  // 4. Update: packed=true, packed_at=now, packed_by_user_id=user.id, pack_station_id=selected
-  // 5. Show success, add to recent list, clear input
-};
-```
-
-### Files to create
-- `src/pages/Pack.tsx` -- main pack page
-
-### Files to modify
-- `src/App.tsx` -- swap route
-- `src/components/Layout.tsx` -- swap nav item
-- `src/lib/pagePermissions.ts` -- swap page entry
-- `src/pages/AdminTools.tsx` -- add station management section
-- `src/types/batch.ts` -- can be removed or repurposed
-
-### Files to remove
-- `src/pages/BatchManagement.tsx` -- replaced by Pack page
-
-### Update archive function
-The `archive_shipments_batch` DB function will need updating to include the new pack columns in the INSERT...SELECT statement.
+### Visual feedback on the scan Card
+- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
+  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
+  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
+  - `'idle'` -- default styling
+- Use `transition-colors duration-500` for a smooth fade effect
