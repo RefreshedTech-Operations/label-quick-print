@@ -22,7 +22,7 @@ export function PrinterLeaderboard({ leaderboard }: PrinterLeaderboardProps) {
     <Card className="border-2 h-full">
       <CardHeader className="pb-3">
         <CardTitle className="text-2xl flex items-center gap-2">
-          <Trophy className="h-6 w-6 text-yellow-500" />
+          <Trophy className="h-6 w-6 text-warning" />
           Printer Leaderboard
         </CardTitle>
       </CardHeader>
