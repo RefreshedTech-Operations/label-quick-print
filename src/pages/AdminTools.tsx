@@ -25,7 +25,7 @@ export default function AdminTools() {
   const [users, setUsers] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [emailToAdd, setEmailToAdd] = useState('');
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator' | 'user'>('user');
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator' | 'user' | 'messaging'>('user');
   const [archiveStats, setArchiveStats] = useState<{ active_count: number; archived_count: number; oldest_active_date: string | null; newest_archived_date: string | null } | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -291,6 +291,7 @@ export default function AdminTools() {
                 <option value="user">User</option>
                 <option value="moderator">Moderator</option>
                 <option value="admin">Admin</option>
+                <option value="messaging">Messaging</option>
               </select>
             </div>
 

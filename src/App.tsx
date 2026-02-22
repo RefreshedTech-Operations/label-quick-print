@@ -13,6 +13,9 @@ import Settings from "./pages/Settings";
 import BatchManagement from "./pages/BatchManagement";
 import AdminTools from "./pages/AdminTools";
 import TVDashboard from "./pages/TVDashboard";
+import Messages from "./pages/Messages";
+import Customers from "./pages/Customers";
+import CustomerProfile from "./pages/CustomerProfile";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +38,9 @@ const App = () => (
             <Route path="/tv-dashboard" element={<TVDashboard />} />
             <Route path="/settings" element={<Layout><Settings /></Layout>} />
             <Route path="/admin" element={<Layout><AdminTools /></Layout>} />
+            <Route path="/messages" element={<Layout><Messages /></Layout>} />
+            <Route path="/customers" element={<Layout><Customers /></Layout>} />
+            <Route path="/customers/:id" element={<Layout><CustomerProfile /></Layout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
