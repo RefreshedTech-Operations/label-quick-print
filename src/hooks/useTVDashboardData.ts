@@ -59,7 +59,7 @@ export function useTVDashboardData(targetDate?: Date, refreshInterval = 30000) {
         printer_leaderboard: (result.printer_leaderboard as LeaderboardEntry[]) ?? [],
       } as TVDashboardData;
     },
-    refetchInterval: refreshInterval,
+    refetchInterval: refreshInterval > 0 ? refreshInterval : false,
     refetchOnWindowFocus: true,
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
