@@ -14,13 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import CustomerCombobox from '@/components/CustomerCombobox';
 
 export default function Messages() {
   const navigate = useNavigate();
@@ -245,22 +239,12 @@ export default function Messages() {
             </div>
             <div className="space-y-2">
               <Label>Link to Customer (optional)</Label>
-              <Select
+              <CustomerCombobox
+                customers={[{ id: 'none', name: 'None', phone_number: null }, ...customers]}
                 value={selectedCustomerId}
-                onValueChange={setSelectedCustomerId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} {c.phone_number ? `(${c.phone_number})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onSelect={setSelectedCustomerId}
+                placeholder="Select a customer"
+              />
             </div>
           </div>
           <DialogFooter>

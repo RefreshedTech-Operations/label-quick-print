@@ -5,13 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Loader2, Link2, Unlink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import CustomerCombobox from '@/components/CustomerCombobox';
 
 interface Message {
   id: string;
@@ -106,23 +100,15 @@ export default function MessageThread({
             </div>
           ) : showLinkSelector ? (
             <div className="flex items-center gap-2 flex-1">
-              <Select
-                onValueChange={(val) => {
+              <CustomerCombobox
+                customers={customers}
+                value={null}
+                onSelect={(val) => {
                   onLinkCustomer?.(val);
                   setShowLinkSelector(false);
                 }}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select a customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} {c.phone_number ? `(${c.phone_number})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                triggerClassName="h-8 text-sm"
+              />
               <Button variant="ghost" size="sm" onClick={() => setShowLinkSelector(false)}>
                 Cancel
               </Button>
