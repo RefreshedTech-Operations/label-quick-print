@@ -11,15 +11,6 @@ import { PrinterLeaderboard } from '@/components/tv-dashboard/PrinterLeaderboard
 import { format, isToday } from 'date-fns';
 
 import { cn } from '@/lib/utils';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
-} from 'recharts';
-
-const formatHour = (hour: number) => {
-  const period = hour >= 12 ? 'PM' : 'AM';
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${displayHour}:00 ${period}`;
-};
 
 export default function TVDashboard() {
   const navigate = useNavigate();
@@ -41,12 +32,6 @@ export default function TVDashboard() {
     : data.total_printed;
 
   const isActive = isViewingToday && data.last_hour_count > 0;
-
-  const chartData = data.hourly_breakdown.map(h => ({
-    hour: h.hour,
-    count: h.count,
-    name: formatHour(h.hour),
-  }));
 
   return (
     <div className="min-h-screen bg-background p-6 overflow-hidden">
