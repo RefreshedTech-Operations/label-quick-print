@@ -247,6 +247,27 @@ export type Database = {
         }
         Relationships: []
       }
+      role_page_defaults: {
+        Row: {
+          created_at: string | null
+          id: string
+          page_path: string
+          role: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          page_path: string
+          role: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          page_path?: string
+          role?: string
+        }
+        Relationships: []
+      }
       shipments: {
         Row: {
           address_full: string | null
