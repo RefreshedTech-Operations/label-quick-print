@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, UserPlus, X, Archive, Loader2, KeyRound, Eye, EyeOff, ChevronDown, ChevronRight, Plus, Ban, CheckCircle } from 'lucide-react';
+import { Shield, UserPlus, X, Archive, Loader2, KeyRound, Eye, EyeOff, ChevronDown, ChevronRight, Plus, Ban, CheckCircle, Package2, GripVertical } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { ALL_PAGES, computeAllowedPages } from '@/lib/pagePermissions';
