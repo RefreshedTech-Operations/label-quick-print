@@ -102,6 +102,22 @@ export default function Orders() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [includeArchive, setIncludeArchive] = useState(false);
+  const [nonBundledSubFilter, setNonBundledSubFilter] = useState<'all' | 'unprinted'>('all');
+
+  // Reset sub-filter when main filter changes away from non_bundled
+  useEffect(() => {
+    if (filter !== 'non_bundled') {
+      setNonBundledSubFilter('all');
+    }
+  }, [filter]);
+
+  // Compute the effective filter to pass to RPC
+  const effectiveFilter = useMemo(() => {
+    if (filter === 'non_bundled' && nonBundledSubFilter === 'unprinted') {
+      return 'non_bundled_unprinted';
+    }
+    return filter;
+  }, [filter, nonBundledSubFilter]);
   
   const { settings, updateSettings } = useAppStore();
 
