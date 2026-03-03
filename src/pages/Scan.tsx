@@ -190,6 +190,29 @@ export default function Scan() {
     }
   };
 
+  const checkMilestone = useCallback(async (userId: string) => {
+    try {
+      const { count, error } = await supabase
+        .from('shipments')
+        .select('id', { count: 'exact', head: true })
+        .eq('printed', true)
+        .eq('printed_by_user_id', userId)
+        .gte('printed_at', new Date(new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })).toISOString());
+
+      if (error || count === null) return;
+
+      for (const m of MILESTONES) {
+        if (count >= m.count && !celebratedMilestones.has(m.count)) {
+          celebratedMilestones.add(m.count);
+          setActiveCelebration({ milestone: m.count, message: m.message });
+          break;
+        }
+      }
+    } catch (err) {
+      console.error('Milestone check failed:', err);
+    }
+  }, [celebratedMilestones]);
+
   const findShipmentByUid = async (uid: string): Promise<Shipment | null> => {
     const upperUid = uid.toUpperCase();
     
