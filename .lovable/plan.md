@@ -1,40 +1,28 @@
 
-# Pack Page: Duplicate Scan Prevention and Visual Feedback
+
+# Add "All / Unprinted" Toggle for Non-Bundled Items Filter
 
 ## What will change
 
-The Pack page will be enhanced with three improvements:
-
-1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
-
-2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
-
-3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
-
----
+When the "Non-Bundled Items" filter is active, a small toggle will appear next to the filter dropdown letting users switch between seeing **all** non-bundled items or only **unprinted** non-bundled items.
 
 ## Technical Details
 
-All changes are in `src/pages/Pack.tsx`:
+### 1. New state in `src/pages/Orders.tsx`
+- Add `nonBundledSubFilter` state: `'all' | 'unprinted'` (default `'all'`)
+- Reset it when the main filter changes away from `non_bundled`
 
-### New state
-- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
-- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
+### 2. UI change (near line ~1219)
+- After the filter `<Select>`, conditionally render a `ToggleGroup` (single-select) with two options: "All" and "Unprinted" — only visible when `filter === 'non_bundled'`
 
-### `processTracking` changes
-- Returns a result (`'success' | 'error'`) so callers can react
-- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
-- On success, sets `scanStatus` to `'success'`
-- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
+### 3. New database filter values
+- Add `non_bundled_unprinted` as a valid `p_filter` value in both `search_all_shipments` and `get_shipments_stats_with_archive` database functions
+- Filter condition: `(s.bundle = false OR s.bundle IS NULL) AND (s.printed = false OR s.printed IS NULL)`
 
-### Camera cooldown
-- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
-- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
-- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
+### 4. Query integration
+- When `filter === 'non_bundled'` and `nonBundledSubFilter === 'unprinted'`, pass `'non_bundled_unprinted'` as `p_filter` to the RPC calls
+- Include `nonBundledSubFilter` in React Query keys so cache updates correctly
 
-### Visual feedback on the scan Card
-- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
-  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
-  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
-  - `'idle'` -- default styling
-- Use `transition-colors duration-500` for a smooth fade effect
+### 5. Migration
+- Single SQL migration updating `search_all_shipments` and `get_shipments_stats_with_archive` to handle the new `'non_bundled_unprinted'` filter value
+
