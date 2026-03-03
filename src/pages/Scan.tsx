@@ -54,6 +54,8 @@ export default function Scan() {
   const [kitItemsToGather, setKitItemsToGather] = useState<{ product_name: string; quantity: number }[]>([]);
   const [pendingKitConfirmation, setPendingKitConfirmation] = useState(false);
   const [scanStatus, setScanStatus] = useState<ScanStatus>(null);
+  const [celebratedMilestones] = useState(() => new Set<number>());
+  const [activeCelebration, setActiveCelebration] = useState<{ milestone: number; message: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   
