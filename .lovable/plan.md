@@ -1,35 +1,40 @@
 
+# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-# Fix Analytics Page -- Function Overload Resolution
+## What will change
 
-## Problem
+The Pack page will be enhanced with three improvements:
 
-The analytics RPC functions each have two overloaded versions: one with `p_user_id` and one without. When the code calls them without `p_user_id` (no employee filter selected), PostgREST returns `PGRST203` because it can't disambiguate between the two signatures.
+1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
 
-The network requests confirm this -- all 5 fallback RPC calls (`get_analytics_kpis`, `get_daily_analytics`, `get_printer_performance`, `get_print_status_breakdown`, `get_hourly_print_rate`) return status 300 with the overload resolution error.
+2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
 
-## Solution
+3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
 
-Two-part fix:
+---
 
-### 1. Database migration -- Drop the no-user overloads
+## Technical Details
 
-Drop the 2-parameter versions of all 5 functions, keeping only the versions that accept `p_user_id`. Alter those to default `p_user_id` to `NULL` so they work when no user filter is applied.
+All changes are in `src/pages/Pack.tsx`:
 
-Functions to update:
-- `get_analytics_kpis(start_date, end_date, p_user_id DEFAULT NULL)`
-- `get_daily_analytics(start_date, end_date, p_user_id DEFAULT NULL)`
-- `get_printer_performance(start_date, end_date, top_limit DEFAULT 10, p_user_id DEFAULT NULL)`
-- `get_print_status_breakdown(start_date, end_date, p_user_id DEFAULT NULL)`
-- `get_hourly_print_rate(start_date, end_date, p_user_id DEFAULT NULL)`
+### New state
+- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
+- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
 
-### 2. Code change in `useAnalyticsData.ts`
+### `processTracking` changes
+- Returns a result (`'success' | 'error'`) so callers can react
+- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
+- On success, sets `scanStatus` to `'success'`
+- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
 
-In the fallback branch, always pass `p_user_id` (as `null` when no employee is selected) so PostgREST always resolves to the correct function:
+### Camera cooldown
+- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
+- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
+- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
 
-```typescript
-const userParam = { p_user_id: userId || null }
-```
-
-This ensures calls always include the `p_user_id` parameter regardless of whether a user is filtered.
-
+### Visual feedback on the scan Card
+- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
+  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
+  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
+  - `'idle'` -- default styling
+- Use `transition-colors duration-500` for a smooth fade effect
