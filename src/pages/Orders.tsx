@@ -331,7 +331,7 @@ export default function Orders() {
               search_term: debouncedSearch.trim() || null,
               p_show_date: showDateFilter || null,
               p_printed: null,
-              p_filter: filter,
+              p_filter: effectiveFilter,
               p_limit: pageSize,
               p_offset: currentOffset
             });
