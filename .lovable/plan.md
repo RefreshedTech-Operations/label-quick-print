@@ -1,32 +1,40 @@
 
-
-# Per-User Milestone Celebrations on the Scan Page
+# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
 ## What will change
 
-After each successful print on the Scan page, the app will query the current user's total prints for the day. When they hit exactly 250 or 500, a full-screen celebratory overlay appears with the specified messages, auto-dismissing after 5 seconds.
+The Pack page will be enhanced with three improvements:
+
+1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
+
+2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
+
+3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
+
+---
 
 ## Technical Details
 
-### 1. New component: `src/components/MilestoneCelebration.tsx`
-- Full-screen overlay with semi-transparent backdrop
-- Scale-in bounce animation via custom CSS keyframe
-- Floating emoji particles for visual flair
-- Props: `milestone: number`, `message: string`, `onDismiss: () => void`
-- Auto-dismisses after 5 seconds, or tap/click to dismiss early
-- Messages:
-  - **250**: "250 Labels Printed! -- keep it going! 🔥"
-  - **500**: "500 Labels Printed! You're Killing it! -- amazing work! 🏆"
+All changes are in `src/pages/Pack.tsx`:
 
-### 2. Changes in `src/pages/Scan.tsx`
-- New state: `celebratedMilestones: Set<number>` (session-scoped, resets on page reload)
-- New state: `activeCelebration: { milestone: number; message: string } | null`
-- New helper function `checkMilestone(userId: string)`:
-  - Queries: `SELECT COUNT(*) FROM shipments WHERE printed = true AND printed_by_user_id = userId AND printed_at::date = CURRENT_DATE` (using Supabase `.select('id', { count: 'exact', head: true })` with filters)
-  - If count matches 250 or 500 and not already celebrated, trigger overlay
-- Called at the end of successful print paths: `handlePrint` (after line ~662) and `handlePrintGroupId` (after successful group ID print)
+### New state
+- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
+- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
 
-### 3. Animation in `tailwind.config.ts`
-- Add `celebration-pop` keyframe: scale 0 → 1.15 → 1 with opacity fade-in
-- Add corresponding animation class
+### `processTracking` changes
+- Returns a result (`'success' | 'error'`) so callers can react
+- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
+- On success, sets `scanStatus` to `'success'`
+- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
 
+### Camera cooldown
+- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
+- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
+- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
+
+### Visual feedback on the scan Card
+- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
+  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
+  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
+  - `'idle'` -- default styling
+- Use `transition-colors duration-500` for a smooth fade effect
