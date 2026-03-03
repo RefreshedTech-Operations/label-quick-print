@@ -240,7 +240,7 @@ export default function Orders() {
   // Reset to page 1 when filters change (instant for filters, debounced for search)
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, showDateFilter, debouncedSearch]);
+  }, [filter, showDateFilter, debouncedSearch, nonBundledSubFilter]);
 
   // React Query for shipments with caching and optimized column selection
   // PHASE 2 VERIFICATION: Query cancellation is automatic via React Query's AbortSignal
