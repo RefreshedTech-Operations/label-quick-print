@@ -269,7 +269,7 @@ export default function Orders() {
           search_term: debouncedSearch.trim() || null,
           p_show_date: showDateFilter || null,
           p_printed: null, // Keep for backward compatibility
-          p_filter: filter, // NEW: Pass filter to SQL for server-side filtering
+          p_filter: effectiveFilter,
           p_limit: pageSize,
           p_offset: (currentPage - 1) * pageSize,
           p_include_archive: includeArchive
