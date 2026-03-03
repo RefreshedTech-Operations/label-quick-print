@@ -1238,6 +1238,17 @@ export default function Orders() {
             <SelectItem value="exceptions">Exceptions</SelectItem>
           </SelectContent>
         </Select>
+        {filter === 'non_bundled' && (
+          <ToggleGroup
+            type="single"
+            value={nonBundledSubFilter}
+            onValueChange={(v) => { if (v) setNonBundledSubFilter(v as 'all' | 'unprinted'); }}
+            size="sm"
+          >
+            <ToggleGroupItem value="all" className="text-xs px-3">All</ToggleGroupItem>
+            <ToggleGroupItem value="unprinted" className="text-xs px-3">Unprinted</ToggleGroupItem>
+          </ToggleGroup>
+        )}
         <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
           <SelectTrigger className="w-[140px]">
             <SelectValue />
