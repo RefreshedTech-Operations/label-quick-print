@@ -287,7 +287,7 @@ export default function Orders() {
   // Separate query for aggregate stats (counts all records, not just current page)
   // PHASE 2: Lazy stats loading - only loads when enabled, with manual refresh button
   const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery({
-    queryKey: ['shipments-stats', showDateFilter, filter, includeArchive], // Include archive in key
+    queryKey: ['shipments-stats', showDateFilter, effectiveFilter, includeArchive],
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc('get_shipments_stats_with_archive', {
