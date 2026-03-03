@@ -1740,6 +1740,14 @@ export default function Scan() {
         kitItems={kitItemsToGather}
         onConfirm={handleKitItemsConfirm}
       />
+
+      {activeCelebration && (
+        <MilestoneCelebration
+          milestone={activeCelebration.milestone}
+          message={activeCelebration.message}
+          onDismiss={() => setActiveCelebration(null)}
+        />
+      )}
     </div>
   );
 }
