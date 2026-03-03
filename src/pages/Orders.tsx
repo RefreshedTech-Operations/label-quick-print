@@ -998,7 +998,7 @@ export default function Orders() {
         .rpc('search_shipments', {
           search_term: debouncedSearch || '',
           p_show_date: showDateFilter || null,
-          p_filter: filter,
+          p_filter: effectiveFilter,
           p_limit: 999999,
           p_offset: 0,
         });
