@@ -16,7 +16,13 @@ import { ChargerWarning } from '@/components/ChargerWarning';
 import { createPickListPrintJob, PickListData } from '@/lib/pickList';
 import { NewBundleLocationDialog } from '@/components/NewBundleLocationDialog';
 import { KitItemsDialog } from '@/components/KitItemsDialog';
+import { MilestoneCelebration } from '@/components/MilestoneCelebration';
 import { cn } from '@/lib/utils';
+
+const MILESTONES = [
+  { count: 250, message: "250 Labels Printed! -- keep it going! 🔥" },
+  { count: 500, message: "500 Labels Printed! You're Killing it! -- amazing work! 🏆" },
+];
 
 type ScanStatus = {
   type: 'not_found' | 'already_printed' | 'cancelled' | 'missing_manifest';
