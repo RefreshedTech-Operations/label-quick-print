@@ -294,7 +294,7 @@ export default function Orders() {
           search_term: search.trim() || null, // Use instant search (no debounce) for filters
           p_show_date: showDateFilter || null,
           p_printed: null,
-          p_filter: filter,
+          p_filter: effectiveFilter,
           p_include_archive: includeArchive
         })
         .single();
