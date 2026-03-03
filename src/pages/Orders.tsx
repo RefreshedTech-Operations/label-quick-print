@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/useAppStore';
@@ -47,6 +47,7 @@ import {
 import { toast } from 'sonner';
 import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2, Archive } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Shipment } from '@/types';
 import { exportOrders } from '@/lib/analyticsExport';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
@@ -101,6 +102,22 @@ export default function Orders() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [includeArchive, setIncludeArchive] = useState(false);
+  const [nonBundledSubFilter, setNonBundledSubFilter] = useState<'all' | 'unprinted'>('all');
+
+  // Reset sub-filter when main filter changes away from non_bundled
+  useEffect(() => {
+    if (filter !== 'non_bundled') {
+      setNonBundledSubFilter('all');
+    }
+  }, [filter]);
+
+  // Compute the effective filter to pass to RPC
+  const effectiveFilter = useMemo(() => {
+    if (filter === 'non_bundled' && nonBundledSubFilter === 'unprinted') {
+      return 'non_bundled_unprinted';
+    }
+    return filter;
+  }, [filter, nonBundledSubFilter]);
   
   const { settings, updateSettings } = useAppStore();
 
@@ -223,14 +240,14 @@ export default function Orders() {
   // Reset to page 1 when filters change (instant for filters, debounced for search)
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, showDateFilter, debouncedSearch]);
+  }, [filter, showDateFilter, debouncedSearch, nonBundledSubFilter]);
 
   // React Query for shipments with caching and optimized column selection
   // PHASE 2 VERIFICATION: Query cancellation is automatic via React Query's AbortSignal
   // React Query automatically cancels in-flight requests when queryKey changes
   // GUARD: Wait for show date to be auto-selected OR user explicitly enables "All Shows"
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
-    queryKey: ['shipments', currentPage, filter, showDateFilter, debouncedSearch, pageSize, includeArchive],
+    queryKey: ['shipments', currentPage, effectiveFilter, showDateFilter, debouncedSearch, pageSize, includeArchive],
     queryFn: async ({ signal }) => { // signal is automatically provided by React Query
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -252,7 +269,7 @@ export default function Orders() {
           search_term: debouncedSearch.trim() || null,
           p_show_date: showDateFilter || null,
           p_printed: null, // Keep for backward compatibility
-          p_filter: filter, // NEW: Pass filter to SQL for server-side filtering
+          p_filter: effectiveFilter,
           p_limit: pageSize,
           p_offset: (currentPage - 1) * pageSize,
           p_include_archive: includeArchive
@@ -270,14 +287,14 @@ export default function Orders() {
   // Separate query for aggregate stats (counts all records, not just current page)
   // PHASE 2: Lazy stats loading - only loads when enabled, with manual refresh button
   const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery({
-    queryKey: ['shipments-stats', showDateFilter, filter, includeArchive], // Include archive in key
+    queryKey: ['shipments-stats', showDateFilter, effectiveFilter, includeArchive],
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc('get_shipments_stats_with_archive', {
           search_term: search.trim() || null, // Use instant search (no debounce) for filters
           p_show_date: showDateFilter || null,
           p_printed: null,
-          p_filter: filter,
+          p_filter: effectiveFilter,
           p_include_archive: includeArchive
         })
         .single();
@@ -314,7 +331,7 @@ export default function Orders() {
               search_term: debouncedSearch.trim() || null,
               p_show_date: showDateFilter || null,
               p_printed: null,
-              p_filter: filter,
+              p_filter: effectiveFilter,
               p_limit: pageSize,
               p_offset: currentOffset
             });
@@ -981,7 +998,7 @@ export default function Orders() {
         .rpc('search_shipments', {
           search_term: debouncedSearch || '',
           p_show_date: showDateFilter || null,
-          p_filter: filter,
+          p_filter: effectiveFilter,
           p_limit: 999999,
           p_offset: 0,
         });
@@ -1221,6 +1238,17 @@ export default function Orders() {
             <SelectItem value="exceptions">Exceptions</SelectItem>
           </SelectContent>
         </Select>
+        {filter === 'non_bundled' && (
+          <ToggleGroup
+            type="single"
+            value={nonBundledSubFilter}
+            onValueChange={(v) => { if (v) setNonBundledSubFilter(v as 'all' | 'unprinted'); }}
+            size="sm"
+          >
+            <ToggleGroupItem value="all" className="text-xs px-3">All</ToggleGroupItem>
+            <ToggleGroupItem value="unprinted" className="text-xs px-3">Unprinted</ToggleGroupItem>
+          </ToggleGroup>
+        )}
         <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
           <SelectTrigger className="w-[140px]">
             <SelectValue />
