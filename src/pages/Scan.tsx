@@ -694,6 +694,9 @@ export default function Scan() {
         description: `Printed label for ${shipment.uid}`
       });
 
+      // Check for milestone celebrations
+      await checkMilestone(user.id);
+
       // Check if this is a Label Only order and print pick list
       if (isLabelOnlyOrder(shipment)) {
         try {
