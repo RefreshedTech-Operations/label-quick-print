@@ -47,6 +47,7 @@ import {
 import { toast } from 'sonner';
 import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2, Archive } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Shipment } from '@/types';
 import { exportOrders } from '@/lib/analyticsExport';
 import { submitPrintJob, createPrintJob } from '@/lib/printnode';
