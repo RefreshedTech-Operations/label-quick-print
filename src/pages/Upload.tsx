@@ -350,6 +350,36 @@ export default function Upload() {
 
   // Expose automation API on window
   useEffect(() => {
+    // Initialize chunk buffer
+    window.__csvBuffer = '';
+
+    // Append a chunk of CSV data to the buffer
+    window.__appendCSV = (chunk: string) => {
+      window.__csvBuffer = (window.__csvBuffer || '') + chunk;
+      console.log(`[Automation] Appended ${chunk.length} chars, buffer now ${window.__csvBuffer.length} chars`);
+      return { success: true, bufferLength: window.__csvBuffer.length };
+    };
+
+    // Clear the buffer
+    window.__clearCSV = () => {
+      window.__csvBuffer = '';
+      console.log('[Automation] Buffer cleared');
+    };
+
+    // Submit the buffered CSV data
+    window.__submitCSV = async (options = {}) => {
+      const csvString = window.__csvBuffer || '';
+      if (!csvString) {
+        return { success: false, message: 'Buffer is empty. Call __appendCSV(chunk) first.' };
+      }
+      console.log(`[Automation] Submitting buffer: ${csvString.length} chars`);
+      const result = await window.__uploadCSV!(csvString, { ...options, autoSubmit: true });
+      if (result.success) {
+        window.__csvBuffer = '';
+      }
+      return result;
+    };
+
     window.__uploadCSV = async (csvString, options = {}) => {
       const {
         showDate: showDateStr,
@@ -378,12 +408,10 @@ export default function Upload() {
         console.log(`[Automation] Parsed ${data.length} rows from CSV string`);
 
         if (autoSubmit) {
-          // Get current columnMap from store
           const currentColumnMap = useAppStore.getState().columnMap;
           const result = await processAndUpload(data, dateObj, optChannel, optLabelOnly, currentColumnMap);
           return result;
         } else {
-          // Just load the data into the UI state
           setParsedData(data);
           setPreview(data.slice(0, 5));
           setShowDate(dateObj);
@@ -400,6 +428,10 @@ export default function Upload() {
 
     return () => {
       delete window.__uploadCSV;
+      delete window.__csvBuffer;
+      delete window.__appendCSV;
+      delete window.__submitCSV;
+      delete window.__clearCSV;
     };
   }, [processAndUpload]);
 
