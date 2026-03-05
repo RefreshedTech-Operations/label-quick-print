@@ -27,6 +27,14 @@ export function extractUid(
   return null;
 }
 
+export function parseCSVString(csvString: string): any[] {
+  const result = Papa.parse(csvString, {
+    header: true,
+    skipEmptyLines: true,
+  });
+  return result.data;
+}
+
 export function parseCSV(file: File): Promise<any[]> {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
@@ -59,7 +67,7 @@ export function parseXLSX(file: File): Promise<any[]> {
         const jsonData = XLSX.utils.sheet_to_json(worksheet, {
           header: 1,
           defval: '',
-          raw: false, // Prevent scientific notation for long tracking numbers
+          raw: false,
         }) as any[][];
         
         if (jsonData.length < 2) {
