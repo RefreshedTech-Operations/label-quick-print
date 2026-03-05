@@ -25,6 +25,15 @@ declare global {
       isLabelOnly?: boolean;
       autoSubmit?: boolean;    // default true - auto-trigger upload
     }) => Promise<{ success: boolean; message: string; count?: number }>;
+    // Chunked upload helpers for automation tools with character limits
+    __csvBuffer?: string;
+    __appendCSV?: (chunk: string) => { success: boolean; bufferLength: number };
+    __submitCSV?: (options?: {
+      showDate?: string;
+      channel?: string;
+      isLabelOnly?: boolean;
+    }) => Promise<{ success: boolean; message: string; count?: number }>;
+    __clearCSV?: () => void;
   }
 }
 
