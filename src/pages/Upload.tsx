@@ -16,6 +16,18 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 
+// Extend window for automation API
+declare global {
+  interface Window {
+    __uploadCSV?: (csvString: string, options?: {
+      showDate?: string;       // ISO date string e.g. "2025-03-05"
+      channel?: string;        // "regular" | "misfits" | "outlet"
+      isLabelOnly?: boolean;
+      autoSubmit?: boolean;    // default true - auto-trigger upload
+    }) => Promise<{ success: boolean; message: string; count?: number }>;
+  }
+}
+
 export default function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -23,6 +35,7 @@ export default function Upload() {
   const [showDate, setShowDate] = useState<Date>();
   const [channel, setChannel] = useState<string>('regular');
   const [isLabelOnly, setIsLabelOnly] = useState(false);
+  const [parsedData, setParsedData] = useState<any[] | null>(null);
   
   const { columnMap, settings } = useAppStore();
   const navigate = useNavigate();
@@ -42,6 +55,7 @@ export default function Upload() {
     }
 
     setFile(selectedFile);
+    setParsedData(null);
 
     try {
       const data = await parseFile(selectedFile);
@@ -55,8 +69,253 @@ export default function Upload() {
     }
   };
 
+  // Core upload logic extracted so it can be used by both UI and automation API
+  const processAndUpload = useCallback(async (
+    data: any[],
+    uploadShowDate: Date,
+    uploadChannel: string,
+    uploadIsLabelOnly: boolean,
+    currentColumnMap: typeof columnMap
+  ): Promise<{ success: boolean; message: string; count?: number }> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, message: 'Not authenticated' };
+    }
+
+    console.log('Total rows:', data.length);
+    
+    const shipments = data
+      .map(row => normalizeShipmentData(row, currentColumnMap))
+      .filter(s => !s.cancelled || s.cancelled.trim() === '')
+      .filter(s => s.order_id && s.order_id.trim() !== '');
+    
+    console.log('After cancelled and empty order_id filter:', shipments.length);
+
+    // Group shipments by tracking number
+    const groupedByTracking = new Map<string, any[]>();
+    shipments.forEach(shipment => {
+      if (shipment.tracking && shipment.tracking.trim()) {
+        const trackingNumber = shipment.tracking.trim().toLowerCase();
+        if (!groupedByTracking.has(trackingNumber)) {
+          groupedByTracking.set(trackingNumber, []);
+        }
+        groupedByTracking.get(trackingNumber)!.push(shipment);
+      }
+    });
+
+    console.log('Tracking groups found:', groupedByTracking.size);
+    console.log('Multi-item bundles:', Array.from(groupedByTracking.values()).filter(g => g.length > 1).length);
+
+    // Assign order_group_id to groups with same tracking number
+    const shipmentsWithGroups: any[] = [];
+    const processedOrderIds = new Set<string>();
+
+    groupedByTracking.forEach((group, tracking) => {
+      if (group.length > 1) {
+        const groupId = crypto.randomUUID();
+        console.log(`Bundle group ${groupId}: tracking ${tracking}, ${group.length} items:`, group.map(s => s.order_id));
+        group.forEach(shipment => {
+          shipmentsWithGroups.push({
+            ...shipment,
+            order_group_id: groupId,
+            bundle: true
+          });
+          processedOrderIds.add(shipment.order_id);
+        });
+      }
+    });
+
+    shipments.forEach(shipment => {
+      if (!processedOrderIds.has(shipment.order_id)) {
+        shipmentsWithGroups.push({
+          ...shipment,
+          order_group_id: null,
+          bundle: false
+        });
+      }
+    });
+
+    console.log('Total after grouping:', shipmentsWithGroups.length, 'Bundled:', shipmentsWithGroups.filter(s => s.bundle).length);
+
+    // Deduplicate within the file itself
+    const seenOrderIds = new Set<string>();
+    const deduplicatedShipments: any[] = [];
+    let inFileDuplicates = 0;
+
+    shipmentsWithGroups.forEach(shipment => {
+      const orderId = shipment.order_id;
+      if (orderId && seenOrderIds.has(orderId)) {
+        inFileDuplicates++;
+      } else {
+        if (orderId) seenOrderIds.add(orderId);
+        deduplicatedShipments.push(shipment);
+      }
+    });
+
+    if (inFileDuplicates > 0) {
+      console.log(`Found ${inFileDuplicates} duplicate order IDs within the file`);
+    }
+    console.log('After file dedup:', deduplicatedShipments.length);
+
+    if (deduplicatedShipments.length === 0) {
+      return { success: false, message: `No shipments to upload. All ${inFileDuplicates} records were duplicates within the file`, count: 0 };
+    }
+
+    const formattedShowDate = `${uploadShowDate.getFullYear()}-${String(uploadShowDate.getMonth() + 1).padStart(2, '0')}-${String(uploadShowDate.getDate()).padStart(2, '0')}`;
+
+    const shipmentsWithUser = deduplicatedShipments.map(s => {
+      const shipment = {
+        ...s,
+        user_id: user.id,
+        channel: uploadChannel,
+        show_date: formattedShowDate
+      };
+      
+      if (uploadIsLabelOnly && s.label_url) {
+        shipment.manifest_url = s.label_url;
+      }
+      
+      return shipment;
+    });
+
+    const INSERT_BATCH_SIZE = 100;
+    const PARALLEL_BATCHES = 2;
+    let totalInserted = 0;
+    let totalSkippedDuplicates = 0;
+
+    const uploadStartTime = new Date().toISOString();
+
+    const uploadBatch = async (
+      batch: any[], 
+      attempt = 1
+    ): Promise<{ inserted: number; skipped: number }> => {
+      const maxAttempts = 3;
+      
+      try {
+        const { data: insertedData, error } = await supabase
+          .from('shipments')
+          .upsert(batch, { 
+            onConflict: 'order_id'
+          })
+          .select('order_id');
+
+        if (error) {
+          if (error.code === '57014' && attempt < maxAttempts && batch.length > 10) {
+            console.log(`Timeout on batch of ${batch.length}, splitting in half (attempt ${attempt})`);
+            const mid = Math.floor(batch.length / 2);
+            const result1 = await uploadBatch(batch.slice(0, mid), attempt + 1);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const result2 = await uploadBatch(batch.slice(mid), attempt + 1);
+            return {
+              inserted: result1.inserted + result2.inserted,
+              skipped: result1.skipped + result2.skipped
+            };
+          }
+          throw error;
+        }
+
+        const insertedCount = insertedData?.length || 0;
+        return {
+          inserted: insertedCount,
+          skipped: batch.length - insertedCount
+        };
+      } catch (err) {
+        throw err;
+      }
+    };
+
+    console.log(`Starting upsert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE} (${PARALLEL_BATCHES} parallel)`);
+
+    const totalBatches = Math.ceil(shipmentsWithUser.length / INSERT_BATCH_SIZE);
+    
+    for (let i = 0; i < shipmentsWithUser.length; i += INSERT_BATCH_SIZE * PARALLEL_BATCHES) {
+      const batchPromises: Promise<{ inserted: number; skipped: number; batchNum: number }>[] = [];
+      
+      for (let j = 0; j < PARALLEL_BATCHES; j++) {
+        const startIdx = i + (j * INSERT_BATCH_SIZE);
+        if (startIdx >= shipmentsWithUser.length) break;
+        
+        const batch = shipmentsWithUser.slice(startIdx, startIdx + INSERT_BATCH_SIZE);
+        const batchNum = Math.floor(startIdx / INSERT_BATCH_SIZE) + 1;
+        
+        batchPromises.push(
+          uploadBatch(batch)
+            .then(result => ({ ...result, batchNum }))
+            .catch(error => {
+              console.error(`Batch ${batchNum} failed:`, error);
+              toast.error(`Batch ${batchNum} failed: ${error.message}`);
+              return { inserted: 0, skipped: 0, batchNum };
+            })
+        );
+      }
+
+      const endIdx = Math.min(i + INSERT_BATCH_SIZE * PARALLEL_BATCHES, shipmentsWithUser.length);
+      const progress = Math.round((endIdx / shipmentsWithUser.length) * 100);
+      const currentBatch = Math.floor(i / INSERT_BATCH_SIZE) + 1;
+      
+      toast.loading(`Uploading... ${progress}%`, {
+        id: 'upload-progress',
+        description: `Batches ${currentBatch}-${Math.min(currentBatch + PARALLEL_BATCHES - 1, totalBatches)}/${totalBatches}`
+      });
+
+      const results = await Promise.all(batchPromises);
+      
+      for (const result of results) {
+        totalInserted += result.inserted;
+        totalSkippedDuplicates += result.skipped;
+        console.log(`Batch ${result.batchNum}/${totalBatches}: ${result.inserted} new, ${result.skipped} skipped`);
+      }
+
+      if (endIdx < shipmentsWithUser.length) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+
+    toast.dismiss('upload-progress');
+
+    // Final verification
+    let verifiedCount = 0;
+    const { count } = await supabase
+      .from('shipments')
+      .select('*', { count: 'exact', head: true })
+      .eq('show_date', formattedShowDate)
+      .gte('created_at', uploadStartTime);
+    verifiedCount = count || 0;
+    console.log(`Verification: ${verifiedCount} records inserted in this upload`);
+
+    const totalSkipped = inFileDuplicates + totalSkippedDuplicates;
+
+    console.log('Upload summary:', {
+      fileRows: data.length,
+      afterCancelledFilter: shipments.length,
+      afterFileDedup: deduplicatedShipments.length,
+      inFileDuplicates,
+      totalInserted,
+      dbDuplicatesSkipped: totalSkippedDuplicates,
+      verifiedInDB: verifiedCount
+    });
+
+    if (verifiedCount > 0 && verifiedCount === totalInserted) {
+      const msg = `${verifiedCount} new shipments imported${totalSkipped > 0 ? `, ${totalSkipped} duplicates skipped` : ''}`;
+      toast.success('Upload complete!', { description: msg });
+      return { success: true, message: msg, count: verifiedCount };
+    } else if (verifiedCount > 0) {
+      const msg = `${verifiedCount} imported. Check console for details.`;
+      toast.warning('Upload partially complete', { description: msg });
+      return { success: true, message: msg, count: verifiedCount };
+    } else if (totalSkippedDuplicates === deduplicatedShipments.length) {
+      const msg = `${totalSkippedDuplicates} duplicates skipped`;
+      toast.info('All shipments already exist', { description: msg });
+      return { success: true, message: msg, count: 0 };
+    } else {
+      const msg = 'No records were inserted. Please try again.';
+      toast.error('Upload failed', { description: msg });
+      return { success: false, message: msg, count: 0 };
+    }
+  }, []);
+
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file && !parsedData) return;
 
     if (!showDate) {
       toast.error('Please select a show date');
@@ -66,270 +325,11 @@ export default function Upload() {
     setUploading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Not authenticated');
-        return;
+      const data = parsedData || await parseFile(file!);
+      const result = await processAndUpload(data, showDate, channel, isLabelOnly, columnMap);
+      if (result.success) {
+        navigate('/orders');
       }
-
-      const data = await parseFile(file);
-      console.log('Total rows:', data.length);
-      
-      const shipments = data
-        .map(row => normalizeShipmentData(row, columnMap))
-        .filter(s => !s.cancelled || s.cancelled.trim() === '')
-        .filter(s => s.order_id && s.order_id.trim() !== ''); // Skip empty order_ids
-      
-      console.log('After cancelled and empty order_id filter:', shipments.length);
-
-      // Group shipments by tracking number - use order_id as key in processedSet for reliability
-      const groupedByTracking = new Map<string, any[]>();
-      shipments.forEach(shipment => {
-        // Only group if tracking number exists
-        if (shipment.tracking && shipment.tracking.trim()) {
-          const trackingNumber = shipment.tracking.trim().toLowerCase();
-          if (!groupedByTracking.has(trackingNumber)) {
-            groupedByTracking.set(trackingNumber, []);
-          }
-          groupedByTracking.get(trackingNumber)!.push(shipment);
-        }
-      });
-
-      console.log('Tracking groups found:', groupedByTracking.size);
-      console.log('Multi-item bundles:', Array.from(groupedByTracking.values()).filter(g => g.length > 1).length);
-
-      // Assign order_group_id to groups with same tracking number
-      const shipmentsWithGroups: any[] = [];
-      const processedOrderIds = new Set<string>(); // Use order_id instead of object reference
-
-      groupedByTracking.forEach((group, tracking) => {
-        // Only assign group ID if there are multiple shipments with the same tracking
-        if (group.length > 1) {
-          const groupId = crypto.randomUUID();
-          console.log(`Bundle group ${groupId}: tracking ${tracking}, ${group.length} items:`, group.map(s => s.order_id));
-          group.forEach(shipment => {
-            shipmentsWithGroups.push({
-              ...shipment,
-              order_group_id: groupId,
-              bundle: true
-            });
-            processedOrderIds.add(shipment.order_id);
-          });
-        }
-      });
-
-      // Add remaining shipments without group IDs (single tracking or no tracking)
-      shipments.forEach(shipment => {
-        if (!processedOrderIds.has(shipment.order_id)) {
-          shipmentsWithGroups.push({
-            ...shipment,
-            order_group_id: null,
-            bundle: false
-          });
-        }
-      });
-
-      console.log('Total after grouping:', shipmentsWithGroups.length, 'Bundled:', shipmentsWithGroups.filter(s => s.bundle).length);
-
-      // Deduplicate within the file itself (only step needed - DB handles the rest)
-      const seenOrderIds = new Set<string>();
-      const deduplicatedShipments: any[] = [];
-      let inFileDuplicates = 0;
-
-      shipmentsWithGroups.forEach(shipment => {
-        const orderId = shipment.order_id;
-        if (orderId && seenOrderIds.has(orderId)) {
-          inFileDuplicates++;
-        } else {
-          if (orderId) seenOrderIds.add(orderId);
-          deduplicatedShipments.push(shipment);
-        }
-      });
-
-      if (inFileDuplicates > 0) {
-        console.log(`Found ${inFileDuplicates} duplicate order IDs within the file`);
-      }
-      console.log('After file dedup:', deduplicatedShipments.length);
-
-      // Early return if file is empty after dedup
-      if (deduplicatedShipments.length === 0) {
-        toast.warning('No shipments to upload', {
-          description: `All ${inFileDuplicates} records were duplicates within the file`
-        });
-        setUploading(false);
-        return;
-      }
-
-      // Prepare shipments with user data
-      const shipmentsWithUser = deduplicatedShipments.map(s => {
-        const shipment = {
-          ...s,
-          user_id: user.id,
-          channel: channel,
-          show_date: showDate 
-            ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
-            : null
-        };
-        
-        if (isLabelOnly && s.label_url) {
-          shipment.manifest_url = s.label_url;
-        }
-        
-        return shipment;
-      });
-
-      // Optimized batch size (reduced indexes and removed redundant trigger)
-      const INSERT_BATCH_SIZE = 100;
-      const PARALLEL_BATCHES = 2;
-      let totalInserted = 0;
-      let totalSkippedDuplicates = 0;
-
-      const uploadStartTime = new Date().toISOString();
-
-      // Recursive batch upload with retry and split on timeout
-      const uploadBatch = async (
-        batch: any[], 
-        attempt = 1
-      ): Promise<{ inserted: number; skipped: number }> => {
-        const maxAttempts = 3;
-        
-        try {
-          const { data: insertedData, error } = await supabase
-            .from('shipments')
-            .upsert(batch, { 
-              onConflict: 'order_id'
-              // Removed ignoreDuplicates to properly update all fields including UID
-            })
-            .select('order_id');
-
-          if (error) {
-            // Check for statement timeout - split batch and retry
-            if (error.code === '57014' && attempt < maxAttempts && batch.length > 10) {
-              console.log(`Timeout on batch of ${batch.length}, splitting in half (attempt ${attempt})`);
-              const mid = Math.floor(batch.length / 2);
-              const result1 = await uploadBatch(batch.slice(0, mid), attempt + 1);
-              await new Promise(resolve => setTimeout(resolve, 50));
-              const result2 = await uploadBatch(batch.slice(mid), attempt + 1);
-              return {
-                inserted: result1.inserted + result2.inserted,
-                skipped: result1.skipped + result2.skipped
-              };
-            }
-            throw error;
-          }
-
-          const insertedCount = insertedData?.length || 0;
-          return {
-            inserted: insertedCount,
-            skipped: batch.length - insertedCount
-          };
-        } catch (err) {
-          throw err;
-        }
-      };
-
-      console.log(`Starting upsert of ${shipmentsWithUser.length} shipments in batches of ${INSERT_BATCH_SIZE} (${PARALLEL_BATCHES} parallel)`);
-
-      // Process batches in parallel groups for faster upload
-      const totalBatches = Math.ceil(shipmentsWithUser.length / INSERT_BATCH_SIZE);
-      
-      for (let i = 0; i < shipmentsWithUser.length; i += INSERT_BATCH_SIZE * PARALLEL_BATCHES) {
-        // Create parallel batch group
-        const batchPromises: Promise<{ inserted: number; skipped: number; batchNum: number }>[] = [];
-        
-        for (let j = 0; j < PARALLEL_BATCHES; j++) {
-          const startIdx = i + (j * INSERT_BATCH_SIZE);
-          if (startIdx >= shipmentsWithUser.length) break;
-          
-          const batch = shipmentsWithUser.slice(startIdx, startIdx + INSERT_BATCH_SIZE);
-          const batchNum = Math.floor(startIdx / INSERT_BATCH_SIZE) + 1;
-          
-          batchPromises.push(
-            uploadBatch(batch)
-              .then(result => ({ ...result, batchNum }))
-              .catch(error => {
-                console.error(`Batch ${batchNum} failed:`, error);
-                toast.error(`Batch ${batchNum} failed: ${error.message}`);
-                return { inserted: 0, skipped: 0, batchNum };
-              })
-          );
-        }
-
-        // Update progress
-        const endIdx = Math.min(i + INSERT_BATCH_SIZE * PARALLEL_BATCHES, shipmentsWithUser.length);
-        const progress = Math.round((endIdx / shipmentsWithUser.length) * 100);
-        const currentBatch = Math.floor(i / INSERT_BATCH_SIZE) + 1;
-        
-        toast.loading(`Uploading... ${progress}%`, {
-          id: 'upload-progress',
-          description: `Batches ${currentBatch}-${Math.min(currentBatch + PARALLEL_BATCHES - 1, totalBatches)}/${totalBatches}`
-        });
-
-        // Wait for parallel batches to complete
-        const results = await Promise.all(batchPromises);
-        
-        for (const result of results) {
-          totalInserted += result.inserted;
-          totalSkippedDuplicates += result.skipped;
-          console.log(`Batch ${result.batchNum}/${totalBatches}: ${result.inserted} new, ${result.skipped} skipped`);
-        }
-
-        // Brief delay between parallel groups
-        if (endIdx < shipmentsWithUser.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      }
-
-      toast.dismiss('upload-progress');
-
-      // Final verification
-      const formattedShowDate = showDate 
-        ? `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`
-        : null;
-
-      let verifiedCount = 0;
-      if (formattedShowDate) {
-        const { count } = await supabase
-          .from('shipments')
-          .select('*', { count: 'exact', head: true })
-          .eq('show_date', formattedShowDate)
-          .gte('created_at', uploadStartTime);
-        verifiedCount = count || 0;
-        console.log(`Verification: ${verifiedCount} records inserted in this upload`);
-      }
-
-      const totalSkipped = inFileDuplicates + totalSkippedDuplicates;
-
-      // Show appropriate toast based on outcome
-      if (verifiedCount > 0 && verifiedCount === totalInserted) {
-        toast.success('Upload complete!', {
-          description: `${verifiedCount} new shipments imported${totalSkipped > 0 ? `, ${totalSkipped} duplicates skipped` : ''}`
-        });
-      } else if (verifiedCount > 0) {
-        toast.warning(`Upload partially complete`, {
-          description: `${verifiedCount} imported. Check console for details.`
-        });
-      } else if (totalSkippedDuplicates === deduplicatedShipments.length) {
-        toast.info('All shipments already exist', {
-          description: `${totalSkippedDuplicates} duplicates skipped`
-        });
-      } else {
-        toast.error('Upload failed', {
-          description: 'No records were inserted. Please try again.'
-        });
-      }
-
-      console.log('Upload summary:', {
-        fileRows: data.length,
-        afterCancelledFilter: shipments.length,
-        afterFileDedup: deduplicatedShipments.length,
-        inFileDuplicates,
-        totalInserted,
-        dbDuplicatesSkipped: totalSkippedDuplicates,
-        verifiedInDB: verifiedCount
-      });
-
-      navigate('/orders');
     } catch (error: any) {
       toast.error('Upload failed', {
         description: error.message
@@ -338,6 +338,61 @@ export default function Upload() {
       setUploading(false);
     }
   };
+
+  // Expose automation API on window
+  useEffect(() => {
+    window.__uploadCSV = async (csvString, options = {}) => {
+      const {
+        showDate: showDateStr,
+        channel: optChannel = 'regular',
+        isLabelOnly: optLabelOnly = false,
+        autoSubmit = true,
+      } = options;
+
+      if (!showDateStr) {
+        return { success: false, message: 'showDate is required (ISO string e.g. "2025-03-05")' };
+      }
+
+      // Parse the date string as local date
+      const [year, month, day] = showDateStr.split('-').map(Number);
+      const dateObj = new Date(year, month - 1, day);
+      if (isNaN(dateObj.getTime())) {
+        return { success: false, message: `Invalid showDate: ${showDateStr}` };
+      }
+
+      try {
+        const data = parseCSVString(csvString);
+        if (!data || data.length === 0) {
+          return { success: false, message: 'No data parsed from CSV string' };
+        }
+
+        console.log(`[Automation] Parsed ${data.length} rows from CSV string`);
+
+        if (autoSubmit) {
+          // Get current columnMap from store
+          const currentColumnMap = useAppStore.getState().columnMap;
+          const result = await processAndUpload(data, dateObj, optChannel, optLabelOnly, currentColumnMap);
+          return result;
+        } else {
+          // Just load the data into the UI state
+          setParsedData(data);
+          setPreview(data.slice(0, 5));
+          setShowDate(dateObj);
+          setChannel(optChannel);
+          setIsLabelOnly(optLabelOnly);
+          toast.success(`Loaded ${data.length} rows via automation API`);
+          return { success: true, message: `Loaded ${data.length} rows. Click Upload to submit.`, count: data.length };
+        }
+      } catch (error: any) {
+        console.error('[Automation] Upload failed:', error);
+        return { success: false, message: error.message };
+      }
+    };
+
+    return () => {
+      delete window.__uploadCSV;
+    };
+  }, [processAndUpload]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -433,13 +488,19 @@ export default function Upload() {
               />
               <Button
                 onClick={handleUpload}
-                disabled={!file || !showDate || uploading}
+                disabled={(!file && !parsedData) || !showDate || uploading}
                 size="lg"
               >
                 <UploadIcon className="h-5 w-5 mr-2" />
                 {uploading ? 'Uploading...' : 'Upload'}
               </Button>
             </div>
+
+            {parsedData && !file && (
+              <p className="text-sm text-muted-foreground">
+                📡 {parsedData.length} rows loaded via automation API
+              </p>
+            )}
           </div>
 
           {preview.length > 0 && (
