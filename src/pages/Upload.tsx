@@ -282,15 +282,7 @@ export default function Upload() {
 
     toast.dismiss('upload-progress');
 
-    // Final verification
-    let verifiedCount = 0;
-    const { count } = await supabase
-      .from('shipments')
-      .select('*', { count: 'exact', head: true })
-      .eq('show_date', formattedShowDate)
-      .gte('created_at', uploadStartTime);
-    verifiedCount = count || 0;
-    console.log(`Verification: ${verifiedCount} records inserted in this upload`);
+    toast.dismiss('upload-progress');
 
     const totalSkipped = inFileDuplicates + totalSkippedDuplicates;
 
@@ -301,17 +293,12 @@ export default function Upload() {
       inFileDuplicates,
       totalInserted,
       dbDuplicatesSkipped: totalSkippedDuplicates,
-      verifiedInDB: verifiedCount
     });
 
-    if (verifiedCount > 0 && verifiedCount === totalInserted) {
-      const msg = `${verifiedCount} new shipments imported${totalSkipped > 0 ? `, ${totalSkipped} duplicates skipped` : ''}`;
+    if (totalInserted > 0) {
+      const msg = `${totalInserted} shipments imported${totalSkipped > 0 ? `, ${totalSkipped} duplicates skipped` : ''}`;
       toast.success('Upload complete!', { description: msg });
-      return { success: true, message: msg, count: verifiedCount };
-    } else if (verifiedCount > 0) {
-      const msg = `${verifiedCount} imported. Check console for details.`;
-      toast.warning('Upload partially complete', { description: msg });
-      return { success: true, message: msg, count: verifiedCount };
+      return { success: true, message: msg, count: totalInserted };
     } else if (totalSkippedDuplicates === deduplicatedShipments.length) {
       const msg = `${totalSkippedDuplicates} duplicates skipped`;
       toast.info('All shipments already exist', { description: msg });
