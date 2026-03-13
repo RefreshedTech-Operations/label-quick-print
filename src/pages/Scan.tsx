@@ -1709,13 +1709,6 @@ export default function Scan() {
         onConfirm={handleKitItemsConfirm}
       />
 
-      {activeCelebration && (
-        <MilestoneCelebration
-          milestone={activeCelebration.milestone}
-          message={activeCelebration.message}
-          onDismiss={() => setActiveCelebration(null)}
-        />
-      )}
     </div>
   );
 }
