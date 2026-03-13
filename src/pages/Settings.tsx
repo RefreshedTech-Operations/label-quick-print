@@ -1008,6 +1008,39 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Auto-Archive Settings</CardTitle>
+            <CardDescription>Configure how long shipments are kept before being archived</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="archive-days">Days to keep before archiving</Label>
+              <div className="flex gap-2 max-w-xs">
+                <Input
+                  id="archive-days"
+                  type="number"
+                  min={1}
+                  value={archiveDays}
+                  onChange={(e) => setArchiveDays(parseInt(e.target.value) || 1)}
+                />
+                <Button onClick={handleSaveArchiveDays} disabled={archiveDaysSaving}>
+                  {archiveDaysSaving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p>Shipments with a show date older than this number of days will be automatically moved to the archive.</p>
+                <p className="text-xs mt-1">Runs automatically every Sunday at 3:00 AM EST.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Results Modal */}
       <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
