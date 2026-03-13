@@ -540,19 +540,24 @@ export default function Scan() {
         return;
       }
       
-      // Check how many unprinted items remain
-      const { data: groupShipments, error } = await supabase
-        .from('shipments')
-        .select('id, printed, group_id_printed')
-        .eq('order_group_id', shipment.order_group_id);
+      // Use local groupItems state if available, otherwise fall back to DB
+      let unprintedCount: number;
+      if (groupItems.length > 0) {
+        unprintedCount = groupItems.filter(s => !s.printed).length;
+      } else {
+        const { data: groupShipments, error } = await supabase
+          .from('shipments')
+          .select('id, printed, group_id_printed')
+          .eq('order_group_id', shipment.order_group_id);
 
-      if (error) {
-        console.error('Failed to check group status:', error);
-        toast.error('Failed to check group status');
-        return;
+        if (error) {
+          console.error('Failed to check group status:', error);
+          toast.error('Failed to check group status');
+          return;
+        }
+        unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
       }
 
-      const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
       const isLastItem = unprintedCount === 1;
       
       // If last item in group, print manifest directly (skip Group ID flow)
