@@ -60,10 +60,14 @@ export default function Scan() {
     updateSettings
   } = useAppStore();
 
-  // Load API key and settings on mount
+  // Load API key, settings, and cache user on mount
   useEffect(() => {
     loadAppConfig();
     loadUserSettings();
+    // Cache user on mount
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      cachedUserRef.current = user;
+    });
   }, []);
 
   // Real-time subscription for location conflict detection
