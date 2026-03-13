@@ -47,7 +47,8 @@ export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'config';
   
-  const { settings, updateSettings } = useAppStore();
+  const { settings, updateSettings, roles } = useAppStore();
+  const isAdmin = roles.includes('admin');
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
   const [loading, setLoading] = useState(false);
@@ -55,6 +56,10 @@ export default function Settings() {
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
   const [originalApiKey, setOriginalApiKey] = useState('');
   const [originalPrinterId, setOriginalPrinterId] = useState('');
+  
+  // Auto-archive settings (admin only)
+  const [archiveDays, setArchiveDays] = useState<number>(10);
+  const [archiveDaysSaving, setArchiveDaysSaving] = useState(false);
   
   // Administrative tools state
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -90,8 +95,7 @@ export default function Settings() {
     const { data, error } = await supabase
       .from('app_config')
       .select('*')
-      .eq('key', 'printnode_api_key')
-      .maybeSingle();
+      .in('key', ['printnode_api_key', 'archive_days']);
 
     if (error) {
       console.error('Failed to load app config:', error);
@@ -99,10 +103,37 @@ export default function Settings() {
     }
 
     if (data) {
-      const apiKey = data.value || '';
-      setPrintnodeApiKey(apiKey);
-      setOriginalApiKey(apiKey);
-      setAppConfigId(data.id);
+      const printnodeRow = data.find(r => r.key === 'printnode_api_key');
+      if (printnodeRow) {
+        const apiKey = printnodeRow.value || '';
+        setPrintnodeApiKey(apiKey);
+        setOriginalApiKey(apiKey);
+        setAppConfigId(printnodeRow.id);
+      }
+
+      const archiveRow = data.find(r => r.key === 'archive_days');
+      if (archiveRow?.value) {
+        setArchiveDays(parseInt(archiveRow.value) || 10);
+      }
+    }
+  };
+
+  const handleSaveArchiveDays = async () => {
+    if (archiveDays < 1) {
+      toast.error('Archive days must be at least 1');
+      return;
+    }
+    setArchiveDaysSaving(true);
+    try {
+      const { error } = await supabase
+        .from('app_config')
+        .upsert({ key: 'archive_days', value: String(archiveDays) }, { onConflict: 'key' });
+      if (error) throw error;
+      toast.success('Auto-archive setting saved');
+    } catch (error: any) {
+      toast.error('Failed to save', { description: error.message });
+    } finally {
+      setArchiveDaysSaving(false);
     }
   };
 
@@ -976,6 +1007,39 @@ export default function Settings() {
           )}
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Auto-Archive Settings</CardTitle>
+            <CardDescription>Configure how long shipments are kept before being archived</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="archive-days">Days to keep before archiving</Label>
+              <div className="flex gap-2 max-w-xs">
+                <Input
+                  id="archive-days"
+                  type="number"
+                  min={1}
+                  value={archiveDays}
+                  onChange={(e) => setArchiveDays(parseInt(e.target.value) || 1)}
+                />
+                <Button onClick={handleSaveArchiveDays} disabled={archiveDaysSaving}>
+                  {archiveDaysSaving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p>Shipments with a show date older than this number of days will be automatically moved to the archive.</p>
+                <p className="text-xs mt-1">Runs automatically every Sunday at 3:00 AM EST.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results Modal */}
       <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
