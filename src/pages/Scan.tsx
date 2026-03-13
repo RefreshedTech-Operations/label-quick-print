@@ -16,13 +16,9 @@ import { ChargerWarning } from '@/components/ChargerWarning';
 import { createPickListPrintJob, PickListData } from '@/lib/pickList';
 import { NewBundleLocationDialog } from '@/components/NewBundleLocationDialog';
 import { KitItemsDialog } from '@/components/KitItemsDialog';
-import { MilestoneCelebration } from '@/components/MilestoneCelebration';
+
 import { cn } from '@/lib/utils';
 
-const MILESTONES = [
-  { count: 250, message: "250 Labels Printed! -- keep it going! 🔥" },
-  { count: 500, message: "500 Labels Printed! You're Killing it! -- amazing work! 🏆" },
-];
 
 type ScanStatus = {
   type: 'not_found' | 'already_printed' | 'cancelled' | 'missing_manifest';
@@ -54,8 +50,6 @@ export default function Scan() {
   const [kitItemsToGather, setKitItemsToGather] = useState<{ product_name: string; quantity: number }[]>([]);
   const [pendingKitConfirmation, setPendingKitConfirmation] = useState(false);
   const [scanStatus, setScanStatus] = useState<ScanStatus>(null);
-  const [celebratedMilestones] = useState(() => new Set<number>());
-  const [activeCelebration, setActiveCelebration] = useState<{ milestone: number; message: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   
@@ -190,28 +184,6 @@ export default function Scan() {
     }
   };
 
-  const checkMilestone = useCallback(async (userId: string) => {
-    try {
-      const { count, error } = await supabase
-        .from('shipments')
-        .select('id', { count: 'exact', head: true })
-        .eq('printed', true)
-        .eq('printed_by_user_id', userId)
-        .gte('printed_at', new Date(new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })).toISOString());
-
-      if (error || count === null) return;
-
-      for (const m of MILESTONES) {
-        if (count >= m.count && !celebratedMilestones.has(m.count)) {
-          celebratedMilestones.add(m.count);
-          setActiveCelebration({ milestone: m.count, message: m.message });
-          break;
-        }
-      }
-    } catch (err) {
-      console.error('Milestone check failed:', err);
-    }
-  }, [celebratedMilestones]);
 
   const findShipmentByUid = async (uid: string): Promise<Shipment | null> => {
     const upperUid = uid.toUpperCase();
@@ -694,8 +666,6 @@ export default function Scan() {
         description: `Printed label for ${shipment.uid}`
       });
 
-      // Check for milestone celebrations
-      await checkMilestone(user.id);
 
       // Check if this is a Label Only order and print pick list
       if (isLabelOnlyOrder(shipment)) {
@@ -1084,8 +1054,6 @@ export default function Scan() {
         description: `Printed group ID for bundle ${shipment.uid}`
       });
 
-      // Check for milestone celebrations
-      await checkMilestone(user.id);
 
       // Check if this is a Label Only order and print pick list
       if (isLabelOnlyOrder(shipment)) {
@@ -1741,13 +1709,6 @@ export default function Scan() {
         onConfirm={handleKitItemsConfirm}
       />
 
-      {activeCelebration && (
-        <MilestoneCelebration
-          milestone={activeCelebration.milestone}
-          message={activeCelebration.message}
-          onDismiss={() => setActiveCelebration(null)}
-        />
-      )}
     </div>
   );
 }
