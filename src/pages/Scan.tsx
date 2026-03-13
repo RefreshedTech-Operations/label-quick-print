@@ -51,6 +51,7 @@ export default function Scan() {
   const [pendingKitConfirmation, setPendingKitConfirmation] = useState(false);
   const [scanStatus, setScanStatus] = useState<ScanStatus>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cachedUserRef = useRef<{ id: string } | null>(null);
   const navigate = useNavigate();
   
   const { 
