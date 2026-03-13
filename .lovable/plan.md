@@ -1,40 +1,55 @@
 
-# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-## What will change
+# Speeding Up the Scan Page
 
-The Pack page will be enhanced with three improvements:
+## Current Bottlenecks
 
-1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
+1. **Sequential DB calls on every scan**: `findShipmentByUid` makes up to 3 sequential queries (exact → prefix → suffix). Each round-trip adds ~50-100ms latency.
 
-2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
+2. **`supabase.auth.getUser()` called repeatedly**: Called during `handlePrint`, `handleKitItemsConfirm`, and other flows — each is a network request to verify the token. This should be fetched once and cached.
 
-3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
+3. **Bundle scans trigger multiple sequential queries**: After finding the shipment, bundle orders fetch group items + kit devices (already parallelized with `Promise.all` — good), but then may also call `get_next_available_location` RPC, adding another round-trip.
+
+4. **Print flow re-queries group status**: `handlePrint` re-fetches group shipments from DB to check unprinted count, even though `groupItems` state already has this data.
+
+5. **Config loaded on every mount**: `loadAppConfig` and `loadUserSettings` run on every mount — these rarely change and could be cached.
 
 ---
 
-## Technical Details
+## Proposed Optimizations
 
-All changes are in `src/pages/Pack.tsx`:
+### 1. Single-query UID lookup (biggest win)
+Replace the 3-step `findShipmentByUid` with a single database function that does exact → prefix → suffix in one round-trip on the server side.
 
-### New state
-- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
-- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
+**Migration**: Create `find_shipment_by_uid(p_uid text)` RPC that returns the first match using the same tiered logic but in a single SQL function.
 
-### `processTracking` changes
-- Returns a result (`'success' | 'error'`) so callers can react
-- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
-- On success, sets `scanStatus` to `'success'`
-- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
+### 2. Cache the authenticated user
+Fetch `supabase.auth.getUser()` once on mount and store in a ref. Reuse it across all handlers instead of making repeated auth calls.
 
-### Camera cooldown
-- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
-- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
-- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
+### 3. Use local `groupItems` state in `handlePrint`
+Skip the re-query of group shipments in `handlePrint` when `groupItems` is already populated from the scan step. Only fall back to DB if state is empty.
 
-### Visual feedback on the scan Card
-- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
-  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
-  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
-  - `'idle'` -- default styling
-- Use `transition-colors duration-500` for a smooth fade effect
+### 4. Prefetch/cache app config and user settings
+Store `printnodeApiKey` and user settings in the app store (already partially done via `useAppStore`) so they persist across navigations without re-fetching.
+
+### 5. Optimistic UI updates
+After marking a shipment as printed, update local state immediately rather than waiting for DB confirmation.
+
+---
+
+## Implementation Plan
+
+### Database migration
+- Create `find_shipment_by_uid(p_uid text)` function that performs all 3 lookup tiers in one call
+
+### Frontend changes (`src/pages/Scan.tsx`)
+- Replace `findShipmentByUid` with single RPC call
+- Cache `user` in a ref on mount, remove repeated `getUser()` calls
+- Use existing `groupItems` state in `handlePrint` instead of re-querying
+- Apply optimistic state updates after print
+
+### Estimated impact
+- **UID lookup**: ~150-300ms → ~50ms (single round-trip)
+- **Print flow**: removes 1-2 extra network calls (~100-200ms saved)
+- **Auth calls**: removes 2-3 redundant calls per scan cycle (~100-150ms each)
+
