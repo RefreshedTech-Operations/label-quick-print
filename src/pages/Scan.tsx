@@ -16,7 +16,7 @@ import { ChargerWarning } from '@/components/ChargerWarning';
 import { createPickListPrintJob, PickListData } from '@/lib/pickList';
 import { NewBundleLocationDialog } from '@/components/NewBundleLocationDialog';
 import { KitItemsDialog } from '@/components/KitItemsDialog';
-import { MilestoneCelebration } from '@/components/MilestoneCelebration';
+
 import { cn } from '@/lib/utils';
 
 const MILESTONES = [
