@@ -999,22 +999,37 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Update shipment with group ID printed status and mark as printed
-      const { error: updateError } = await supabase
-        .from('shipments')
-        .update({ 
-          group_id_printed: true, 
-          group_id_printed_at: new Date().toISOString(),
-          group_id_printed_by_user_id: user.id,
-          printed: true,
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        })
-        .eq('id', shipment.id);
+      // Parallelize shipment update + print job log
+      const now = new Date().toISOString();
+      const [updateResult] = await Promise.all([
+        supabase
+          .from('shipments')
+          .update({ 
+            group_id_printed: true, 
+            group_id_printed_at: now,
+            group_id_printed_by_user_id: user.id,
+            printed: true,
+            printed_at: now,
+            printed_by_user_id: user.id
+          })
+          .eq('id', shipment.id),
+        supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: printerId,
+            printnode_job_id: jobId,
+            label_url: `group_id_${shipment.order_group_id}`,
+            status: 'done'
+          })
+      ]);
 
-      if (updateError) {
-        console.error('Failed to update shipment:', updateError);
-        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      if (updateResult.error) {
+        console.error('Failed to update shipment:', updateResult.error);
+        throw new Error(`Failed to update shipment status: ${updateResult.error.message}`);
       }
 
       // Update local state to reflect the change
@@ -1023,28 +1038,14 @@ export default function Scan() {
           ? { 
               ...item, 
               group_id_printed: true,
-              group_id_printed_at: new Date().toISOString(),
+              group_id_printed_at: now,
               group_id_printed_by_user_id: user.id,
               printed: true,
-              printed_at: new Date().toISOString(),
+              printed_at: now,
               printed_by_user_id: user.id
             } 
           : item
       ));
-
-      // Log print job
-      await supabase
-        .from('print_jobs')
-        .insert({
-          user_id: user.id,
-          shipment_id: shipment.id,
-          uid: shipment.uid,
-          order_id: shipment.order_id,
-          printer_id: printerId,
-          printnode_job_id: jobId,
-          label_url: `group_id_${shipment.order_group_id}`,
-          status: 'done'
-        });
       
       toast.success('Group ID label printed!', {
         description: `Printed group ID for bundle ${shipment.uid}`
