@@ -100,7 +100,7 @@ export default function Orders() {
   const [showDeleteNoManifestDialog, setShowDeleteNoManifestDialog] = useState(false);
   const [showDeleteSelectedDialog, setShowDeleteSelectedDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  // isAdmin is now derived from React Query below
   const [includeArchive, setIncludeArchive] = useState(false);
   const [nonBundledSubFilter, setNonBundledSubFilter] = useState<'all' | 'unprinted'>('all');
 
