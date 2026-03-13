@@ -625,34 +625,35 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Update shipment as printed
-      const { error: updateError } = await supabase
-        .from('shipments')
-        .update({ 
-          printed: true, 
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        })
-        .eq('id', shipment.id);
+      // Parallelize shipment update + print job log
+      const now = new Date().toISOString();
+      const [updateResult] = await Promise.all([
+        supabase
+          .from('shipments')
+          .update({ 
+            printed: true, 
+            printed_at: now,
+            printed_by_user_id: user.id
+          })
+          .eq('id', shipment.id),
+        supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: printerId,
+            printnode_job_id: jobId,
+            label_url: shipment.manifest_url,
+            status: 'done'
+          })
+      ]);
 
-      if (updateError) {
-        console.error('Failed to update shipment:', updateError);
-        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      if (updateResult.error) {
+        console.error('Failed to update shipment:', updateResult.error);
+        throw new Error(`Failed to update shipment status: ${updateResult.error.message}`);
       }
-
-      // Log print job
-      await supabase
-        .from('print_jobs')
-        .insert({
-          user_id: user.id,
-          shipment_id: shipment.id,
-          uid: shipment.uid,
-          order_id: shipment.order_id,
-          printer_id: printerId,
-          printnode_job_id: jobId,
-          label_url: shipment.manifest_url,
-          status: 'done'
-        });
 
       // Optimistic update of local groupItems state
       if (shipment.bundle && groupItems.length > 0) {
