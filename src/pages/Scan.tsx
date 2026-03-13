@@ -66,14 +66,24 @@ export default function Scan() {
   // Derive the effective API key: prefer store cache, fall back to local state
   const printnodeApiKey = cachedApiKey || printnodeApiKeyLocal;
 
-  // Load API key, settings, and cache user on mount
+  // Parallelize all mount-time calls
   useEffect(() => {
-    loadAppConfig();
-    loadUserSettings();
-    // Cache user on mount
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const init = async () => {
+      const [userResult, , ] = await Promise.all([
+        supabase.auth.getUser(),
+        printnodeApiKeyLoaded ? Promise.resolve() : loadAppConfig(),
+        Promise.resolve() // placeholder for loadUserSettings, called after user is ready
+      ]);
+      
+      const user = userResult.data.user;
       cachedUserRef.current = user;
-    });
+      
+      // Pass user directly to avoid redundant getUser call
+      if (user) {
+        await loadUserSettings(user.id);
+      }
+    };
+    init();
   }, []);
 
   // Real-time subscription for location conflict detection
