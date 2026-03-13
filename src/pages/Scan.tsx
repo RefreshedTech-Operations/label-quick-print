@@ -433,7 +433,7 @@ export default function Scan() {
 
   // Handle kit items confirmation
   const handleKitItemsConfirm = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = cachedUserRef.current;
     
     // Mark kit items in the bundle as printed
     if (groupItems.length > 0 && kitItemsToGather.length > 0) {
