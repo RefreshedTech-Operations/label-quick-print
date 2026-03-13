@@ -100,7 +100,7 @@ export default function Orders() {
   const [showDeleteNoManifestDialog, setShowDeleteNoManifestDialog] = useState(false);
   const [showDeleteSelectedDialog, setShowDeleteSelectedDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  // isAdmin is now derived from React Query below
   const [includeArchive, setIncludeArchive] = useState(false);
   const [nonBundledSubFilter, setNonBundledSubFilter] = useState<'all' | 'unprinted'>('all');
 
@@ -121,20 +121,32 @@ export default function Orders() {
   
   const { settings, updateSettings } = useAppStore();
 
-  // Check if current user is admin
-  useEffect(() => {
-    const checkAdminRole = async () => {
+  // Cached auth user query - single source of truth
+  const { data: authUser } = useQuery({
+    queryKey: ['auth-user'],
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.rpc('has_role', { 
-          _user_id: user.id, 
-          _role: 'admin' 
-        });
-        setIsAdmin(data === true);
-      }
-    };
-    checkAdminRole();
-  }, []);
+      return user;
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 30 * 60 * 1000,
+  });
+
+  // Check if current user is admin
+  const { data: isAdminData } = useQuery({
+    queryKey: ['is-admin', authUser?.id],
+    queryFn: async () => {
+      if (!authUser) return false;
+      const { data } = await supabase.rpc('has_role', { 
+        _user_id: authUser.id, 
+        _role: 'admin' 
+      });
+      return data === true;
+    },
+    enabled: !!authUser,
+    staleTime: 10 * 60 * 1000,
+  });
+  const isAdmin = isAdminData ?? false;
 
   // Reset "All Shows" mode when a specific date is selected
   useEffect(() => {
@@ -209,7 +221,7 @@ export default function Orders() {
         unprintedCount: Number(unprinted_count)
       })) || [];
     },
-    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   // Auto-select most recent show date on initial load (but not if user explicitly chose "All Dates")

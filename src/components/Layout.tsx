@@ -1,11 +1,11 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, MessageSquare, Users, Shield, BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { computeAllowedPages } from '@/lib/pagePermissions';
+import { useAppStore } from '@/stores/useAppStore';
 import {
   Sidebar,
   SidebarContent,
@@ -42,37 +42,14 @@ const GROUPS = ['Operations', 'Monitoring', 'Communication', 'System'];
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [allowedPages, setAllowedPages] = useState<Set<string>>(new Set());
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const { allowedPages, permissionsLoaded, loadPermissions } = useAppStore();
 
   const isActive = (path: string) => 
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const [{ data: rolesData }, { data: overridesData }, { data: roleDefaultsData }] = await Promise.all([
-          supabase.from('user_roles').select('role').eq('user_id', user.id),
-          supabase.from('user_page_permissions').select('page_path, allowed').eq('user_id', user.id),
-          supabase.from('role_page_defaults').select('role, page_path'),
-        ]);
-
-        const roles = (rolesData || []).map(r => r.role);
-        const overrides = (overridesData || []).map(o => ({
-          page_path: o.page_path,
-          allowed: o.allowed,
-        }));
-        const roleDefaults = (roleDefaultsData || []).map(rd => ({
-          role: rd.role,
-          page_path: rd.page_path,
-        }));
-
-        setAllowedPages(computeAllowedPages(roles, roleDefaults, overrides));
-      }
-      setPermissionsLoaded(true);
-    })();
-  }, []);
+    loadPermissions();
+  }, [loadPermissions]);
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
