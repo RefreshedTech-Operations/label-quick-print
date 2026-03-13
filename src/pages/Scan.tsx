@@ -826,35 +826,36 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Mark items that have location as printed (regardless of group_id_printed)
-      const { error: updateError } = await supabase
-        .from('shipments')
-        .update({ 
-          printed: true, 
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        })
-        .eq('order_group_id', selectedShipment.order_group_id)
-        .not('location_id', 'is', null);
+      // Parallelize shipment update + print job log
+      const now = new Date().toISOString();
+      const [updateResult] = await Promise.all([
+        supabase
+          .from('shipments')
+          .update({ 
+            printed: true, 
+            printed_at: now,
+            printed_by_user_id: user.id
+          })
+          .eq('order_group_id', selectedShipment.order_group_id)
+          .not('location_id', 'is', null),
+        supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: selectedShipment.id,
+            uid: selectedShipment.uid,
+            order_id: selectedShipment.order_id,
+            printer_id: printerId,
+            printnode_job_id: jobId,
+            label_url: selectedShipment.manifest_url,
+            status: 'done'
+          })
+      ]);
 
-      if (updateError) {
-        console.error('Failed to update shipments:', updateError);
-        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      if (updateResult.error) {
+        console.error('Failed to update shipments:', updateResult.error);
+        throw new Error(`Failed to update shipment status: ${updateResult.error.message}`);
       }
-
-      // Log print job for the manifest
-      await supabase
-        .from('print_jobs')
-        .insert({
-          user_id: user.id,
-          shipment_id: selectedShipment.id,
-          uid: selectedShipment.uid,
-          order_id: selectedShipment.order_id,
-          printer_id: printerId,
-          printnode_job_id: jobId,
-          label_url: selectedShipment.manifest_url,
-          status: 'done'
-        });
 
       // Clear location_id from all items in the bundle to free up the location
       const bundleLocationId = selectedShipment.location_id;
