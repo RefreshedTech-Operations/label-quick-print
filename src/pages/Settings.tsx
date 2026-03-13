@@ -95,8 +95,7 @@ export default function Settings() {
     const { data, error } = await supabase
       .from('app_config')
       .select('*')
-      .eq('key', 'printnode_api_key')
-      .maybeSingle();
+      .in('key', ['printnode_api_key', 'archive_days']);
 
     if (error) {
       console.error('Failed to load app config:', error);
@@ -104,10 +103,37 @@ export default function Settings() {
     }
 
     if (data) {
-      const apiKey = data.value || '';
-      setPrintnodeApiKey(apiKey);
-      setOriginalApiKey(apiKey);
-      setAppConfigId(data.id);
+      const printnodeRow = data.find(r => r.key === 'printnode_api_key');
+      if (printnodeRow) {
+        const apiKey = printnodeRow.value || '';
+        setPrintnodeApiKey(apiKey);
+        setOriginalApiKey(apiKey);
+        setAppConfigId(printnodeRow.id);
+      }
+
+      const archiveRow = data.find(r => r.key === 'archive_days');
+      if (archiveRow?.value) {
+        setArchiveDays(parseInt(archiveRow.value) || 10);
+      }
+    }
+  };
+
+  const handleSaveArchiveDays = async () => {
+    if (archiveDays < 1) {
+      toast.error('Archive days must be at least 1');
+      return;
+    }
+    setArchiveDaysSaving(true);
+    try {
+      const { error } = await supabase
+        .from('app_config')
+        .upsert({ key: 'archive_days', value: String(archiveDays) }, { onConflict: 'key' });
+      if (error) throw error;
+      toast.success('Auto-archive setting saved');
+    } catch (error: any) {
+      toast.error('Failed to save', { description: error.message });
+    } finally {
+      setArchiveDaysSaving(false);
     }
   };
 
