@@ -1,51 +1,40 @@
 
+# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-# Further Scan Page Optimizations
+## What will change
 
-## What we've already done
-- Single-query UID lookup RPC
-- Auth caching in ref
-- Local groupItems reuse in handlePrint
-- Optimistic UI updates
+The Pack page will be enhanced with three improvements:
 
-## What's left to optimize
+1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
 
-### 1. Parallelize DB writes after printing
-Currently, `handlePrint`, `handlePrintGroupId`, and `handlePrintAllGroupManifests` all do sequential operations: update shipment → insert print_job → (optionally) pick list print → insert pick list job. The shipment update and print_job insert are independent and can run in parallel with `Promise.all`.
+2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
 
-**Impact**: Saves ~50-100ms per print action.
-
-### 2. Cache `app_config` (PrintNode API key) in the store
-`loadAppConfig` queries the database on every mount. The PrintNode API key rarely changes. Store it in `useAppStore` so it persists across navigations and skip the fetch if already loaded.
-
-### 3. Parallelize `loadAppConfig` + `loadUserSettings` + `getUser`
-These 3 calls run sequentially on mount. Wrap them in a single `Promise.all` to run concurrently.
-
-**Impact**: Mount time reduced from ~300ms (3 sequential) to ~100ms (1 round-trip).
-
-### 4. `loadUserSettings` calls `getUser()` redundantly
-It fetches the user again even though `cachedUserRef` is being set in the same `useEffect`. Consolidate so the user is fetched once and passed to `loadUserSettings`.
-
-### 5. Add a database index for `order_group_id`
-Bundle scans query `shipments` by `order_group_id` multiple times. If no index exists, this is a sequential scan on a 70k+ row table.
-
-**Impact**: Bundle lookups from ~50-100ms to ~5ms.
+3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
 
 ---
 
-## Implementation Plan
+## Technical Details
 
-### Database migration
-- Add index on `shipments(order_group_id)` if not already present
+All changes are in `src/pages/Pack.tsx`:
 
-### Frontend changes (`src/pages/Scan.tsx`)
-- Consolidate mount: single `Promise.all` for user + app_config + user_settings
-- Pass cached user to `loadUserSettings` instead of re-fetching
-- Parallelize shipment update + print_job insert in all 3 print handlers
-- Store `printnodeApiKey` in `useAppStore` to skip fetch on re-mount
+### New state
+- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
+- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
 
-### Estimated impact
-- **Mount time**: ~300ms → ~100ms
-- **Print action**: ~100-200ms faster per print
-- **Bundle lookups**: faster with index
+### `processTracking` changes
+- Returns a result (`'success' | 'error'`) so callers can react
+- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
+- On success, sets `scanStatus` to `'success'`
+- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
 
+### Camera cooldown
+- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
+- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
+- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
+
+### Visual feedback on the scan Card
+- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
+  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
+  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
+  - `'idle'` -- default styling
+- Use `transition-colors duration-500` for a smooth fade effect

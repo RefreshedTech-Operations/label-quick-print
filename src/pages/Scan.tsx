@@ -31,7 +31,7 @@ export default function Scan() {
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [printing, setPrinting] = useState(false);
   const [printerId, setPrinterId] = useState<string>('');
-  const [printnodeApiKey, setPrintnodeApiKey] = useState('');
+  const [printnodeApiKeyLocal, setPrintnodeApiKeyLocal] = useState('');
   const [isLastInGroup, setIsLastInGroup] = useState(false);
   const [totalGroupItems, setTotalGroupItems] = useState(0);
   const [groupItems, setGroupItems] = useState<Shipment[]>([]);
@@ -57,17 +57,33 @@ export default function Scan() {
   const { 
     settings,
     addRecentScan,
-    updateSettings
+    updateSettings,
+    printnodeApiKey: cachedApiKey,
+    printnodeApiKeyLoaded,
+    setPrintnodeApiKey: storePrintnodeApiKey
   } = useAppStore();
 
-  // Load API key, settings, and cache user on mount
+  // Derive the effective API key: prefer store cache, fall back to local state
+  const printnodeApiKey = cachedApiKey || printnodeApiKeyLocal;
+
+  // Parallelize all mount-time calls
   useEffect(() => {
-    loadAppConfig();
-    loadUserSettings();
-    // Cache user on mount
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const init = async () => {
+      const [userResult, , ] = await Promise.all([
+        supabase.auth.getUser(),
+        printnodeApiKeyLoaded ? Promise.resolve() : loadAppConfig(),
+        Promise.resolve() // placeholder for loadUserSettings, called after user is ready
+      ]);
+      
+      const user = userResult.data.user;
       cachedUserRef.current = user;
-    });
+      
+      // Pass user directly to avoid redundant getUser call
+      if (user) {
+        await loadUserSettings(user.id);
+      }
+    };
+    init();
   }, []);
 
   // Real-time subscription for location conflict detection
@@ -130,7 +146,8 @@ export default function Scan() {
     }
 
     if (data?.value) {
-      setPrintnodeApiKey(data.value);
+      setPrintnodeApiKeyLocal(data.value);
+      storePrintnodeApiKey(data.value);
     }
   };
 
@@ -159,14 +176,11 @@ export default function Scan() {
     }
   };
 
-  const loadUserSettings = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
+  const loadUserSettings = async (userId: string) => {
     const { data, error } = await supabase
       .from('user_settings')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) {
@@ -611,34 +625,35 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Update shipment as printed
-      const { error: updateError } = await supabase
-        .from('shipments')
-        .update({ 
-          printed: true, 
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        })
-        .eq('id', shipment.id);
+      // Parallelize shipment update + print job log
+      const now = new Date().toISOString();
+      const [updateResult] = await Promise.all([
+        supabase
+          .from('shipments')
+          .update({ 
+            printed: true, 
+            printed_at: now,
+            printed_by_user_id: user.id
+          })
+          .eq('id', shipment.id),
+        supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: printerId,
+            printnode_job_id: jobId,
+            label_url: shipment.manifest_url,
+            status: 'done'
+          })
+      ]);
 
-      if (updateError) {
-        console.error('Failed to update shipment:', updateError);
-        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      if (updateResult.error) {
+        console.error('Failed to update shipment:', updateResult.error);
+        throw new Error(`Failed to update shipment status: ${updateResult.error.message}`);
       }
-
-      // Log print job
-      await supabase
-        .from('print_jobs')
-        .insert({
-          user_id: user.id,
-          shipment_id: shipment.id,
-          uid: shipment.uid,
-          order_id: shipment.order_id,
-          printer_id: printerId,
-          printnode_job_id: jobId,
-          label_url: shipment.manifest_url,
-          status: 'done'
-        });
 
       // Optimistic update of local groupItems state
       if (shipment.bundle && groupItems.length > 0) {
@@ -811,35 +826,36 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Mark items that have location as printed (regardless of group_id_printed)
-      const { error: updateError } = await supabase
-        .from('shipments')
-        .update({ 
-          printed: true, 
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        })
-        .eq('order_group_id', selectedShipment.order_group_id)
-        .not('location_id', 'is', null);
+      // Parallelize shipment update + print job log
+      const now = new Date().toISOString();
+      const [updateResult] = await Promise.all([
+        supabase
+          .from('shipments')
+          .update({ 
+            printed: true, 
+            printed_at: now,
+            printed_by_user_id: user.id
+          })
+          .eq('order_group_id', selectedShipment.order_group_id)
+          .not('location_id', 'is', null),
+        supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: selectedShipment.id,
+            uid: selectedShipment.uid,
+            order_id: selectedShipment.order_id,
+            printer_id: printerId,
+            printnode_job_id: jobId,
+            label_url: selectedShipment.manifest_url,
+            status: 'done'
+          })
+      ]);
 
-      if (updateError) {
-        console.error('Failed to update shipments:', updateError);
-        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      if (updateResult.error) {
+        console.error('Failed to update shipments:', updateResult.error);
+        throw new Error(`Failed to update shipment status: ${updateResult.error.message}`);
       }
-
-      // Log print job for the manifest
-      await supabase
-        .from('print_jobs')
-        .insert({
-          user_id: user.id,
-          shipment_id: selectedShipment.id,
-          uid: selectedShipment.uid,
-          order_id: selectedShipment.order_id,
-          printer_id: printerId,
-          printnode_job_id: jobId,
-          label_url: selectedShipment.manifest_url,
-          status: 'done'
-        });
 
       // Clear location_id from all items in the bundle to free up the location
       const bundleLocationId = selectedShipment.location_id;
@@ -983,22 +999,37 @@ export default function Scan() {
 
       const jobId = await submitPrintJob(printnodeApiKey, printJob);
 
-      // Update shipment with group ID printed status and mark as printed
-      const { error: updateError } = await supabase
-        .from('shipments')
-        .update({ 
-          group_id_printed: true, 
-          group_id_printed_at: new Date().toISOString(),
-          group_id_printed_by_user_id: user.id,
-          printed: true,
-          printed_at: new Date().toISOString(),
-          printed_by_user_id: user.id
-        })
-        .eq('id', shipment.id);
+      // Parallelize shipment update + print job log
+      const now = new Date().toISOString();
+      const [updateResult] = await Promise.all([
+        supabase
+          .from('shipments')
+          .update({ 
+            group_id_printed: true, 
+            group_id_printed_at: now,
+            group_id_printed_by_user_id: user.id,
+            printed: true,
+            printed_at: now,
+            printed_by_user_id: user.id
+          })
+          .eq('id', shipment.id),
+        supabase
+          .from('print_jobs')
+          .insert({
+            user_id: user.id,
+            shipment_id: shipment.id,
+            uid: shipment.uid,
+            order_id: shipment.order_id,
+            printer_id: printerId,
+            printnode_job_id: jobId,
+            label_url: `group_id_${shipment.order_group_id}`,
+            status: 'done'
+          })
+      ]);
 
-      if (updateError) {
-        console.error('Failed to update shipment:', updateError);
-        throw new Error(`Failed to update shipment status: ${updateError.message}`);
+      if (updateResult.error) {
+        console.error('Failed to update shipment:', updateResult.error);
+        throw new Error(`Failed to update shipment status: ${updateResult.error.message}`);
       }
 
       // Update local state to reflect the change
@@ -1007,28 +1038,14 @@ export default function Scan() {
           ? { 
               ...item, 
               group_id_printed: true,
-              group_id_printed_at: new Date().toISOString(),
+              group_id_printed_at: now,
               group_id_printed_by_user_id: user.id,
               printed: true,
-              printed_at: new Date().toISOString(),
+              printed_at: now,
               printed_by_user_id: user.id
             } 
           : item
       ));
-
-      // Log print job
-      await supabase
-        .from('print_jobs')
-        .insert({
-          user_id: user.id,
-          shipment_id: shipment.id,
-          uid: shipment.uid,
-          order_id: shipment.order_id,
-          printer_id: printerId,
-          printnode_job_id: jobId,
-          label_url: `group_id_${shipment.order_group_id}`,
-          status: 'done'
-        });
       
       toast.success('Group ID label printed!', {
         description: `Printed group ID for bundle ${shipment.uid}`
