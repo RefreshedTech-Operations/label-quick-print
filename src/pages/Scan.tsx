@@ -176,14 +176,11 @@ export default function Scan() {
     }
   };
 
-  const loadUserSettings = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
+  const loadUserSettings = async (userId: string) => {
     const { data, error } = await supabase
       .from('user_settings')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) {
