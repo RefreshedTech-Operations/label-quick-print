@@ -796,7 +796,7 @@ export default function Scan() {
     setPrinting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = cachedUserRef.current;
       if (!user) {
         toast.error('Not authenticated');
         return;
