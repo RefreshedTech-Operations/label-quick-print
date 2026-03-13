@@ -899,21 +899,18 @@ export default function Scan() {
           const pickListJobId = await submitPrintJob(printnodeApiKey, pickListJob);
           
           // Log pick list print job to database
-          const { data: { user: pickListUser } } = await supabase.auth.getUser();
-          if (pickListUser) {
-            await supabase
-              .from('print_jobs')
-              .insert({
-                user_id: pickListUser.id,
-                shipment_id: selectedShipment.id,
-                uid: selectedShipment.uid,
-                order_id: selectedShipment.order_id,
-                printer_id: printerId || '',
-                printnode_job_id: pickListJobId,
-                label_url: 'pick_list',
-                status: 'done'
-              });
-          }
+          await supabase
+            .from('print_jobs')
+            .insert({
+              user_id: user.id,
+              shipment_id: selectedShipment.id,
+              uid: selectedShipment.uid,
+              order_id: selectedShipment.order_id,
+              printer_id: printerId || '',
+              printnode_job_id: pickListJobId,
+              label_url: 'pick_list',
+              status: 'done'
+            });
           
           toast.success('Pick list printed!', {
             description: 'Pick list printed successfully'
