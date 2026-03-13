@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { AppSettings, ColumnMap, DEFAULT_COLUMN_MAP } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { computeAllowedPages } from '@/lib/pagePermissions';
 
 interface AppState {
   settings: AppSettings;
@@ -7,11 +9,17 @@ interface AppState {
   recentScans: Array<{ uid: string; status: string; timestamp: string }>;
   printnodeApiKey: string | null;
   printnodeApiKeyLoaded: boolean;
+
+  // Permissions cache
+  allowedPages: Set<string>;
+  roles: string[];
+  permissionsLoaded: boolean;
   
   updateSettings: (settings: Partial<AppSettings>) => void;
   updateColumnMap: (map: Partial<ColumnMap>) => void;
   addRecentScan: (uid: string, status: string) => void;
   setPrintnodeApiKey: (key: string) => void;
+  loadPermissions: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()((set, get) => ({
@@ -23,6 +31,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
   recentScans: [],
   printnodeApiKey: null,
   printnodeApiKeyLoaded: false,
+
+  // Permissions cache
+  allowedPages: new Set<string>(),
+  roles: [],
+  permissionsLoaded: false,
 
   updateSettings: (newSettings) => {
     const { settings } = get();
@@ -45,5 +58,38 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   setPrintnodeApiKey: (key) => {
     set({ printnodeApiKey: key, printnodeApiKeyLoaded: true });
+  },
+
+  loadPermissions: async () => {
+    // Skip if already loaded
+    if (get().permissionsLoaded) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      set({ permissionsLoaded: true });
+      return;
+    }
+
+    const [{ data: rolesData }, { data: overridesData }, { data: roleDefaultsData }] = await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', user.id),
+      supabase.from('user_page_permissions').select('page_path, allowed').eq('user_id', user.id),
+      supabase.from('role_page_defaults').select('role, page_path'),
+    ]);
+
+    const userRoles = (rolesData || []).map(r => r.role);
+    const overrides = (overridesData || []).map(o => ({
+      page_path: o.page_path,
+      allowed: o.allowed,
+    }));
+    const roleDefaults = (roleDefaultsData || []).map(rd => ({
+      role: rd.role,
+      page_path: rd.page_path,
+    }));
+
+    set({
+      roles: userRoles,
+      allowedPages: computeAllowedPages(userRoles, roleDefaults, overrides),
+      permissionsLoaded: true,
+    });
   },
 }));

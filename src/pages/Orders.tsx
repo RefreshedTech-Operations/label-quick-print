@@ -209,7 +209,7 @@ export default function Orders() {
         unprintedCount: Number(unprinted_count)
       })) || [];
     },
-    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   // Auto-select most recent show date on initial load (but not if user explicitly chose "All Dates")
