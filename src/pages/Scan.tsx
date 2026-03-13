@@ -640,7 +640,14 @@ export default function Scan() {
           status: 'done'
         });
 
-      // Shipment updated in database, no need for local state update
+      // Optimistic update of local groupItems state
+      if (shipment.bundle && groupItems.length > 0) {
+        setGroupItems(prev => prev.map(item => 
+          item.id === shipment.id 
+            ? { ...item, printed: true, printed_at: new Date().toISOString(), printed_by_user_id: user.id }
+            : item
+        ));
+      }
       
       toast.success('Label printed!', {
         description: `Printed label for ${shipment.uid}`
