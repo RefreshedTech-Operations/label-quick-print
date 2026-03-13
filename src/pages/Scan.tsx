@@ -146,7 +146,8 @@ export default function Scan() {
     }
 
     if (data?.value) {
-      setPrintnodeApiKey(data.value);
+      setPrintnodeApiKeyLocal(data.value);
+      storePrintnodeApiKey(data.value);
     }
   };
 
