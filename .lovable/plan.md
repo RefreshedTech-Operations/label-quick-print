@@ -1,40 +1,53 @@
 
-# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-## What will change
+# Cross-App Performance Optimizations
 
-The Pack page will be enhanced with three improvements:
+## 1. Cache User Permissions Globally
 
-1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
+**Problem**: `Layout.tsx` fetches `user_roles`, `user_page_permissions`, and `role_page_defaults` on every page navigation — 3 DB calls each time.
 
-2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
+**Solution**: Add permissions state to `useAppStore` (roles, allowedPages, loaded flag). Fetch once, reuse everywhere. Both `Layout.tsx` and `useUserPermissions.ts` read from the store instead of querying independently.
 
-3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
+**Changes**: `src/stores/useAppStore.ts`, `src/components/Layout.tsx`, `src/hooks/useUserPermissions.ts`
 
 ---
 
-## Technical Details
+## 2. Optimize TV Dashboard DB Function with CTEs
 
-All changes are in `src/pages/Pack.tsx`:
+**Problem**: `get_tv_dashboard_stats` runs 7+ sequential queries against the `shipments` table, each scanning independently.
 
-### New state
-- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
-- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
+**Solution**: Rewrite as a single query using CTEs. One base CTE filters `shipments` for the target date, then all metrics (total, hourly breakdown, leaderboard, unprinted count, peak hour) derive from it.
 
-### `processTracking` changes
-- Returns a result (`'success' | 'error'`) so callers can react
-- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
-- On success, sets `scanStatus` to `'success'`
-- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
+**Changes**: New database migration to replace `get_tv_dashboard_stats`
 
-### Camera cooldown
-- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
-- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
-- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
+---
 
-### Visual feedback on the scan Card
-- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
-  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
-  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
-  - `'idle'` -- default styling
-- Use `transition-colors duration-500` for a smooth fade effect
+## 3. Cache `show_date_counts` with Longer Stale Time
+
+**Problem**: `get_show_date_counts` is fetched with a 2-minute stale time on the Orders page. This data changes slowly (only on upload).
+
+**Solution**: Increase stale time to 5 minutes (matches `app-config`). Already using React Query — just a config tweak.
+
+**Changes**: `src/pages/Orders.tsx` line 212
+
+---
+
+## 4. Deduplicate `getUser()` on Orders Page
+
+**Problem**: Orders page calls `supabase.auth.getUser()` in 3 places independently: admin check (line 127), user-settings query (line 182), and shipments query (line 252).
+
+**Solution**: Use a single React Query for the user session (`queryKey: ['auth-user']`) with a long stale time. Reference it in dependent queries via `queryClient.getQueryData`.
+
+**Changes**: `src/pages/Orders.tsx`
+
+---
+
+## Summary of Impact
+
+| Optimization | Saves |
+|---|---|
+| Global permission cache | ~3 DB calls per navigation |
+| TV Dashboard CTEs | ~6 redundant table scans |
+| Show date stale time | Fewer refetches |
+| Deduplicate getUser | ~2 auth calls per Orders load |
+
