@@ -1100,12 +1100,11 @@ export default function Scan() {
       });
 
       // Log failed print job
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      if (cachedUserRef.current) {
         await supabase
           .from('print_jobs')
           .insert({
-            user_id: user.id,
+            user_id: cachedUserRef.current.id,
             shipment_id: shipment.id,
             uid: shipment.uid,
             order_id: shipment.order_id,
