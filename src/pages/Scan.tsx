@@ -193,45 +193,15 @@ export default function Scan() {
   const findShipmentByUid = async (uid: string): Promise<Shipment | null> => {
     const upperUid = uid.toUpperCase();
     
-    // Step 1: Try exact match first (uses index, <1ms)
-    const { data: exactMatch, error: exactError } = await supabase
-      .from('shipments')
-      .select('*')
-      .eq('uid', upperUid)
-      .limit(1)
-      .maybeSingle();
+    // Single RPC call does exact → prefix → suffix on the server
+    const { data, error } = await supabase.rpc('find_shipment_by_uid', { p_uid: upperUid });
     
-    if (exactError) {
-      console.error('Failed to find shipment (exact):', exactError);
-    }
-    if (exactMatch) return exactMatch;
-    
-    // Step 2: Try prefix match (uses text_pattern_ops index, fast)
-    const { data: prefixMatch, error: prefixError } = await supabase
-      .from('shipments')
-      .select('*')
-      .ilike('uid', `${upperUid}%`)
-      .limit(1)
-      .maybeSingle();
-    
-    if (prefixError) {
-      console.error('Failed to find shipment (prefix):', prefixError);
-    }
-    if (prefixMatch) return prefixMatch;
-    
-    // Step 3: Suffix match as fallback (uses trigram index)
-    const { data: suffixMatch, error: suffixError } = await supabase
-      .from('shipments')
-      .select('*')
-      .ilike('uid', `%${upperUid}`)
-      .limit(1)
-      .maybeSingle();
-    
-    if (suffixError) {
-      console.error('Failed to find shipment (suffix):', suffixError);
+    if (error) {
+      console.error('Failed to find shipment:', error);
+      return null;
     }
     
-    return suffixMatch || null;
+    return (data && data.length > 0) ? data[0] as Shipment : null;
   };
 
   // Load printer ID from cookie on mount
