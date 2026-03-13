@@ -1,40 +1,29 @@
 
-# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-## What will change
+# Add Archive Days Setting to Settings Config Tab
 
-The Pack page will be enhanced with three improvements:
+## What we're doing
+Add an "Auto-Archive" configuration card to the Settings Config tab that lets admins view and edit the `archive_days` value. Non-admin users won't see this card. We'll also insert the default `archive_days = 10` row into `app_config`.
 
-1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
+## Changes
 
-2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
+### 1. Insert `archive_days` config row (database)
+Insert `archive_days` with value `10` into `app_config` table using the insert tool.
 
-3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
+### 2. Update `src/pages/Settings.tsx`
+- Add state for `archiveDays` (number) and `archiveDaysLoading` (boolean)
+- Load archive_days from `app_config` in `loadAppConfig`
+- Check if current user is admin using `useAppStore` roles
+- Add a new Card after "Upload Management" (or after Scanning Options) visible only to admins:
+  - Title: "Auto-Archive Settings"
+  - Description: "Configure how long shipments are kept before being archived"
+  - Input for days (number, min 1)
+  - Save button that upserts `archive_days` in `app_config`
+  - Info text explaining the weekly cron schedule
 
----
+### Implementation details
+- Use `useAppStore` `roles` array to check `roles.includes('admin')`
+- Load `archive_days` alongside the existing `printnode_api_key` config load
+- Save via upsert to `app_config` with `key = 'archive_days'`
+- Show toast on success/error
 
-## Technical Details
-
-All changes are in `src/pages/Pack.tsx`:
-
-### New state
-- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
-- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
-
-### `processTracking` changes
-- Returns a result (`'success' | 'error'`) so callers can react
-- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
-- On success, sets `scanStatus` to `'success'`
-- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
-
-### Camera cooldown
-- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
-- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
-- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
-
-### Visual feedback on the scan Card
-- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
-  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
-  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
-  - `'idle'` -- default styling
-- Use `transition-colors duration-500` for a smooth fade effect
