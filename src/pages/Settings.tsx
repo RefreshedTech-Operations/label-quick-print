@@ -47,7 +47,8 @@ export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'config';
   
-  const { settings, updateSettings } = useAppStore();
+  const { settings, updateSettings, roles } = useAppStore();
+  const isAdmin = roles.includes('admin');
   const [printnodeApiKey, setPrintnodeApiKey] = useState('');
   const [defaultPrinterId, setDefaultPrinterId] = useState(settings.default_printer_id || '');
   const [loading, setLoading] = useState(false);
@@ -55,6 +56,10 @@ export default function Settings() {
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
   const [originalApiKey, setOriginalApiKey] = useState('');
   const [originalPrinterId, setOriginalPrinterId] = useState('');
+  
+  // Auto-archive settings (admin only)
+  const [archiveDays, setArchiveDays] = useState<number>(10);
+  const [archiveDaysSaving, setArchiveDaysSaving] = useState(false);
   
   // Administrative tools state
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
