@@ -31,7 +31,7 @@ export default function Scan() {
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [printing, setPrinting] = useState(false);
   const [printerId, setPrinterId] = useState<string>('');
-  const [printnodeApiKey, setPrintnodeApiKey] = useState('');
+  const [printnodeApiKeyLocal, setPrintnodeApiKeyLocal] = useState('');
   const [isLastInGroup, setIsLastInGroup] = useState(false);
   const [totalGroupItems, setTotalGroupItems] = useState(0);
   const [groupItems, setGroupItems] = useState<Shipment[]>([]);
