@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_shipments_order_group_id ON public.shipments (order_group_id) WHERE order_group_id IS NOT NULL;
