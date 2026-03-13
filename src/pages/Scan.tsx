@@ -57,8 +57,14 @@ export default function Scan() {
   const { 
     settings,
     addRecentScan,
-    updateSettings
+    updateSettings,
+    printnodeApiKey: cachedApiKey,
+    printnodeApiKeyLoaded,
+    setPrintnodeApiKey: storePrintnodeApiKey
   } = useAppStore();
+
+  // Derive the effective API key: prefer store cache, fall back to local state
+  const printnodeApiKey = cachedApiKey || printnodeApiKeyLocal;
 
   // Load API key, settings, and cache user on mount
   useEffect(() => {
