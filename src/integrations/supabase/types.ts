@@ -724,6 +724,54 @@ export type Database = {
         Args: { p_location_code: string; p_order_group_id: string }
         Returns: undefined
       }
+      find_shipment_by_uid: {
+        Args: { p_uid: string }
+        Returns: {
+          address_full: string | null
+          batch_id: string | null
+          batch_scanned_at: string | null
+          batch_scanned_by_user_id: string | null
+          bundle: boolean | null
+          buyer: string | null
+          cancelled: string | null
+          channel: string | null
+          created_at: string | null
+          group_id_printed: boolean | null
+          group_id_printed_at: string | null
+          group_id_printed_by_user_id: string | null
+          has_issue: boolean | null
+          id: string
+          issue_marked_at: string | null
+          issue_marked_by_user_id: string | null
+          label_url: string | null
+          location_id: string | null
+          manifest_url: string | null
+          order_group_id: string | null
+          order_id: string
+          pack_station_id: string | null
+          packed: boolean | null
+          packed_at: string | null
+          packed_by_user_id: string | null
+          price: string | null
+          printed: boolean | null
+          printed_at: string | null
+          printed_by_user_id: string | null
+          product_name: string | null
+          quantity: number | null
+          raw: Json | null
+          search_vector: unknown
+          show_date: string | null
+          tracking: string | null
+          uid: string | null
+          user_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "shipments"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_analytics_kpis: {
         Args: { end_date: string; p_user_id?: string; start_date: string }
         Returns: {

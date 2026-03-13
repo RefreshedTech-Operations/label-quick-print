@@ -51,6 +51,7 @@ export default function Scan() {
   const [pendingKitConfirmation, setPendingKitConfirmation] = useState(false);
   const [scanStatus, setScanStatus] = useState<ScanStatus>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cachedUserRef = useRef<{ id: string } | null>(null);
   const navigate = useNavigate();
   
   const { 
@@ -59,10 +60,14 @@ export default function Scan() {
     updateSettings
   } = useAppStore();
 
-  // Load API key and settings on mount
+  // Load API key, settings, and cache user on mount
   useEffect(() => {
     loadAppConfig();
     loadUserSettings();
+    // Cache user on mount
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      cachedUserRef.current = user;
+    });
   }, []);
 
   // Real-time subscription for location conflict detection
@@ -188,45 +193,15 @@ export default function Scan() {
   const findShipmentByUid = async (uid: string): Promise<Shipment | null> => {
     const upperUid = uid.toUpperCase();
     
-    // Step 1: Try exact match first (uses index, <1ms)
-    const { data: exactMatch, error: exactError } = await supabase
-      .from('shipments')
-      .select('*')
-      .eq('uid', upperUid)
-      .limit(1)
-      .maybeSingle();
+    // Single RPC call does exact → prefix → suffix on the server
+    const { data, error } = await supabase.rpc('find_shipment_by_uid', { p_uid: upperUid });
     
-    if (exactError) {
-      console.error('Failed to find shipment (exact):', exactError);
-    }
-    if (exactMatch) return exactMatch;
-    
-    // Step 2: Try prefix match (uses text_pattern_ops index, fast)
-    const { data: prefixMatch, error: prefixError } = await supabase
-      .from('shipments')
-      .select('*')
-      .ilike('uid', `${upperUid}%`)
-      .limit(1)
-      .maybeSingle();
-    
-    if (prefixError) {
-      console.error('Failed to find shipment (prefix):', prefixError);
-    }
-    if (prefixMatch) return prefixMatch;
-    
-    // Step 3: Suffix match as fallback (uses trigram index)
-    const { data: suffixMatch, error: suffixError } = await supabase
-      .from('shipments')
-      .select('*')
-      .ilike('uid', `%${upperUid}`)
-      .limit(1)
-      .maybeSingle();
-    
-    if (suffixError) {
-      console.error('Failed to find shipment (suffix):', suffixError);
+    if (error) {
+      console.error('Failed to find shipment:', error);
+      return null;
     }
     
-    return suffixMatch || null;
+    return (data && data.length > 0) ? data[0] as Shipment : null;
   };
 
   // Load printer ID from cookie on mount
@@ -458,7 +433,7 @@ export default function Scan() {
 
   // Handle kit items confirmation
   const handleKitItemsConfirm = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = cachedUserRef.current;
     
     // Mark kit items in the bundle as printed
     if (groupItems.length > 0 && kitItemsToGather.length > 0) {
@@ -565,19 +540,24 @@ export default function Scan() {
         return;
       }
       
-      // Check how many unprinted items remain
-      const { data: groupShipments, error } = await supabase
-        .from('shipments')
-        .select('id, printed, group_id_printed')
-        .eq('order_group_id', shipment.order_group_id);
+      // Use local groupItems state if available, otherwise fall back to DB
+      let unprintedCount: number;
+      if (groupItems.length > 0) {
+        unprintedCount = groupItems.filter(s => !s.printed).length;
+      } else {
+        const { data: groupShipments, error } = await supabase
+          .from('shipments')
+          .select('id, printed, group_id_printed')
+          .eq('order_group_id', shipment.order_group_id);
 
-      if (error) {
-        console.error('Failed to check group status:', error);
-        toast.error('Failed to check group status');
-        return;
+        if (error) {
+          console.error('Failed to check group status:', error);
+          toast.error('Failed to check group status');
+          return;
+        }
+        unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
       }
 
-      const unprintedCount = groupShipments?.filter(s => !s.printed).length || 0;
       const isLastItem = unprintedCount === 1;
       
       // If last item in group, print manifest directly (skip Group ID flow)
@@ -617,7 +597,7 @@ export default function Scan() {
     setPrinting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = cachedUserRef.current;
       if (!user) {
         toast.error('Not authenticated');
         return;
@@ -660,7 +640,14 @@ export default function Scan() {
           status: 'done'
         });
 
-      // Shipment updated in database, no need for local state update
+      // Optimistic update of local groupItems state
+      if (shipment.bundle && groupItems.length > 0) {
+        setGroupItems(prev => prev.map(item => 
+          item.id === shipment.id 
+            ? { ...item, printed: true, printed_at: new Date().toISOString(), printed_by_user_id: user.id }
+            : item
+        ));
+      }
       
       toast.success('Label printed!', {
         description: `Printed label for ${shipment.uid}`
@@ -719,21 +706,18 @@ export default function Scan() {
           const pickListJobId = await submitPrintJob(printnodeApiKey, pickListJob);
           
           // Log pick list print job to database
-          const { data: { user: pickListUser } } = await supabase.auth.getUser();
-          if (pickListUser) {
-            await supabase
-              .from('print_jobs')
-              .insert({
-                user_id: pickListUser.id,
-                shipment_id: shipment.id,
-                uid: shipment.uid,
-                order_id: shipment.order_id,
-                printer_id: printerId || '',
-                printnode_job_id: pickListJobId,
-                label_url: 'pick_list',
-                status: 'done'
-              });
-          }
+          await supabase
+            .from('print_jobs')
+            .insert({
+              user_id: user.id,
+              shipment_id: shipment.id,
+              uid: shipment.uid,
+              order_id: shipment.order_id,
+              printer_id: printerId || '',
+              printnode_job_id: pickListJobId,
+              label_url: 'pick_list',
+              status: 'done'
+            });
           
           toast.success('Pick list printed!', {
             description: 'Pick list printed successfully'
@@ -756,12 +740,11 @@ export default function Scan() {
       });
 
       // Log failed print job
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      if (cachedUserRef.current) {
         await supabase
           .from('print_jobs')
           .insert({
-            user_id: user.id,
+            user_id: cachedUserRef.current.id,
             shipment_id: shipment.id,
             uid: shipment.uid,
             order_id: shipment.order_id,
@@ -813,7 +796,7 @@ export default function Scan() {
     setPrinting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = cachedUserRef.current;
       if (!user) {
         toast.error('Not authenticated');
         return;
@@ -916,21 +899,18 @@ export default function Scan() {
           const pickListJobId = await submitPrintJob(printnodeApiKey, pickListJob);
           
           // Log pick list print job to database
-          const { data: { user: pickListUser } } = await supabase.auth.getUser();
-          if (pickListUser) {
-            await supabase
-              .from('print_jobs')
-              .insert({
-                user_id: pickListUser.id,
-                shipment_id: selectedShipment.id,
-                uid: selectedShipment.uid,
-                order_id: selectedShipment.order_id,
-                printer_id: printerId || '',
-                printnode_job_id: pickListJobId,
-                label_url: 'pick_list',
-                status: 'done'
-              });
-          }
+          await supabase
+            .from('print_jobs')
+            .insert({
+              user_id: user.id,
+              shipment_id: selectedShipment.id,
+              uid: selectedShipment.uid,
+              order_id: selectedShipment.order_id,
+              printer_id: printerId || '',
+              printnode_job_id: pickListJobId,
+              label_url: 'pick_list',
+              status: 'done'
+            });
           
           toast.success('Pick list printed!', {
             description: 'Pick list printed successfully'
@@ -988,7 +968,7 @@ export default function Scan() {
     setPrinting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = cachedUserRef.current;
       if (!user) {
         toast.error('Not authenticated');
         return;
@@ -1086,21 +1066,18 @@ export default function Scan() {
           const pickListJobId = await submitPrintJob(printnodeApiKey, pickListJob);
           
           // Log pick list print job to database
-          const { data: { user: pickListUser } } = await supabase.auth.getUser();
-          if (pickListUser) {
-            await supabase
-              .from('print_jobs')
-              .insert({
-                user_id: pickListUser.id,
-                shipment_id: shipment.id,
-                uid: shipment.uid,
-                order_id: shipment.order_id,
-                printer_id: printerId || '',
-                printnode_job_id: pickListJobId,
-                label_url: 'pick_list',
-                status: 'done'
-              });
-          }
+          await supabase
+            .from('print_jobs')
+            .insert({
+              user_id: user.id,
+              shipment_id: shipment.id,
+              uid: shipment.uid,
+              order_id: shipment.order_id,
+              printer_id: printerId || '',
+              printnode_job_id: pickListJobId,
+              label_url: 'pick_list',
+              status: 'done'
+            });
           
           toast.success('Pick list printed!', {
             description: 'Pick list printed for this item'
@@ -1123,12 +1100,11 @@ export default function Scan() {
       });
 
       // Log failed print job
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      if (cachedUserRef.current) {
         await supabase
           .from('print_jobs')
           .insert({
-            user_id: user.id,
+            user_id: cachedUserRef.current.id,
             shipment_id: shipment.id,
             uid: shipment.uid,
             order_id: shipment.order_id,
