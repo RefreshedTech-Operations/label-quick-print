@@ -1,40 +1,31 @@
 
-# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-## What will change
+# Fix Mobile Sidebar Navigation
 
-The Pack page will be enhanced with three improvements:
+## Problem
+On mobile (below 768px), the sidebar uses a Sheet component to display navigation. The SheetContent is missing a `SheetTitle`, which causes a Radix accessibility error (`DialogContent requires a DialogTitle`). This can prevent the sheet from rendering properly in some browsers/environments.
 
-1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
+## Root Cause
+In `src/components/ui/sidebar.tsx` (lines 153-170), the mobile sidebar renders a `Sheet` with `SheetContent` but no `SheetTitle` or `aria-describedby`. The console confirms this error is firing.
 
-2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
+## Fix
 
-3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
+### 1. Add hidden SheetTitle to mobile sidebar (`src/components/ui/sidebar.tsx`)
+- Import `SheetTitle` from the sheet component
+- Import `VisuallyHidden` from Radix (`@radix-ui/react-visually-hidden`)
+- Inside the mobile Sheet's `SheetContent`, add a visually hidden `SheetTitle` (e.g., "Navigation") to satisfy the accessibility requirement and fix rendering
 
----
+```tsx
+// In the isMobile branch (~line 154):
+<Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+  <SheetContent ...>
+    <VisuallyHidden>
+      <SheetTitle>Navigation</SheetTitle>
+    </VisuallyHidden>
+    <div className="flex h-full w-full flex-col">{children}</div>
+  </SheetContent>
+</Sheet>
+```
 
-## Technical Details
+This is a one-file fix that resolves the console error and ensures the mobile sidebar sheet renders correctly.
 
-All changes are in `src/pages/Pack.tsx`:
-
-### New state
-- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
-- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
-
-### `processTracking` changes
-- Returns a result (`'success' | 'error'`) so callers can react
-- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
-- On success, sets `scanStatus` to `'success'`
-- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
-
-### Camera cooldown
-- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
-- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
-- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
-
-### Visual feedback on the scan Card
-- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
-  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
-  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
-  - `'idle'` -- default styling
-- Use `transition-colors duration-500` for a smooth fade effect
