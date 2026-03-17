@@ -488,6 +488,12 @@ export default function Upload() {
                     Outlet Channel (no chargers needed)
                   </Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="tiktok" id="tiktok" />
+                  <Label htmlFor="tiktok" className="font-normal cursor-pointer">
+                    TikTok Channel (chargers required)
+                  </Label>
+                </div>
               </RadioGroup>
             </div>
 
