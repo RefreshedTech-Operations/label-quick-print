@@ -627,32 +627,33 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
       </Card>
 
       <Card>
-        <CardContent className="p-0">
-          <Table>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>UID</TableHead>
-                <TableHead>Buyer</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Tracking</TableHead>
-                <TableHead>Show Date</TableHead>
-                <TableHead>Label</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[18%]">Order</TableHead>
+                <TableHead className="w-[14%]">Buyer</TableHead>
+                <TableHead className="w-[18%]">Product</TableHead>
+                <TableHead className="w-[14%]">Tracking</TableHead>
+                <TableHead className="w-[10%]">Show Date</TableHead>
+                <TableHead className="w-[8%]">Label</TableHead>
+                <TableHead className="w-[18%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
               )) : shipments.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No generated labels yet</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No generated labels yet</TableCell></TableRow>
               ) : shipments.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="font-mono text-xs">{s.order_id}</TableCell>
-                  <TableCell className="font-mono text-xs">{s.uid || '—'}</TableCell>
-                  <TableCell>{s.buyer || '—'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{s.product_name || '—'}</TableCell>
-                  <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <div className="truncate">{s.order_id}</div>
+                    {s.uid && <div className="text-muted-foreground truncate">{s.uid}</div>}
+                  </TableCell>
+                  <TableCell className="text-xs truncate">{s.buyer || '—'}</TableCell>
+                  <TableCell className="text-xs truncate">{s.product_name || '—'}</TableCell>
+                  <TableCell className="font-mono text-xs truncate">{s.tracking || '—'}</TableCell>
                   <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
                   <TableCell>
                     <a
