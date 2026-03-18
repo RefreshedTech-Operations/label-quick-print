@@ -28,6 +28,7 @@ export default function ShippingLabels() {
   const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
