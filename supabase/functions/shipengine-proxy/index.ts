@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'ShipEngine API key not configured' }), { status: 500, headers: corsHeaders })
     }
 
-    const { shipment_id } = await req.json()
+    const { shipment_id, override_carrier_id, override_service_code } = await req.json()
     if (!shipment_id) {
       return new Response(JSON.stringify({ error: 'shipment_id is required' }), { status: 400, headers: corsHeaders })
     }
@@ -131,8 +131,8 @@ Deno.serve(async (req) => {
       cfg[row.key.replace('shipping_', '')] = row.value || ''
     }
 
-    const carrierId = cfg.carrier || ''
-    const serviceCode = cfg.service_code || 'usps_priority_mail'
+    const carrierId = override_carrier_id || cfg.carrier || ''
+    const serviceCode = override_service_code || cfg.service_code || 'usps_priority_mail'
     const weightOz = parseFloat(cfg.weight_oz || '16')
     const lengthIn = parseFloat(cfg.length_in || '10')
     const widthIn = parseFloat(cfg.width_in || '8')
