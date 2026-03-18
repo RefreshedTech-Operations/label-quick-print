@@ -1264,6 +1264,18 @@ export default function Orders() {
             <ToggleGroupItem value="unprinted" className="text-xs px-3">Unprinted</ToggleGroupItem>
           </ToggleGroup>
         )}
+        <Select value={channelFilter || 'all_channels'} onValueChange={(v) => setChannelFilter(v === 'all_channels' ? undefined : v)}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all_channels">All Channels</SelectItem>
+            <SelectItem value="regular">Regular</SelectItem>
+            <SelectItem value="tiktok">TikTok</SelectItem>
+            <SelectItem value="misfits">Misfits</SelectItem>
+            <SelectItem value="outlet">Outlet</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
           <SelectTrigger className="w-[140px]">
             <SelectValue />
