@@ -193,7 +193,7 @@ export function ShippingSettingsTab() {
                 <SelectContent>
                   {carriers.map(c => (
                     <SelectItem key={c.carrier_id} value={c.carrier_id}>
-                      {c.name} ({c.carrier_code})
+                      {c.name} ({c.carrier_id})
                     </SelectItem>
                   ))}
                 </SelectContent>
