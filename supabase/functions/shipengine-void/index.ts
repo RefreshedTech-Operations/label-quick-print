@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
         label_url: null,
         manifest_url: null,
         shipengine_label_id: null,
+        tracking: null,
       })
       .eq('id', shipment_id)
 
