@@ -16,7 +16,7 @@ import {
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
 
 
 const PAGE_SIZE = 25;
@@ -28,6 +28,7 @@ export default function ShippingLabels() {
   const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
@@ -81,6 +82,7 @@ export default function ShippingLabels() {
 
   const handleGenerateLabel = useCallback(async (shipmentId: string) => {
     setGeneratingIds(prev => new Set(prev).add(shipmentId));
+    setRowErrors(prev => { const next = { ...prev }; delete next[shipmentId]; return next; });
     try {
       const { data, error } = await supabase.functions.invoke('shipengine-proxy', {
         body: { shipment_id: shipmentId },
@@ -92,7 +94,9 @@ export default function ShippingLabels() {
       toast.success('Shipping label generated successfully');
       queryClient.invalidateQueries({ queryKey: ['shipping-labels'] });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to generate label');
+      const msg = err.message || 'Failed to generate label';
+      setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
+      toast.error(msg);
     } finally {
       setGeneratingIds(prev => {
         const next = new Set(prev);
@@ -197,7 +201,7 @@ export default function ShippingLabels() {
                 </TableRow>
               ) : (
                 shipments.map((s) => (
-                  <TableRow key={s.id}>
+                  <TableRow key={s.id} className={rowErrors[s.id] ? 'bg-destructive/5' : ''}>
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(s.id)}
@@ -211,7 +215,7 @@ export default function ShippingLabels() {
                     <TableCell className="max-w-[200px] truncate text-xs">{s.address_full || '—'}</TableCell>
                     <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
                     <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-y-1">
                       <Button
                         size="sm"
                         variant="outline"
@@ -226,6 +230,12 @@ export default function ShippingLabels() {
                         )}
                         Generate
                       </Button>
+                      {rowErrors[s.id] && (
+                        <div className="flex items-start gap-1 text-destructive text-xs max-w-[250px] text-left">
+                          <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                          <span className="break-words">{rowErrors[s.id]}</span>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
