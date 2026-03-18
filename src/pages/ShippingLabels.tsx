@@ -139,6 +139,9 @@ export default function ShippingLabels() {
         throw new Error('No active session. Please sign in again.');
       }
 
+      const requestBody = { shipment_id: shipmentId };
+      console.log('[ShipEngine] Sending request:', JSON.stringify(requestBody, null, 2));
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`,
         {
@@ -148,9 +151,11 @@ export default function ShippingLabels() {
             Authorization: `Bearer ${accessToken}`,
             apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
-          body: JSON.stringify({ shipment_id: shipmentId }),
+          body: JSON.stringify(requestBody),
         }
       );
+
+      console.log('[ShipEngine] Response status:', response.status);
 
       const raw = await response.text();
       let payload: any = {};
