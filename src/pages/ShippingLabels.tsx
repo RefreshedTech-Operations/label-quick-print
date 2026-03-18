@@ -201,7 +201,7 @@ export default function ShippingLabels() {
                 </TableRow>
               ) : (
                 shipments.map((s) => (
-                  <TableRow key={s.id}>
+                  <TableRow key={s.id} className={rowErrors[s.id] ? 'bg-destructive/5' : ''}>
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(s.id)}
@@ -215,7 +215,7 @@ export default function ShippingLabels() {
                     <TableCell className="max-w-[200px] truncate text-xs">{s.address_full || '—'}</TableCell>
                     <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
                     <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-y-1">
                       <Button
                         size="sm"
                         variant="outline"
@@ -230,6 +230,12 @@ export default function ShippingLabels() {
                         )}
                         Generate
                       </Button>
+                      {rowErrors[s.id] && (
+                        <div className="flex items-start gap-1 text-destructive text-xs max-w-[250px] text-left">
+                          <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                          <span className="break-words">{rowErrors[s.id]}</span>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
