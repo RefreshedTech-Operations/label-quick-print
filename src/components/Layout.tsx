@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { title: 'All Orders', url: '/orders', icon: List, group: 'Operations' },
   { title: 'Print Jobs', url: '/print-jobs', icon: Printer, group: 'Operations' },
   { title: 'Pack', url: '/pack', icon: Package2, group: 'Operations' },
+  { title: 'Shipping Labels', url: '/shipping-labels', icon: Truck, group: 'Operations' },
   { title: 'TV Dashboard', url: '/tv-dashboard', icon: Monitor, group: 'Monitoring' },
   { title: 'Analytics', url: '/analytics', icon: BarChart3, group: 'Monitoring' },
   { title: 'Messages', url: '/messages', icon: MessageSquare, group: 'Communication' },
