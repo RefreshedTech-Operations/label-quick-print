@@ -319,6 +319,7 @@ export default function ShippingLabels() {
                 <TableHead>Address</TableHead>
                 <TableHead>Tracking</TableHead>
                 <TableHead>Show Date</TableHead>
+                <TableHead>Service</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
