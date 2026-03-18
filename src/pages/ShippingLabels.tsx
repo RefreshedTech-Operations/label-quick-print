@@ -110,25 +110,70 @@ export default function ShippingLabels() {
     });
   }, []);
 
+  const formatFunctionError = (payload: any, fallback: string) => {
+    if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+      return payload.errors
+        .map((e: any) => {
+          const details = [
+            e?.field ? `field: ${e.field}` : null,
+            e?.code ? `code: ${e.code}` : null,
+            e?.type ? `type: ${e.type}` : null,
+          ].filter(Boolean).join(', ');
+          return details ? `${e?.message || 'Unknown error'} (${details})` : (e?.message || 'Unknown error');
+        })
+        .join(' | ');
+    }
+
+    return payload?.error || payload?.message || fallback;
+  };
+
   const handleGenerateLabel = useCallback(async (shipmentId: string) => {
     setGeneratingIds(prev => new Set(prev).add(shipmentId));
     setRowErrors(prev => { const next = { ...prev }; delete next[shipmentId]; return next; });
-    try {
-      const { data, error } = await supabase.functions.invoke('shipengine-proxy', {
-        body: { shipment_id: shipmentId },
-      });
 
-      if (error) {
-        // Try to parse the response body for detailed error
-        const errBody = data || {};
-        throw new Error(errBody.error || error.message || 'Failed to generate label');
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error('No active session. Please sign in again.');
       }
-      if (data?.error) throw new Error(data.error);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ shipment_id: shipmentId }),
+        }
+      );
+
+      const raw = await response.text();
+      let payload: any = {};
+      if (raw) {
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          payload = { error: raw };
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(formatFunctionError(payload, `Label generation failed (${response.status})`));
+      }
+
+      if (payload?.error) {
+        throw new Error(formatFunctionError(payload, payload.error));
+      }
 
       toast.success('Shipping label generated successfully');
       queryClient.invalidateQueries({ queryKey: ['shipping-labels'] });
     } catch (err: any) {
-      const msg = err.message || 'Failed to generate label';
+      const msg = err?.message || 'Failed to generate label';
       setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
       toast.error(msg);
     } finally {
