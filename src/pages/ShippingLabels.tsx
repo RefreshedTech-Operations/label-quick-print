@@ -549,16 +549,16 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                           {generatingIds.has(s.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}Generate
                         </Button>
                         {rowErrors[s.id] && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                          <Popover>
+                            <PopoverTrigger asChild>
                               <button className="text-destructive p-1 rounded hover:bg-destructive/10 transition-colors">
                                 <AlertTriangle className="h-4 w-4" />
                               </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-xs text-xs bg-destructive text-destructive-foreground">
+                            </PopoverTrigger>
+                            <PopoverContent side="left" className="max-w-xs text-xs bg-destructive text-destructive-foreground">
                               {rowErrors[s.id]}
-                            </TooltipContent>
-                          </Tooltip>
+                            </PopoverContent>
+                          </Popover>
                         )}
                       </div>
                     </TableCell>
