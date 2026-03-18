@@ -63,13 +63,43 @@ export default function ShippingLabels() {
   const totalCount = data?.total || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const handleSelectAll = useCallback(() => {
-    if (selectedIds.size === shipments.length) {
+  const handleSelectPage = useCallback(() => {
+    if (selectedIds.size === shipments.length && shipments.every(s => selectedIds.has(s.id))) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(shipments.map(s => s.id)));
     }
   }, [shipments, selectedIds]);
+
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
+
+  const handleSelectAllFiltered = useCallback(async () => {
+    setIsSelectingAll(true);
+    try {
+      let query = supabase
+        .from('shipments')
+        .select('id')
+        .or('label_url.is.null,label_url.eq.');
+
+      if (selectedShowDate) {
+        query = query.eq('show_date', selectedShowDate);
+      }
+      if (debouncedSearch) {
+        query = query.or(
+          `order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`
+        );
+      }
+
+      const { data: allIds, error } = await query;
+      if (error) throw error;
+      setSelectedIds(new Set((allIds || []).map(r => r.id)));
+      toast.success(`Selected ${allIds?.length || 0} orders`);
+    } catch (err: any) {
+      toast.error('Failed to select all orders');
+    } finally {
+      setIsSelectingAll(false);
+    }
+  }, [selectedShowDate, debouncedSearch]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -157,12 +187,36 @@ export default function ShippingLabels() {
               placeholder="Show date"
             />
             {selectedIds.size > 0 && (
-              <Button onClick={handleBulkGenerate} size="sm" className="gap-2">
-                <Tag className="h-4 w-4" />
-                Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={handleBulkGenerate} size="sm" className="gap-2">
+                  <Tag className="h-4 w-4" />
+                  Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                  Clear
+                </Button>
+              </div>
             )}
           </div>
+          {/* Select all banner */}
+          {shipments.length > 0 && shipments.every(s => selectedIds.has(s.id)) && selectedIds.size < totalCount && (
+            <div className="flex items-center justify-center gap-2 pt-2 text-sm text-muted-foreground">
+              <span>All {shipments.length} on this page are selected.</span>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-sm"
+                onClick={handleSelectAllFiltered}
+                disabled={isSelectingAll}
+              >
+                {isSelectingAll ? (
+                  <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Selecting...</>
+                ) : (
+                  <>Select all {totalCount} orders</>
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -174,8 +228,8 @@ export default function ShippingLabels() {
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={shipments.length > 0 && selectedIds.size === shipments.length}
-                    onCheckedChange={handleSelectAll}
+                    checked={shipments.length > 0 && shipments.every(s => selectedIds.has(s.id))}
+                    onCheckedChange={handleSelectPage}
                   />
                 </TableHead>
                 <TableHead>Order ID</TableHead>
