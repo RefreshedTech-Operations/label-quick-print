@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
         name: cfg.ship_from_name || 'Shipping Dept',
         address_line1: cfg.ship_from_address || '123 Main St',
         city_locality: cfg.ship_from_city || 'Austin',
-        state_province: cfg.ship_from_state || 'TX',
+        state_province: normalizeState(cfg.ship_from_state || 'TX', originCountryCode),
         postal_code: cfg.ship_from_zip || '78701',
         country_code: originCountryCode,
         phone: cfg.ship_from_phone || undefined,
