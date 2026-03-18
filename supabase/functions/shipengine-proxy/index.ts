@@ -131,8 +131,8 @@ Deno.serve(async (req) => {
       cfg[row.key.replace('shipping_', '')] = row.value || ''
     }
 
-    const carrierId = cfg.carrier || ''
-    const serviceCode = cfg.service_code || 'usps_priority_mail'
+    const carrierId = override_carrier_id || cfg.carrier || ''
+    const serviceCode = override_service_code || cfg.service_code || 'usps_priority_mail'
     const weightOz = parseFloat(cfg.weight_oz || '16')
     const lengthIn = parseFloat(cfg.length_in || '10')
     const widthIn = parseFloat(cfg.width_in || '8')
