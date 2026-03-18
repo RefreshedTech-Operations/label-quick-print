@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     const isInternational = destinationCountryCode !== originCountryCode
 
     const quantity = typeof shipment.quantity === 'number' && shipment.quantity > 0 ? shipment.quantity : 1
-    const itemDescription = String(shipment.product_name || 'Merchandise').slice(0, 120)
+    const itemDescription = String(shipment.product_name || 'Merchandise').slice(0, 100)
     const itemValue = parseCurrencyAmount(shipment.price)
 
     const shipmentPayload: Record<string, unknown> = {
