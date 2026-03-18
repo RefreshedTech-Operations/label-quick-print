@@ -285,7 +285,8 @@ export default function Orders() {
           p_filter: effectiveFilter,
           p_limit: pageSize,
           p_offset: (currentPage - 1) * pageSize,
-          p_include_archive: includeArchive
+          p_include_archive: includeArchive,
+          p_channel: channelFilter || null
         });
 
       if (searchError) throw searchError;
