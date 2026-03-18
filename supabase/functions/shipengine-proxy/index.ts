@@ -55,6 +55,23 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Shipment not found' }), { status: 404, headers: corsHeaders })
     }
 
+    // Load shipping config from app_config
+    const { data: configRows } = await serviceClient
+      .from('app_config')
+      .select('key, value')
+      .like('key', 'shipping_%')
+
+    const cfg: Record<string, string> = {}
+    for (const row of configRows || []) {
+      cfg[row.key.replace('shipping_', '')] = row.value || ''
+    }
+
+    const serviceCode = cfg.service_code || 'usps_priority_mail'
+    const weightOz = parseFloat(cfg.weight_oz || '16')
+    const lengthIn = parseFloat(cfg.length_in || '10')
+    const widthIn = parseFloat(cfg.width_in || '8')
+    const heightIn = parseFloat(cfg.height_in || '4')
+
     // Parse address (basic: "street, city, state zip, country" format)
     const addressParts = (shipment.address_full || '').split(',').map((s: string) => s.trim())
     const street = addressParts[0] || ''
@@ -73,7 +90,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         shipment: {
-          service_code: 'usps_priority_mail',
+          service_code: serviceCode,
           ship_to: {
             name: shipment.buyer || 'Customer',
             address_line1: street,
@@ -83,17 +100,16 @@ Deno.serve(async (req) => {
             country_code: country,
           },
           ship_from: {
-            // This should be configured per-account; placeholder
-            name: 'Shipping Dept',
-            address_line1: '123 Main St',
-            city_locality: 'Austin',
-            state_province: 'TX',
-            postal_code: '78701',
-            country_code: 'US',
+            name: cfg.ship_from_name || 'Shipping Dept',
+            address_line1: cfg.ship_from_address || '123 Main St',
+            city_locality: cfg.ship_from_city || 'Austin',
+            state_province: cfg.ship_from_state || 'TX',
+            postal_code: cfg.ship_from_zip || '78701',
+            country_code: cfg.ship_from_country || 'US',
           },
           packages: [{
-            weight: { value: 1, unit: 'pound' },
-            dimensions: { length: 10, width: 8, height: 4, unit: 'inch' },
+            weight: { value: weightOz, unit: 'ounce' },
+            dimensions: { length: lengthIn, width: widthIn, height: heightIn, unit: 'inch' },
           }],
         },
       }),
