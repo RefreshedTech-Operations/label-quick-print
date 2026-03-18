@@ -137,8 +137,12 @@ function AddressEditDialog({
             <Input id="addr-name" value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="addr-street">Street</Label>
+            <Label htmlFor="addr-street">Street Address</Label>
             <Input id="addr-street" value={street} onChange={e => setStreet(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="addr-street2">Street Address 2 (Apt, Suite, etc.)</Label>
+            <Input id="addr-street2" value={street2} onChange={e => setStreet2(e.target.value)} placeholder="Optional" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
