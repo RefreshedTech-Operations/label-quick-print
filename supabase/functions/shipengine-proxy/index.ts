@@ -31,6 +31,30 @@ const parseCurrencyAmount = (raw?: string | null) => {
   return Number(numeric.toFixed(2))
 }
 
+const US_STATE_MAP: Record<string, string> = {
+  alabama:'AL',alaska:'AK',arizona:'AZ',arkansas:'AR',california:'CA',colorado:'CO',
+  connecticut:'CT',delaware:'DE',florida:'FL',georgia:'GA',hawaii:'HI',idaho:'ID',
+  illinois:'IL',indiana:'IN',iowa:'IA',kansas:'KS',kentucky:'KY',louisiana:'LA',
+  maine:'ME',maryland:'MD',massachusetts:'MA',michigan:'MI',minnesota:'MN',
+  mississippi:'MS',missouri:'MO',montana:'MT',nebraska:'NE',nevada:'NV',
+  'new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY',
+  'north carolina':'NC','north dakota':'ND',ohio:'OH',oklahoma:'OK',oregon:'OR',
+  pennsylvania:'PA','rhode island':'RI','south carolina':'SC','south dakota':'SD',
+  tennessee:'TN',texas:'TX',utah:'UT',vermont:'VT',virginia:'VA',washington:'WA',
+  'west virginia':'WV',wisconsin:'WI',wyoming:'WY',
+  'district of columbia':'DC','puerto rico':'PR',guam:'GU',
+}
+
+const normalizeState = (raw: string, countryCode: string) => {
+  const trimmed = raw.trim()
+  if (countryCode === 'US') {
+    if (trimmed.length === 2) return trimmed.toUpperCase()
+    const mapped = US_STATE_MAP[trimmed.toLowerCase()]
+    if (mapped) return mapped
+  }
+  return trimmed
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -162,7 +186,7 @@ Deno.serve(async (req) => {
         name: recipientName || shipment.buyer || 'Customer',
         address_line1: street,
         city_locality: city,
-        state_province: state,
+        state_province: normalizeState(state, destinationCountryCode),
         postal_code: zip,
         country_code: destinationCountryCode,
         phone: cfg.ship_from_phone || undefined,
@@ -171,7 +195,7 @@ Deno.serve(async (req) => {
         name: cfg.ship_from_name || 'Shipping Dept',
         address_line1: cfg.ship_from_address || '123 Main St',
         city_locality: cfg.ship_from_city || 'Austin',
-        state_province: cfg.ship_from_state || 'TX',
+        state_province: normalizeState(cfg.ship_from_state || 'TX', originCountryCode),
         postal_code: cfg.ship_from_zip || '78701',
         country_code: originCountryCode,
         phone: cfg.ship_from_phone || undefined,
