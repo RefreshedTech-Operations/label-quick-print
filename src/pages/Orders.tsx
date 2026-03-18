@@ -103,6 +103,7 @@ export default function Orders() {
   // isAdmin is now derived from React Query below
   const [includeArchive, setIncludeArchive] = useState(false);
   const [nonBundledSubFilter, setNonBundledSubFilter] = useState<'all' | 'unprinted'>('all');
+  const [channelFilter, setChannelFilter] = useState<string | undefined>(undefined);
 
   // Reset sub-filter when main filter changes away from non_bundled
   useEffect(() => {
