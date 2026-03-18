@@ -237,6 +237,10 @@ export function ShippingSettingsTab() {
             <Label>Country Code</Label>
             <Input value={config.ship_from_country} onChange={e => update('ship_from_country', e.target.value)} placeholder="US" maxLength={2} />
           </div>
+          <div className="space-y-2">
+            <Label>Phone Number</Label>
+            <Input value={config.ship_from_phone} onChange={e => update('ship_from_phone', e.target.value)} placeholder="+1 555-123-4567" />
+          </div>
         </CardContent>
       </Card>
 
