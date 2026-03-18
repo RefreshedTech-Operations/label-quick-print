@@ -204,8 +204,8 @@ export default function ShippingLabels() {
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={shipments.length > 0 && selectedIds.size === shipments.length}
-                    onCheckedChange={handleSelectAll}
+                    checked={shipments.length > 0 && shipments.every(s => selectedIds.has(s.id))}
+                    onCheckedChange={handleSelectPage}
                   />
                 </TableHead>
                 <TableHead>Order ID</TableHead>
