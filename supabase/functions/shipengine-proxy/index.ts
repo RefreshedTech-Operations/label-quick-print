@@ -55,6 +55,46 @@ const normalizeState = (raw: string, countryCode: string) => {
   return trimmed
 }
 
+// Detect if a string looks like a US zip code
+const looksLikeZip = (s: string) => /^\d{5}(-\d{4})?$/.test(s.trim())
+
+// Detect if a string is a known US state name or 2-letter code
+const looksLikeUSState = (s: string) => {
+  const t = s.trim()
+  if (t.length === 2 && /^[A-Z]{2}$/i.test(t)) return true
+  return US_STATE_MAP[t.toLowerCase()] !== undefined
+}
+
+// Fix scrambled city/state/zip fields for US addresses
+const fixScrambledFields = (city: string, state: string, zip: string, countryCode: string) => {
+  if (countryCode !== 'US') return { city, state, zip }
+  
+  const fields = [city, state, zip]
+  let fixedCity = city, fixedState = state, fixedZip = zip
+  
+  // Find which field is actually the zip (digits)
+  const zipIdx = fields.findIndex(f => looksLikeZip(f))
+  // Find which field is actually the state
+  const stateIdx = fields.findIndex((f, i) => i !== zipIdx && looksLikeUSState(f))
+  // The remaining one is the city
+  const cityIdx = fields.findIndex((_, i) => i !== zipIdx && i !== stateIdx)
+  
+  if (zipIdx !== -1) fixedZip = fields[zipIdx]
+  if (stateIdx !== -1) fixedState = fields[stateIdx]
+  if (cityIdx !== -1) fixedCity = fields[cityIdx]
+  
+  // Only apply fix if we found at least the zip in the wrong position
+  if (zipIdx !== -1 && zipIdx !== 2) {
+    return { city: fixedCity, state: fixedState, zip: fixedZip }
+  }
+  // Or if state is a full name in the wrong position
+  if (stateIdx !== -1 && stateIdx !== 1) {
+    return { city: fixedCity, state: fixedState, zip: fixedZip }
+  }
+  
+  return { city, state, zip }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -204,6 +244,12 @@ Deno.serve(async (req) => {
     const destinationCountryCode = normalizeCountryCode(countryRaw)
     const originCountryCode = normalizeCountryCode(cfg.ship_from_country || 'US')
     const isInternational = destinationCountryCode !== originCountryCode
+
+    // Fix scrambled city/state/zip fields
+    const fixed = fixScrambledFields(city, state, zip, destinationCountryCode)
+    city = fixed.city
+    state = fixed.state
+    zip = fixed.zip
 
     const quantity = typeof shipment.quantity === 'number' && shipment.quantity > 0 ? shipment.quantity : 1
     const itemDescription = String(shipment.product_name || 'Merchandise').slice(0, 100)
