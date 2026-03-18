@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
             state_province: state,
             postal_code: zip,
             country_code: country,
+            phone: cfg.ship_from_phone || undefined,
           },
           ship_from: {
             name: cfg.ship_from_name || 'Shipping Dept',
@@ -106,6 +107,7 @@ Deno.serve(async (req) => {
             state_province: cfg.ship_from_state || 'TX',
             postal_code: cfg.ship_from_zip || '78701',
             country_code: cfg.ship_from_country || 'US',
+            phone: cfg.ship_from_phone || undefined,
           },
           packages: [{
             weight: { value: weightOz, unit: 'ounce' },
