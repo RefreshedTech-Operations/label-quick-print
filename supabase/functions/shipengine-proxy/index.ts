@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
         name: recipientName || shipment.buyer || 'Customer',
         address_line1: street,
         city_locality: city,
-        state_province: state,
+        state_province: normalizeState(state, destinationCountryCode),
         postal_code: zip,
         country_code: destinationCountryCode,
         phone: cfg.ship_from_phone || undefined,
