@@ -309,7 +309,8 @@ export default function Orders() {
           p_show_date: showDateFilter || null,
           p_printed: null,
           p_filter: effectiveFilter,
-          p_include_archive: includeArchive
+          p_include_archive: includeArchive,
+          p_channel: channelFilter || null
         })
         .single();
 
