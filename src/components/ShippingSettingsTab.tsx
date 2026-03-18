@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,40 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, RefreshCw } from 'lucide-react';
 
-const CARRIERS = [
-  { value: 'usps', label: 'USPS' },
-  { value: 'ups', label: 'UPS' },
-  { value: 'fedex', label: 'FedEx' },
-  { value: 'dhl_express', label: 'DHL Express' },
-];
+interface CarrierService {
+  service_code: string;
+  name: string;
+  domestic: boolean;
+  international: boolean;
+}
 
-const SERVICES: Record<string, { value: string; label: string }[]> = {
-  usps: [
-    { value: 'usps_priority_mail', label: 'Priority Mail' },
-    { value: 'usps_priority_mail_express', label: 'Priority Mail Express' },
-    { value: 'usps_first_class_mail', label: 'First Class Mail' },
-    { value: 'usps_ground_advantage', label: 'Ground Advantage' },
-    { value: 'usps_media_mail', label: 'Media Mail' },
-  ],
-  ups: [
-    { value: 'ups_ground', label: 'Ground' },
-    { value: 'ups_next_day_air', label: 'Next Day Air' },
-    { value: 'ups_2nd_day_air', label: '2nd Day Air' },
-    { value: 'ups_3_day_select', label: '3 Day Select' },
-  ],
-  fedex: [
-    { value: 'fedex_ground', label: 'Ground' },
-    { value: 'fedex_home_delivery', label: 'Home Delivery' },
-    { value: 'fedex_express_saver', label: 'Express Saver' },
-    { value: 'fedex_2day', label: '2Day' },
-    { value: 'fedex_standard_overnight', label: 'Standard Overnight' },
-  ],
-  dhl_express: [
-    { value: 'dhl_express_worldwide', label: 'Express Worldwide' },
-  ],
-};
+interface Carrier {
+  carrier_id: string;
+  carrier_code: string;
+  name: string;
+  services: CarrierService[];
+}
 
 interface ShippingConfig {
   carrier: string;
@@ -58,8 +40,8 @@ interface ShippingConfig {
 }
 
 const DEFAULT_CONFIG: ShippingConfig = {
-  carrier: 'usps',
-  service_code: 'usps_priority_mail',
+  carrier: '',
+  service_code: '',
   weight_oz: '16',
   length_in: '10',
   width_in: '8',
@@ -77,6 +59,31 @@ export function ShippingSettingsTab() {
   const [config, setConfig] = useState<ShippingConfig>(DEFAULT_CONFIG);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Fetch carriers from ShipEngine
+  const { data: carriers, isLoading: carriersLoading, refetch: refetchCarriers } = useQuery<Carrier[]>({
+    queryKey: ['shipengine-carriers'],
+    queryFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error('Not authenticated');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-carriers`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || 'Failed to fetch carriers');
+      return payload.carriers || [];
+    },
+    staleTime: 10 * 60 * 1000, // cache 10 min
+  });
 
   useEffect(() => {
     loadConfig();
@@ -129,7 +136,8 @@ export function ShippingSettingsTab() {
     setConfig(prev => ({ ...prev, [field]: value }));
   };
 
-  const availableServices = SERVICES[config.carrier] || [];
+  const selectedCarrier = carriers?.find(c => c.carrier_id === config.carrier || c.carrier_code === config.carrier);
+  const availableServices = selectedCarrier?.services || [];
 
   if (loading) {
     return (
@@ -144,38 +152,74 @@ export function ShippingSettingsTab() {
       {/* Carrier & Service */}
       <Card>
         <CardHeader>
-          <CardTitle>Carrier & Service</CardTitle>
-          <CardDescription>Default carrier and shipping service for label generation</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Carrier & Service</CardTitle>
+              <CardDescription>Select your carrier and shipping service from your ShipEngine account</CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetchCarriers()}
+              disabled={carriersLoading}
+              className="gap-1"
+            >
+              <RefreshCw className={`h-4 w-4 ${carriersLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Carrier</Label>
-            <Select
-              value={config.carrier}
-              onValueChange={(v) => {
-                update('carrier', v);
-                const first = SERVICES[v]?.[0]?.value || '';
-                update('service_code', first);
-              }}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CARRIERS.map(c => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {carriersLoading ? (
+              <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-input bg-background text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading carriers...
+              </div>
+            ) : carriers && carriers.length > 0 ? (
+              <Select
+                value={config.carrier}
+                onValueChange={(v) => {
+                  update('carrier', v);
+                  const carrier = carriers.find(c => c.carrier_id === v || c.carrier_code === v);
+                  const firstService = carrier?.services?.[0]?.service_code || '';
+                  update('service_code', firstService);
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select a carrier" /></SelectTrigger>
+                <SelectContent>
+                  {carriers.map(c => (
+                    <SelectItem key={c.carrier_id} value={c.carrier_id}>
+                      {c.name} ({c.carrier_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="text-sm text-muted-foreground p-2 rounded-md border border-dashed">
+                No carriers found. Make sure your ShipEngine account has carriers configured.
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Service</Label>
-            <Select value={config.service_code} onValueChange={(v) => update('service_code', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {availableServices.map(s => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {availableServices.length > 0 ? (
+              <Select value={config.service_code} onValueChange={(v) => update('service_code', v)}>
+                <SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger>
+                <SelectContent>
+                  {availableServices.map(s => (
+                    <SelectItem key={s.service_code} value={s.service_code}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="text-sm text-muted-foreground p-2 rounded-md border border-dashed">
+                {config.carrier ? 'No services available for this carrier' : 'Select a carrier first'}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
