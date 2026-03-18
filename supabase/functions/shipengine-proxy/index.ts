@@ -174,6 +174,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Log the full payload for debugging
+    console.log('ShipEngine request payload:', JSON.stringify({ shipment: shipmentPayload }, null, 2))
+
     // Call ShipEngine to create a label
     const seResponse = await fetch('https://api.shipengine.com/v1/labels', {
       method: 'POST',
