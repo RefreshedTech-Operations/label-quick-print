@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { Search, Truck, Tag, Loader2, ExternalLink } from 'lucide-react';
-import { ShowDateFilter } from '@/components/ShowDateFilter';
+import { format } from 'date-fns';
 
 const PAGE_SIZE = 25;
 
