@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
       cfg[row.key.replace('shipping_', '')] = row.value || ''
     }
 
+    const carrierId = cfg.carrier || ''
     const serviceCode = cfg.service_code || 'usps_priority_mail'
     const weightOz = parseFloat(cfg.weight_oz || '16')
     const lengthIn = parseFloat(cfg.length_in || '10')
@@ -129,6 +130,7 @@ Deno.serve(async (req) => {
     const itemValue = parseCurrencyAmount(shipment.price)
 
     const shipmentPayload: Record<string, unknown> = {
+      ...(carrierId ? { carrier_id: carrierId } : {}),
       service_code: serviceCode,
       ship_to: {
         name: shipment.buyer || 'Customer',
