@@ -366,6 +366,7 @@ export default function ShippingLabels() {
                     <TableCell className="max-w-[200px] truncate">{s.product_name || '—'}</TableCell>
                     <TableCell className="max-w-[200px] truncate text-xs">{s.address_full || '—'}</TableCell>
                     <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
+                    <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <Package className="h-3 w-3 text-muted-foreground" />
