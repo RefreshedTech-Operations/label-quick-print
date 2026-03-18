@@ -260,7 +260,7 @@ export default function Orders() {
   // React Query automatically cancels in-flight requests when queryKey changes
   // GUARD: Wait for show date to be auto-selected OR user explicitly enables "All Shows"
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
-    queryKey: ['shipments', currentPage, effectiveFilter, showDateFilter, debouncedSearch, pageSize, includeArchive],
+    queryKey: ['shipments', currentPage, effectiveFilter, showDateFilter, debouncedSearch, pageSize, includeArchive, channelFilter],
     queryFn: async ({ signal }) => { // signal is automatically provided by React Query
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
