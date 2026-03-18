@@ -141,9 +141,12 @@ export default function ShippingLabels() {
                 className="pl-9"
               />
             </div>
-            <ShowDateFilter
-              value={selectedShowDate}
-              onChange={(v) => { setSelectedShowDate(v); setPage(0); }}
+            <Input
+              type="date"
+              value={selectedShowDate || ''}
+              onChange={(e) => { setSelectedShowDate(e.target.value || undefined); setPage(0); }}
+              className="w-[160px]"
+              placeholder="Show date"
             />
             {selectedIds.size > 0 && (
               <Button onClick={handleBulkGenerate} size="sm" className="gap-2">
