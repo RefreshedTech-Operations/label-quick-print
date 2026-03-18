@@ -35,6 +35,7 @@ import {
 import { BundleLocationsTab } from '@/components/BundleLocationsTab';
 import { KitDevicesTab } from '@/components/KitDevicesTab';
 import { PackStationsTab } from '@/components/PackStationsTab';
+import { ShippingSettingsTab } from '@/components/ShippingSettingsTab';
 
 interface ProcessResult {
   successful: string[];
