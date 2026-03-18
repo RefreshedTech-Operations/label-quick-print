@@ -1133,6 +1133,10 @@ export default function Settings() {
       </Dialog>
         </TabsContent>
 
+        <TabsContent value="shipping">
+          <ShippingSettingsTab />
+        </TabsContent>
+
         <TabsContent value="locations">
           <BundleLocationsTab />
         </TabsContent>
