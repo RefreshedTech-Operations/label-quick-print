@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
       ...(carrierId ? { carrier_id: carrierId } : {}),
       service_code: serviceCode,
       ship_to: {
-        name: shipment.buyer || 'Customer',
+        name: recipientName || shipment.buyer || 'Customer',
         address_line1: street,
         city_locality: city,
         state_province: state,
