@@ -8,6 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAdaptiveDebounce } from '@/hooks/useAdaptiveDebounce';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -21,8 +24,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink, AlertCircle, Package, XCircle, FileText } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil } from 'lucide-react';
 
 const PAGE_SIZE = 25;
 
@@ -58,6 +67,194 @@ function PaginationBlock({ page, totalPages, setPage }: { page: number; totalPag
   );
 }
 
+/* ─── Address Edit Dialog ─── */
+function AddressEditDialog({
+  open, onOpenChange, shipment, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  shipment: { id: string; address_full: string | null; buyer: string | null };
+  onSave: () => void;
+}) {
+  const parts = (shipment.address_full || '').split(',').map(s => s.trim());
+  const hasName = parts.length >= 5;
+  const [name, setName] = useState(hasName ? parts[0] : (shipment.buyer || ''));
+  const [street, setStreet] = useState(hasName ? parts[1] : parts[0] || '');
+  const [city, setCity] = useState(hasName ? parts[2] : parts[1] || '');
+  const [state, setState] = useState(hasName ? parts[3] : '');
+  const [zip, setZip] = useState(hasName ? parts[4] : '');
+  const [country, setCountry] = useState(hasName && parts[5] ? parts[5] : (parts.length === 4 ? parts[3] : 'US'));
+  const [saving, setSaving] = useState(false);
+
+  // Parse legacy "State Zip" if needed
+  useState(() => {
+    if (!hasName && parts.length >= 3) {
+      const stateZip = (parts[2] || '').split(' ');
+      if (stateZip.length >= 2) {
+        setState(stateZip[0]);
+        setZip(stateZip.slice(1).join(' '));
+        setCountry(parts[3] || 'US');
+      }
+    }
+  });
+
+  const handleSave = async () => {
+    setSaving(true);
+    const newAddress = [name, street, city, state, zip, country].join(', ');
+    const { error } = await supabase.from('shipments').update({ address_full: newAddress }).eq('id', shipment.id);
+    setSaving(false);
+    if (error) { toast.error('Failed to update address'); return; }
+    toast.success('Address updated');
+    onSave();
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Shipping Address</DialogTitle>
+          <DialogDescription>Update the address for this shipment.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 py-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="addr-name">Recipient Name</Label>
+            <Input id="addr-name" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="addr-street">Street</Label>
+            <Input id="addr-street" value={street} onChange={e => setStreet(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="addr-city">City</Label>
+              <Input id="addr-city" value={city} onChange={e => setCity(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="addr-state">State</Label>
+              <Input id="addr-state" value={state} onChange={e => setState(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="addr-zip">ZIP Code</Label>
+              <Input id="addr-zip" value={zip} onChange={e => setZip(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="addr-country">Country</Label>
+              <Input id="addr-country" value={country} onChange={e => setCountry(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ─── Service Override Popover ─── */
+function ServiceOverridePopover({
+  shipmentId,
+  carriersData,
+  overrides,
+  setOverrides,
+  defaultCarrierLabel,
+  defaultServiceLabel,
+}: {
+  shipmentId: string;
+  carriersData: any[];
+  overrides: Record<string, { carrier_id: string; service_code: string }>;
+  setOverrides: React.Dispatch<React.SetStateAction<Record<string, { carrier_id: string; service_code: string }>>>;
+  defaultCarrierLabel: string;
+  defaultServiceLabel: string;
+}) {
+  const override = overrides[shipmentId];
+  const hasOverride = !!override;
+  const [selectedCarrierId, setSelectedCarrierId] = useState(override?.carrier_id || '');
+  const [selectedServiceCode, setSelectedServiceCode] = useState(override?.service_code || '');
+
+  const selectedCarrier = carriersData.find((c: any) => c.carrier_id === selectedCarrierId);
+  const services = selectedCarrier?.services || [];
+
+  const handleApply = () => {
+    if (selectedCarrierId && selectedServiceCode) {
+      setOverrides(prev => ({ ...prev, [shipmentId]: { carrier_id: selectedCarrierId, service_code: selectedServiceCode } }));
+    }
+  };
+
+  const handleReset = () => {
+    setOverrides(prev => {
+      const next = { ...prev };
+      delete next[shipmentId];
+      return next;
+    });
+    setSelectedCarrierId('');
+    setSelectedServiceCode('');
+  };
+
+  const displayCarrier = hasOverride
+    ? (carriersData.find((c: any) => c.carrier_id === override.carrier_id)?.name || override.carrier_id)
+    : defaultCarrierLabel;
+  const displayService = hasOverride
+    ? (carriersData.find((c: any) => c.carrier_id === override.carrier_id)?.services?.find((s: any) => s.service_code === override.service_code)?.name || override.service_code)
+    : defaultServiceLabel;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={`text-left text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors ${hasOverride ? 'ring-1 ring-primary/30 bg-primary/5' : ''}`}>
+          <div className="flex items-center gap-1">
+            <Package className="h-3 w-3 text-muted-foreground" />
+            <span className="font-medium">{displayCarrier}</span>
+            {hasOverride && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">Custom</Badge>}
+          </div>
+          <span className="text-muted-foreground">{displayService}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start">
+        <div className="grid gap-3">
+          <p className="text-sm font-medium">Override carrier & service</p>
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Carrier</Label>
+            <Select value={selectedCarrierId} onValueChange={(v) => { setSelectedCarrierId(v); setSelectedServiceCode(''); }}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select carrier" /></SelectTrigger>
+              <SelectContent>
+                {carriersData.map((c: any) => (
+                  <SelectItem key={c.carrier_id} value={c.carrier_id} className="text-xs">{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedCarrierId && services.length > 0 && (
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Service</Label>
+              <Select value={selectedServiceCode} onValueChange={setSelectedServiceCode}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select service" /></SelectTrigger>
+                <SelectContent>
+                  {services.map((s: any) => (
+                    <SelectItem key={s.service_code} value={s.service_code} className="text-xs">{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            {hasOverride && (
+              <Button size="sm" variant="ghost" onClick={handleReset} className="h-7 text-xs">Reset to default</Button>
+            )}
+            <Button size="sm" onClick={handleApply} disabled={!selectedCarrierId || !selectedServiceCode} className="h-7 text-xs">Apply</Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function ShippingLabels() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('missing');
@@ -78,16 +275,9 @@ export default function ShippingLabels() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="missing" className="gap-2">
-            <Tag className="h-4 w-4" />
-            Missing Labels
-          </TabsTrigger>
-          <TabsTrigger value="generated" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Generated Labels
-          </TabsTrigger>
+          <TabsTrigger value="missing" className="gap-2"><Tag className="h-4 w-4" />Missing Labels</TabsTrigger>
+          <TabsTrigger value="generated" className="gap-2"><FileText className="h-4 w-4" />Generated Labels</TabsTrigger>
         </TabsList>
-
         <TabsContent value="missing" className="space-y-4 mt-4">
           <MissingLabelsTab queryClient={queryClient} />
         </TabsContent>
@@ -108,6 +298,8 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [isSelectingAll, setIsSelectingAll] = useState(false);
+  const [serviceOverrides, setServiceOverrides] = useState<Record<string, { carrier_id: string; service_code: string }>>({});
+  const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
@@ -137,7 +329,8 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     staleTime: 10 * 60 * 1000,
   });
 
-  const selectedCarrier = (carriersData || []).find((c: any) => c.carrier_id === shippingConfig?.carrier || c.carrier_code === shippingConfig?.carrier);
+  const carriers = carriersData || [];
+  const selectedCarrier = carriers.find((c: any) => c.carrier_id === shippingConfig?.carrier || c.carrier_code === shippingConfig?.carrier);
   const carrierLabel = selectedCarrier?.name || shippingConfig?.carrier || '—';
   const selectedService = (selectedCarrier?.services || []).find((s: any) => s.service_code === shippingConfig?.service_code);
   const serviceLabel = selectedService?.name || shippingConfig?.service_code || '—';
@@ -206,10 +399,18 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
       if (!accessToken) throw new Error('No active session. Please sign in again.');
+
+      const override = serviceOverrides[shipmentId];
+      const body: any = { shipment_id: shipmentId };
+      if (override) {
+        body.override_carrier_id = override.carrier_id;
+        body.override_service_code = override.service_code;
+      }
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        body: JSON.stringify({ shipment_id: shipmentId }),
+        body: JSON.stringify(body),
       });
       const raw = await response.text();
       let payload: any = {};
@@ -222,11 +423,10 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     } catch (err: any) {
       const msg = err?.message || 'Failed to generate label';
       setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
-      toast.error(msg);
     } finally {
       setGeneratingIds(prev => { const next = new Set(prev); next.delete(shipmentId); return next; });
     }
-  }, [queryClient]);
+  }, [queryClient, serviceOverrides]);
 
   const handleBulkGenerate = useCallback(async () => {
     if (selectedIds.size === 0) return;
@@ -235,88 +435,124 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   }, [selectedIds, handleGenerateLabel]);
 
   return (
-    <>
-      <div className="flex items-center justify-between">
-        <Badge variant="secondary" className="text-lg px-3 py-1">{totalCount} missing</Badge>
-      </div>
-      <Card>
-        <CardContent className="pt-4 pb-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
+    <TooltipProvider>
+      <>
+        <div className="flex items-center justify-between">
+          <Badge variant="secondary" className="text-lg px-3 py-1">{totalCount} missing</Badge>
+        </div>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
+              </div>
+              <Input type="date" value={selectedShowDate || ''} onChange={(e) => { setSelectedShowDate(e.target.value || undefined); setPage(0); }} className="w-[160px]" />
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button onClick={handleBulkGenerate} size="sm" className="gap-2"><Tag className="h-4 w-4" />Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+                </div>
+              )}
             </div>
-            <Input type="date" value={selectedShowDate || ''} onChange={(e) => { setSelectedShowDate(e.target.value || undefined); setPage(0); }} className="w-[160px]" />
-            {selectedIds.size > 0 && (
-              <div className="flex items-center gap-2">
-                <Button onClick={handleBulkGenerate} size="sm" className="gap-2"><Tag className="h-4 w-4" />Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}</Button>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+            {shipments.length > 0 && shipments.every(s => selectedIds.has(s.id)) && selectedIds.size < totalCount && (
+              <div className="flex items-center justify-center gap-2 pt-2 text-sm text-muted-foreground">
+                <span>All {shipments.length} on this page are selected.</span>
+                <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={handleSelectAllFiltered} disabled={isSelectingAll}>
+                  {isSelectingAll ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Selecting...</> : <>Select all {totalCount} orders</>}
+                </Button>
               </div>
             )}
-          </div>
-          {shipments.length > 0 && shipments.every(s => selectedIds.has(s.id)) && selectedIds.size < totalCount && (
-            <div className="flex items-center justify-center gap-2 pt-2 text-sm text-muted-foreground">
-              <span>All {shipments.length} on this page are selected.</span>
-              <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={handleSelectAllFiltered} disabled={isSelectingAll}>
-                {isSelectingAll ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Selecting...</> : <>Select all {totalCount} orders</>}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10"><Checkbox checked={shipments.length > 0 && shipments.every(s => selectedIds.has(s.id))} onCheckedChange={handleSelectPage} /></TableHead>
-                <TableHead>Order ID</TableHead>
-                <TableHead>UID</TableHead>
-                <TableHead>Buyer</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>Tracking</TableHead>
-                <TableHead>Show Date</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 10 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
-              )) : shipments.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-12 text-muted-foreground">No shipments missing labels</TableCell></TableRow>
-              ) : shipments.map((s) => (
-                <TableRow key={s.id} className={rowErrors[s.id] ? 'bg-destructive/5' : ''}>
-                  <TableCell><Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} /></TableCell>
-                  <TableCell className="font-mono text-xs">{s.order_id}</TableCell>
-                  <TableCell className="font-mono text-xs">{s.uid || '—'}</TableCell>
-                  <TableCell>{s.buyer || '—'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{s.product_name || '—'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate text-xs">{s.address_full || '—'}</TableCell>
-                  <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
-                  <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
-                  <TableCell className="text-xs">
-                    <div className="flex items-center gap-1"><Package className="h-3 w-3 text-muted-foreground" /><span className="font-medium">{carrierLabel}</span></div>
-                    <span className="text-muted-foreground">{serviceLabel}</span>
-                  </TableCell>
-                  <TableCell className="text-right space-y-1">
-                    <Button size="sm" variant="outline" disabled={generatingIds.has(s.id)} onClick={() => handleGenerateLabel(s.id)} className="gap-1">
-                      {generatingIds.has(s.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}Generate
-                    </Button>
-                    {rowErrors[s.id] && (
-                      <div className="flex items-start gap-1 text-destructive text-xs max-w-[250px] text-left"><AlertCircle className="h-3 w-3 mt-0.5 shrink-0" /><span className="break-words">{rowErrors[s.id]}</span></div>
-                    )}
-                  </TableCell>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10"><Checkbox checked={shipments.length > 0 && shipments.every(s => selectedIds.has(s.id))} onCheckedChange={handleSelectPage} /></TableHead>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>UID</TableHead>
+                  <TableHead>Buyer</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Tracking</TableHead>
+                  <TableHead>Show Date</TableHead>
+                  <TableHead>Service</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      <PaginationBlock page={page} totalPages={totalPages} setPage={setPage} />
-    </>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>{Array.from({ length: 10 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                )) : shipments.length === 0 ? (
+                  <TableRow><TableCell colSpan={10} className="text-center py-12 text-muted-foreground">No shipments missing labels</TableCell></TableRow>
+                ) : shipments.map((s) => (
+                  <TableRow key={s.id} className={rowErrors[s.id] ? 'bg-destructive/5' : ''}>
+                    <TableCell><Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} /></TableCell>
+                    <TableCell className="font-mono text-xs">{s.order_id}</TableCell>
+                    <TableCell className="font-mono text-xs">{s.uid || '—'}</TableCell>
+                    <TableCell>{s.buyer || '—'}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{s.product_name || '—'}</TableCell>
+                    <TableCell className="max-w-[200px]">
+                      <button
+                        className="text-left text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors flex items-center gap-1 group"
+                        onClick={() => setEditingAddress({ id: s.id, address_full: s.address_full, buyer: s.buyer })}
+                      >
+                        <span className="truncate">{s.address_full || '—'}</span>
+                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
+                      </button>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
+                    <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
+                    <TableCell>
+                      <ServiceOverridePopover
+                        shipmentId={s.id}
+                        carriersData={carriers}
+                        overrides={serviceOverrides}
+                        setOverrides={setServiceOverrides}
+                        defaultCarrierLabel={carrierLabel}
+                        defaultServiceLabel={serviceLabel}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button size="sm" variant="outline" disabled={generatingIds.has(s.id)} onClick={() => handleGenerateLabel(s.id)} className="gap-1">
+                          {generatingIds.has(s.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}Generate
+                        </Button>
+                        {rowErrors[s.id] && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button className="text-destructive p-1 rounded hover:bg-destructive/10 transition-colors">
+                                <AlertTriangle className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-xs text-xs bg-destructive text-destructive-foreground">
+                              {rowErrors[s.id]}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <PaginationBlock page={page} totalPages={totalPages} setPage={setPage} />
+
+        {editingAddress && (
+          <AddressEditDialog
+            open={!!editingAddress}
+            onOpenChange={(o) => { if (!o) setEditingAddress(null); }}
+            shipment={editingAddress}
+            onSave={() => queryClient.invalidateQueries({ queryKey: ['shipping-labels-missing'] })}
+          />
+        )}
+      </>
+    </TooltipProvider>
   );
 }
 
@@ -421,9 +657,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
                   <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
                   <TableCell>
                     <a
-                      href={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-label-download?url=${encodeURIComponent(s.label_url)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href="#"
                       className="text-primary hover:underline text-xs flex items-center gap-1"
                       onClick={async (e) => {
                         e.preventDefault();
