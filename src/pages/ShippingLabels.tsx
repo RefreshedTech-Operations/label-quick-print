@@ -420,7 +420,26 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
                   <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
                   <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
                   <TableCell>
-                    <a href={s.label_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs flex items-center gap-1">
+                    <a
+                      href={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-label-download?url=${encodeURIComponent(s.label_url)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs flex items-center gap-1"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        const { data: sessionData } = await supabase.auth.getSession();
+                        const accessToken = sessionData?.session?.access_token;
+                        if (!accessToken) { toast.error('No active session'); return; }
+                        const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-label-download?url=${encodeURIComponent(s.label_url)}`;
+                        const res = await fetch(proxyUrl, {
+                          headers: { Authorization: `Bearer ${accessToken}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+                        });
+                        if (!res.ok) { toast.error('Failed to download label'); return; }
+                        const blob = await res.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        window.open(blobUrl, '_blank');
+                      }}
+                    >
                       <ExternalLink className="h-3 w-3" />View
                     </a>
                   </TableCell>
