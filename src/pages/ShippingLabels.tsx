@@ -88,7 +88,11 @@ export default function ShippingLabels() {
         body: { shipment_id: shipmentId },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Try to parse the response body for detailed error
+        const errBody = data || {};
+        throw new Error(errBody.error || error.message || 'Failed to generate label');
+      }
       if (data?.error) throw new Error(data.error);
 
       toast.success('Shipping label generated successfully');
