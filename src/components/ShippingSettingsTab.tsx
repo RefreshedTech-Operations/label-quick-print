@@ -54,6 +54,7 @@ const DEFAULT_CONFIG: ShippingConfig = {
   ship_from_zip: '',
   ship_from_country: 'US',
   ship_from_phone: '',
+  api_key: '',
 };
 
 export function ShippingSettingsTab() {
