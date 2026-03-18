@@ -266,6 +266,7 @@ Deno.serve(async (req) => {
       .from('shipments')
       .update({
         label_url: labelUrl,
+        manifest_url: labelUrl,
         ...(trackingNumber ? { tracking: trackingNumber } : {}),
       })
       .eq('id', shipment_id)
