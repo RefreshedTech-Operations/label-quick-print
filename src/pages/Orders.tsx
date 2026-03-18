@@ -103,6 +103,7 @@ export default function Orders() {
   // isAdmin is now derived from React Query below
   const [includeArchive, setIncludeArchive] = useState(false);
   const [nonBundledSubFilter, setNonBundledSubFilter] = useState<'all' | 'unprinted'>('all');
+  const [channelFilter, setChannelFilter] = useState<string | undefined>(undefined);
 
   // Reset sub-filter when main filter changes away from non_bundled
   useEffect(() => {
@@ -252,14 +253,14 @@ export default function Orders() {
   // Reset to page 1 when filters change (instant for filters, debounced for search)
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, showDateFilter, debouncedSearch, nonBundledSubFilter]);
+  }, [filter, showDateFilter, debouncedSearch, nonBundledSubFilter, channelFilter]);
 
   // React Query for shipments with caching and optimized column selection
   // PHASE 2 VERIFICATION: Query cancellation is automatic via React Query's AbortSignal
   // React Query automatically cancels in-flight requests when queryKey changes
   // GUARD: Wait for show date to be auto-selected OR user explicitly enables "All Shows"
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
-    queryKey: ['shipments', currentPage, effectiveFilter, showDateFilter, debouncedSearch, pageSize, includeArchive],
+    queryKey: ['shipments', currentPage, effectiveFilter, showDateFilter, debouncedSearch, pageSize, includeArchive, channelFilter],
     queryFn: async ({ signal }) => { // signal is automatically provided by React Query
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -284,7 +285,8 @@ export default function Orders() {
           p_filter: effectiveFilter,
           p_limit: pageSize,
           p_offset: (currentPage - 1) * pageSize,
-          p_include_archive: includeArchive
+          p_include_archive: includeArchive,
+          p_channel: channelFilter || null
         });
 
       if (searchError) throw searchError;
@@ -299,7 +301,7 @@ export default function Orders() {
   // Separate query for aggregate stats (counts all records, not just current page)
   // PHASE 2: Lazy stats loading - only loads when enabled, with manual refresh button
   const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery({
-    queryKey: ['shipments-stats', showDateFilter, effectiveFilter, includeArchive],
+    queryKey: ['shipments-stats', showDateFilter, effectiveFilter, includeArchive, channelFilter],
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc('get_shipments_stats_with_archive', {
@@ -307,7 +309,8 @@ export default function Orders() {
           p_show_date: showDateFilter || null,
           p_printed: null,
           p_filter: effectiveFilter,
-          p_include_archive: includeArchive
+          p_include_archive: includeArchive,
+          p_channel: channelFilter || null
         })
         .single();
 
@@ -1261,6 +1264,18 @@ export default function Orders() {
             <ToggleGroupItem value="unprinted" className="text-xs px-3">Unprinted</ToggleGroupItem>
           </ToggleGroup>
         )}
+        <Select value={channelFilter || 'all_channels'} onValueChange={(v) => setChannelFilter(v === 'all_channels' ? undefined : v)}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all_channels">All Channels</SelectItem>
+            <SelectItem value="regular">Regular</SelectItem>
+            <SelectItem value="tiktok">TikTok</SelectItem>
+            <SelectItem value="misfits">Misfits</SelectItem>
+            <SelectItem value="outlet">Outlet</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
           <SelectTrigger className="w-[140px]">
             <SelectValue />
