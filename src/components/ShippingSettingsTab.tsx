@@ -54,6 +54,7 @@ interface ShippingConfig {
   ship_from_state: string;
   ship_from_zip: string;
   ship_from_country: string;
+  ship_from_phone: string;
 }
 
 const DEFAULT_CONFIG: ShippingConfig = {
@@ -69,6 +70,7 @@ const DEFAULT_CONFIG: ShippingConfig = {
   ship_from_state: '',
   ship_from_zip: '',
   ship_from_country: 'US',
+  ship_from_phone: '',
 };
 
 export function ShippingSettingsTab() {
