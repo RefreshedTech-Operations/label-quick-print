@@ -260,13 +260,15 @@ Deno.serve(async (req) => {
 
     const labelUrl = seData.label_download?.pdf || seData.label_download?.href || ''
     const trackingNumber = seData.tracking_number || shipment.tracking
+    const shipEngineLabelId = seData.label_id || ''
 
-    // Update shipment with label URL and tracking
+    // Update shipment with label URL, manifest, tracking, and ShipEngine label ID
     const { error: updateErr } = await serviceClient
       .from('shipments')
       .update({
         label_url: labelUrl,
         manifest_url: labelUrl,
+        shipengine_label_id: shipEngineLabelId,
         ...(trackingNumber ? { tracking: trackingNumber } : {}),
       })
       .eq('id', shipment_id)
@@ -279,6 +281,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       label_url: labelUrl,
       tracking_number: trackingNumber,
+      shipengine_label_id: shipEngineLabelId,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (err) {

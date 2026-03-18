@@ -330,6 +330,7 @@ export type Database = {
           quantity: number | null
           raw: Json | null
           search_vector: unknown
+          shipengine_label_id: string | null
           show_date: string | null
           tracking: string | null
           uid: string | null
@@ -369,6 +370,7 @@ export type Database = {
           quantity?: number | null
           raw?: Json | null
           search_vector?: unknown
+          shipengine_label_id?: string | null
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
@@ -408,6 +410,7 @@ export type Database = {
           quantity?: number | null
           raw?: Json | null
           search_vector?: unknown
+          shipengine_label_id?: string | null
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
@@ -466,6 +469,7 @@ export type Database = {
           quantity: number | null
           raw: Json | null
           search_vector: unknown
+          shipengine_label_id: string | null
           show_date: string | null
           tracking: string | null
           uid: string | null
@@ -506,6 +510,7 @@ export type Database = {
           quantity?: number | null
           raw?: Json | null
           search_vector?: unknown
+          shipengine_label_id?: string | null
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
@@ -546,6 +551,7 @@ export type Database = {
           quantity?: number | null
           raw?: Json | null
           search_vector?: unknown
+          shipengine_label_id?: string | null
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
@@ -760,6 +766,7 @@ export type Database = {
           quantity: number | null
           raw: Json | null
           search_vector: unknown
+          shipengine_label_id: string | null
           show_date: string | null
           tracking: string | null
           uid: string | null
