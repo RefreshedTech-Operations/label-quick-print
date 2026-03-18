@@ -367,13 +367,22 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   const handleSelectAllFiltered = useCallback(async () => {
     setIsSelectingAll(true);
     try {
-      let query = supabase.from('shipments').select('id').or('label_url.is.null,label_url.eq.');
-      if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
-      if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
-      const { data: allIds, error } = await query;
-      if (error) throw error;
-      setSelectedIds(new Set((allIds || []).map(r => r.id)));
-      toast.success(`Selected ${allIds?.length || 0} orders`);
+      const allIds: { id: string }[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      while (true) {
+        let query = supabase.from('shipments').select('id').or('label_url.is.null,label_url.eq.').range(offset, offset + batchSize - 1);
+        if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+        if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allIds.push(...data);
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+      setSelectedIds(new Set(allIds.map(r => r.id)));
+      toast.success(`Selected ${allIds.length} orders`);
     } catch { toast.error('Failed to select all orders'); }
     finally { setIsSelectingAll(false); }
   }, [selectedShowDate, debouncedSearch]);
