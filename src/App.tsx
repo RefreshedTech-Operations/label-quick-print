@@ -17,6 +17,7 @@ import Analytics from "./pages/Analytics";
 import Messages from "./pages/Messages";
 import Customers from "./pages/Customers";
 import CustomerProfile from "./pages/CustomerProfile";
+import ShippingLabels from "./pages/ShippingLabels";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
