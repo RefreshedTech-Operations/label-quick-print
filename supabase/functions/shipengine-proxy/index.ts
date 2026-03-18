@@ -138,24 +138,53 @@ Deno.serve(async (req) => {
     const widthIn = parseFloat(cfg.width_in || '8')
     const heightIn = parseFloat(cfg.height_in || '4')
 
-    // Parse address: "Name, Street, City, State, Zip, Country" format
+    // Parse address: comma-separated parts
+    // Supported formats:
+    //   7 parts: Name, Street1, Street2, City, State, Zip, Country
+    //   6 parts: Name, Street1, City, State, Zip, Country  OR  Name, Street1, Street2, City, State, Zip
+    //   5 parts: Name, Street1, City, State, Zip
+    //   4 parts: Street, City, State Zip, Country (legacy)
     const addressParts = (shipment.address_full || '').split(',').map((s: string) => s.trim())
-    // Detect format: if 6+ parts → Name, Street, City, State, Zip, Country
-    // if 4-5 parts → Street, City, State Zip, Country (legacy)
-    let recipientName: string, street: string, city: string, state: string, zip: string, countryRaw: string
+    let recipientName: string, street1: string, street2: string, city: string, state: string, zip: string, countryRaw: string
 
-    if (addressParts.length >= 6) {
-      // Format: Name, Street, City, State, Zip, Country
+    if (addressParts.length >= 7) {
+      // Name, Street1, Street2, City, State, Zip, Country
       recipientName = addressParts[0] || ''
-      street = addressParts[1] || ''
-      city = addressParts[2] || ''
-      state = addressParts[3] || ''
-      zip = addressParts[4] || ''
-      countryRaw = addressParts[5] || 'US'
+      street1 = addressParts[1] || ''
+      street2 = addressParts[2] || ''
+      city = addressParts[3] || ''
+      state = addressParts[4] || ''
+      zip = addressParts[5] || ''
+      countryRaw = addressParts[6] || 'US'
+    } else if (addressParts.length === 6) {
+      // Could be: Name, Street1, City, State, Zip, Country
+      // Or: Name, Street1, Street2, City, State, Zip
+      // Heuristic: if part[5] looks like a country code (2-3 chars or known name), treat as no street2
+      const lastPart = addressParts[5].toLowerCase()
+      const looksLikeCountry = lastPart.length <= 3 || COUNTRY_CODE_MAP[lastPart] !== undefined
+      if (looksLikeCountry) {
+        recipientName = addressParts[0] || ''
+        street1 = addressParts[1] || ''
+        street2 = ''
+        city = addressParts[2] || ''
+        state = addressParts[3] || ''
+        zip = addressParts[4] || ''
+        countryRaw = addressParts[5] || 'US'
+      } else {
+        // Name, Street1, Street2, City, State, Zip (no country)
+        recipientName = addressParts[0] || ''
+        street1 = addressParts[1] || ''
+        street2 = addressParts[2] || ''
+        city = addressParts[3] || ''
+        state = addressParts[4] || ''
+        zip = addressParts[5] || ''
+        countryRaw = 'US'
+      }
     } else if (addressParts.length === 5) {
-      // Format: Name, Street, City, State, Zip (no country)
+      // Name, Street1, City, State, Zip (no country)
       recipientName = addressParts[0] || ''
-      street = addressParts[1] || ''
+      street1 = addressParts[1] || ''
+      street2 = ''
       city = addressParts[2] || ''
       state = addressParts[3] || ''
       zip = addressParts[4] || ''
@@ -163,7 +192,8 @@ Deno.serve(async (req) => {
     } else {
       // Legacy format: Street, City, State Zip, Country
       recipientName = ''
-      street = addressParts[0] || ''
+      street1 = addressParts[0] || ''
+      street2 = ''
       city = addressParts[1] || ''
       const stateZip = (addressParts[2] || '').split(' ')
       state = stateZip[0] || ''
@@ -179,18 +209,21 @@ Deno.serve(async (req) => {
     const itemDescription = String(shipment.product_name || 'Merchandise').slice(0, 100)
     const itemValue = parseCurrencyAmount(shipment.price)
 
+    const shipToAddress: Record<string, unknown> = {
+      name: recipientName || shipment.buyer || 'Customer',
+      address_line1: street1,
+      ...(street2 ? { address_line2: street2 } : {}),
+      city_locality: city,
+      state_province: normalizeState(state, destinationCountryCode),
+      postal_code: zip,
+      country_code: destinationCountryCode,
+      phone: cfg.ship_from_phone || undefined,
+    }
+
     const shipmentPayload: Record<string, unknown> = {
       ...(carrierId ? { carrier_id: carrierId } : {}),
       service_code: serviceCode,
-      ship_to: {
-        name: recipientName || shipment.buyer || 'Customer',
-        address_line1: street,
-        city_locality: city,
-        state_province: normalizeState(state, destinationCountryCode),
-        postal_code: zip,
-        country_code: destinationCountryCode,
-        phone: cfg.ship_from_phone || undefined,
-      },
+      ship_to: shipToAddress,
       ship_from: {
         name: cfg.ship_from_name || 'Shipping Dept',
         address_line1: cfg.ship_from_address || '123 Main St',
