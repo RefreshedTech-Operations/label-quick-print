@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.auto-archive]
 verify_jwt = false
+
+[functions.shipengine-void]
+verify_jwt = false
