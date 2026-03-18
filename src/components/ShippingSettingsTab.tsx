@@ -37,6 +37,7 @@ interface ShippingConfig {
   ship_from_zip: string;
   ship_from_country: string;
   ship_from_phone: string;
+  api_key: string;
 }
 
 const DEFAULT_CONFIG: ShippingConfig = {
