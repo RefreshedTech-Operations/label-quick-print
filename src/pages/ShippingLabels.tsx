@@ -77,30 +77,45 @@ function AddressEditDialog({
   onSave: () => void;
 }) {
   const parts = (shipment.address_full || '').split(',').map(s => s.trim());
-  const hasName = parts.length >= 5;
-  const [name, setName] = useState(hasName ? parts[0] : (shipment.buyer || ''));
-  const [street, setStreet] = useState(hasName ? parts[1] : parts[0] || '');
-  const [city, setCity] = useState(hasName ? parts[2] : parts[1] || '');
-  const [state, setState] = useState(hasName ? parts[3] : '');
-  const [zip, setZip] = useState(hasName ? parts[4] : '');
-  const [country, setCountry] = useState(hasName && parts[5] ? parts[5] : (parts.length === 4 ? parts[3] : 'US'));
-  const [saving, setSaving] = useState(false);
-
-  // Parse legacy "State Zip" if needed
-  useState(() => {
-    if (!hasName && parts.length >= 3) {
-      const stateZip = (parts[2] || '').split(' ');
-      if (stateZip.length >= 2) {
-        setState(stateZip[0]);
-        setZip(stateZip.slice(1).join(' '));
-        setCountry(parts[3] || 'US');
+  
+  // Detect format based on part count
+  // 7: Name, Street1, Street2, City, State, Zip, Country
+  // 6: Name, Street1, City, State, Zip, Country (or Name, Street1, Street2, City, State, Zip)
+  // 5: Name, Street1, City, State, Zip
+  // 4: Street, City, State Zip, Country (legacy)
+  const initFields = () => {
+    if (parts.length >= 7) {
+      return { name: parts[0], street: parts[1], street2: parts[2], city: parts[3], state: parts[4], zip: parts[5], country: parts[6] || 'US' };
+    } else if (parts.length === 6) {
+      // Heuristic: if last part looks like country code, no street2
+      const last = parts[5].toLowerCase();
+      const looksLikeCountry = last.length <= 3 || ['us','usa','united states','ca','canada','gb','uk','mx','mexico'].includes(last);
+      if (looksLikeCountry) {
+        return { name: parts[0], street: parts[1], street2: '', city: parts[2], state: parts[3], zip: parts[4], country: parts[5] };
       }
+      return { name: parts[0], street: parts[1], street2: parts[2], city: parts[3], state: parts[4], zip: parts[5], country: 'US' };
+    } else if (parts.length === 5) {
+      return { name: parts[0], street: parts[1], street2: '', city: parts[2], state: parts[3], zip: parts[4], country: 'US' };
+    } else {
+      // Legacy: Street, City, State Zip, Country
+      const stateZip = (parts[2] || '').split(' ');
+      return { name: shipment.buyer || '', street: parts[0] || '', street2: '', city: parts[1] || '', state: stateZip[0] || '', zip: stateZip.slice(1).join(' ') || '', country: parts[3] || 'US' };
     }
-  });
+  };
+  const init = initFields();
+  const [name, setName] = useState(init.name);
+  const [street, setStreet] = useState(init.street);
+  const [street2, setStreet2] = useState(init.street2);
+  const [city, setCity] = useState(init.city);
+  const [state, setState] = useState(init.state);
+  const [zip, setZip] = useState(init.zip);
+  const [country, setCountry] = useState(init.country);
+  const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
-    const newAddress = [name, street, city, state, zip, country].join(', ');
+    const addressParts = [name, street, ...(street2 ? [street2] : []), city, state, zip, country];
+    const newAddress = addressParts.join(', ');
     const { error } = await supabase.from('shipments').update({ address_full: newAddress }).eq('id', shipment.id);
     setSaving(false);
     if (error) { toast.error('Failed to update address'); return; }
