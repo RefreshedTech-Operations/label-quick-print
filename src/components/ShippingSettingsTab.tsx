@@ -54,6 +54,7 @@ interface ShippingConfig {
   ship_from_state: string;
   ship_from_zip: string;
   ship_from_country: string;
+  ship_from_phone: string;
 }
 
 const DEFAULT_CONFIG: ShippingConfig = {
@@ -69,6 +70,7 @@ const DEFAULT_CONFIG: ShippingConfig = {
   ship_from_state: '',
   ship_from_zip: '',
   ship_from_country: 'US',
+  ship_from_phone: '',
 };
 
 export function ShippingSettingsTab() {
@@ -234,6 +236,10 @@ export function ShippingSettingsTab() {
           <div className="space-y-2">
             <Label>Country Code</Label>
             <Input value={config.ship_from_country} onChange={e => update('ship_from_country', e.target.value)} placeholder="US" maxLength={2} />
+          </div>
+          <div className="space-y-2">
+            <Label>Phone Number</Label>
+            <Input value={config.ship_from_phone} onChange={e => update('ship_from_phone', e.target.value)} placeholder="+1 555-123-4567" />
           </div>
         </CardContent>
       </Card>
