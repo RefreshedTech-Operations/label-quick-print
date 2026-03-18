@@ -162,6 +162,7 @@ export default function ShippingLabels() {
       if (raw) {
         try {
           payload = JSON.parse(raw);
+          console.log('[ShipEngine] Response payload:', JSON.stringify(payload, null, 2));
         } catch {
           payload = { error: raw };
         }
