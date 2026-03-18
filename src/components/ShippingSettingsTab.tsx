@@ -37,6 +37,7 @@ interface ShippingConfig {
   ship_from_zip: string;
   ship_from_country: string;
   ship_from_phone: string;
+  api_key: string;
 }
 
 const DEFAULT_CONFIG: ShippingConfig = {
@@ -53,6 +54,7 @@ const DEFAULT_CONFIG: ShippingConfig = {
   ship_from_zip: '',
   ship_from_country: 'US',
   ship_from_phone: '',
+  api_key: '',
 };
 
 export function ShippingSettingsTab() {
@@ -149,6 +151,31 @@ export function ShippingSettingsTab() {
 
   return (
     <div className="space-y-6">
+      {/* ShipEngine API Key */}
+      <Card>
+        <CardHeader>
+          <CardTitle>ShipEngine API Key</CardTitle>
+          <CardDescription>Your ShipEngine API key used for label generation and carrier lookups</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 max-w-md">
+            <Label>API Key</Label>
+            <Input
+              type="password"
+              value={config.api_key}
+              onChange={e => update('api_key', e.target.value)}
+              placeholder="Enter your ShipEngine API key"
+            />
+            <p className="text-xs text-muted-foreground">
+              Find your API key at{' '}
+              <a href="https://app.shipengine.com/#/portal/apimanagement" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+                ShipEngine Dashboard → API Management
+              </a>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Carrier & Service */}
       <Card>
         <CardHeader>
@@ -191,7 +218,7 @@ export function ShippingSettingsTab() {
                 <SelectContent>
                   {carriers.map(c => (
                     <SelectItem key={c.carrier_id} value={c.carrier_id}>
-                      {c.name} ({c.carrier_code})
+                      {c.name} ({c.carrier_id})
                     </SelectItem>
                   ))}
                 </SelectContent>

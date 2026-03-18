@@ -29,9 +29,24 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
     }
 
-    const SHIPENGINE_API_KEY = Deno.env.get('SHIPENGINE_API_KEY')
+    let SHIPENGINE_API_KEY = Deno.env.get('SHIPENGINE_API_KEY')
+
+    // Fallback: check app_config for user-defined key
     if (!SHIPENGINE_API_KEY) {
-      return new Response(JSON.stringify({ error: 'ShipEngine API key not configured' }), { status: 500, headers: corsHeaders })
+      const serviceClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      )
+      const { data: apiKeyRow } = await serviceClient
+        .from('app_config')
+        .select('value')
+        .eq('key', 'shipping_api_key')
+        .single()
+      SHIPENGINE_API_KEY = apiKeyRow?.value || ''
+    }
+
+    if (!SHIPENGINE_API_KEY) {
+      return new Response(JSON.stringify({ error: 'ShipEngine API key not configured. Add it in Settings → Shipping.' }), { status: 500, headers: corsHeaders })
     }
 
     // Fetch carriers from ShipEngine
