@@ -16,7 +16,7 @@ import {
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
 
 
 const PAGE_SIZE = 25;
