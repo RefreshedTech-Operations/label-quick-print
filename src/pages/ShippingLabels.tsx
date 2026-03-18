@@ -63,13 +63,43 @@ export default function ShippingLabels() {
   const totalCount = data?.total || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const handleSelectAll = useCallback(() => {
-    if (selectedIds.size === shipments.length) {
+  const handleSelectPage = useCallback(() => {
+    if (selectedIds.size === shipments.length && shipments.every(s => selectedIds.has(s.id))) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(shipments.map(s => s.id)));
     }
   }, [shipments, selectedIds]);
+
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
+
+  const handleSelectAllFiltered = useCallback(async () => {
+    setIsSelectingAll(true);
+    try {
+      let query = supabase
+        .from('shipments')
+        .select('id')
+        .or('label_url.is.null,label_url.eq.');
+
+      if (selectedShowDate) {
+        query = query.eq('show_date', selectedShowDate);
+      }
+      if (debouncedSearch) {
+        query = query.or(
+          `order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`
+        );
+      }
+
+      const { data: allIds, error } = await query;
+      if (error) throw error;
+      setSelectedIds(new Set((allIds || []).map(r => r.id)));
+      toast.success(`Selected ${allIds?.length || 0} orders`);
+    } catch (err: any) {
+      toast.error('Failed to select all orders');
+    } finally {
+      setIsSelectingAll(false);
+    }
+  }, [selectedShowDate, debouncedSearch]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
