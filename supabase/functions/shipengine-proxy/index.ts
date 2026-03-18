@@ -5,6 +5,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+const COUNTRY_CODE_MAP: Record<string, string> = {
+  us: 'US',
+  usa: 'US',
+  'united states': 'US',
+  'united states of america': 'US',
+  ca: 'CA',
+  canada: 'CA',
+  mx: 'MX',
+  mexico: 'MX',
+  gb: 'GB',
+  uk: 'GB',
+  'united kingdom': 'GB',
+}
+
+const normalizeCountryCode = (raw?: string | null) => {
+  const value = (raw || '').trim().toLowerCase()
+  if (!value) return 'US'
+  return COUNTRY_CODE_MAP[value] || value.toUpperCase()
+}
+
+const parseCurrencyAmount = (raw?: string | null) => {
+  const numeric = Number.parseFloat(String(raw || '').replace(/[^0-9.-]/g, ''))
+  if (!Number.isFinite(numeric) || numeric <= 0) return 1
+  return Number(numeric.toFixed(2))
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -47,7 +73,7 @@ Deno.serve(async (req) => {
 
     const { data: shipment, error: fetchErr } = await serviceClient
       .from('shipments')
-      .select('id, order_id, buyer, address_full, tracking, product_name, quantity')
+      .select('id, order_id, buyer, address_full, tracking, product_name, quantity, price')
       .eq('id', shipment_id)
       .single()
 
@@ -79,7 +105,57 @@ Deno.serve(async (req) => {
     const stateZip = (addressParts[2] || '').split(' ')
     const state = stateZip[0] || ''
     const zip = stateZip[1] || ''
-    const country = addressParts[3] || 'US'
+    const destinationCountryCode = normalizeCountryCode(addressParts[3] || 'US')
+    const originCountryCode = normalizeCountryCode(cfg.ship_from_country || 'US')
+    const isInternational = destinationCountryCode !== originCountryCode
+
+    const quantity = typeof shipment.quantity === 'number' && shipment.quantity > 0 ? shipment.quantity : 1
+    const itemDescription = String(shipment.product_name || 'Merchandise').slice(0, 120)
+    const itemValue = parseCurrencyAmount(shipment.price)
+
+    const shipmentPayload: Record<string, unknown> = {
+      service_code: serviceCode,
+      ship_to: {
+        name: shipment.buyer || 'Customer',
+        address_line1: street,
+        city_locality: city,
+        state_province: state,
+        postal_code: zip,
+        country_code: destinationCountryCode,
+        phone: cfg.ship_from_phone || undefined,
+      },
+      ship_from: {
+        name: cfg.ship_from_name || 'Shipping Dept',
+        address_line1: cfg.ship_from_address || '123 Main St',
+        city_locality: cfg.ship_from_city || 'Austin',
+        state_province: cfg.ship_from_state || 'TX',
+        postal_code: cfg.ship_from_zip || '78701',
+        country_code: originCountryCode,
+        phone: cfg.ship_from_phone || undefined,
+      },
+      packages: [{
+        weight: { value: weightOz, unit: 'ounce' },
+        dimensions: { length: lengthIn, width: widthIn, height: heightIn, unit: 'inch' },
+      }],
+    }
+
+    if (isInternational) {
+      shipmentPayload.customs = {
+        contents: 'merchandise',
+        non_delivery: 'return_to_sender',
+        customs_items: [
+          {
+            description: itemDescription,
+            quantity,
+            value: {
+              amount: itemValue,
+              currency: 'usd',
+            },
+            country_of_origin: originCountryCode,
+          },
+        ],
+      }
+    }
 
     // Call ShipEngine to create a label
     const seResponse = await fetch('https://api.shipengine.com/v1/labels', {
@@ -88,33 +164,7 @@ Deno.serve(async (req) => {
         'API-Key': SHIPENGINE_API_KEY,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        shipment: {
-          service_code: serviceCode,
-          ship_to: {
-            name: shipment.buyer || 'Customer',
-            address_line1: street,
-            city_locality: city,
-            state_province: state,
-            postal_code: zip,
-            country_code: country,
-            phone: cfg.ship_from_phone || undefined,
-          },
-          ship_from: {
-            name: cfg.ship_from_name || 'Shipping Dept',
-            address_line1: cfg.ship_from_address || '123 Main St',
-            city_locality: cfg.ship_from_city || 'Austin',
-            state_province: cfg.ship_from_state || 'TX',
-            postal_code: cfg.ship_from_zip || '78701',
-            country_code: cfg.ship_from_country || 'US',
-            phone: cfg.ship_from_phone || undefined,
-          },
-          packages: [{
-            weight: { value: weightOz, unit: 'ounce' },
-            dimensions: { length: lengthIn, width: widthIn, height: heightIn, unit: 'inch' },
-          }],
-        },
-      }),
+      body: JSON.stringify({ shipment: shipmentPayload }),
     })
 
     const seData = await seResponse.json()
