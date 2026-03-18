@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.shipengine-void]
 verify_jwt = false
+
+[functions.shipengine-label-download]
+verify_jwt = false
