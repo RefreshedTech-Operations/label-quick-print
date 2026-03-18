@@ -647,8 +647,12 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full max-w-3xl grid-cols-5">
+        <TabsList className="grid w-full max-w-4xl grid-cols-6">
           <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="shipping" className="flex items-center gap-1">
+            <Truck className="h-4 w-4" />
+            Shipping
+          </TabsTrigger>
           <TabsTrigger value="locations" className="flex items-center gap-1">
             <MapPin className="h-4 w-4" />
             Locations
