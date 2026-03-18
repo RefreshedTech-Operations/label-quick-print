@@ -367,7 +367,11 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   const handleSelectAllFiltered = useCallback(async () => {
     setIsSelectingAll(true);
     try {
-      let query = supabase.from('shipments').select('id').or('label_url.is.null,label_url.eq.empty').filter('label_url', 'is', null);
+      const allIds: { id: string }[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      while (true) {
+        let query = supabase.from('shipments').select('id').or('label_url.is.null,label_url.eq.').range(offset, offset + batchSize - 1);
       if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
       if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
       const { data: allIds, error } = await query;
