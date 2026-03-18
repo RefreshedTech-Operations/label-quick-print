@@ -82,6 +82,7 @@ export default function ShippingLabels() {
 
   const handleGenerateLabel = useCallback(async (shipmentId: string) => {
     setGeneratingIds(prev => new Set(prev).add(shipmentId));
+    setRowErrors(prev => { const next = { ...prev }; delete next[shipmentId]; return next; });
     try {
       const { data, error } = await supabase.functions.invoke('shipengine-proxy', {
         body: { shipment_id: shipmentId },
@@ -93,7 +94,9 @@ export default function ShippingLabels() {
       toast.success('Shipping label generated successfully');
       queryClient.invalidateQueries({ queryKey: ['shipping-labels'] });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to generate label');
+      const msg = err.message || 'Failed to generate label';
+      setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
+      toast.error(msg);
     } finally {
       setGeneratingIds(prev => {
         const next = new Set(prev);
