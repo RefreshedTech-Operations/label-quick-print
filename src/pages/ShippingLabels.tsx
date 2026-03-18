@@ -16,10 +16,21 @@ import {
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
-
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertCircle, Package } from 'lucide-react';
 
 const PAGE_SIZE = 25;
+
+const CARRIER_LABELS: Record<string, string> = {
+  usps: 'USPS', ups: 'UPS', fedex: 'FedEx', dhl_express: 'DHL',
+};
+const SERVICE_LABELS: Record<string, string> = {
+  usps_priority_mail: 'Priority Mail', usps_priority_mail_express: 'Priority Express',
+  usps_first_class_mail: 'First Class', usps_ground_advantage: 'Ground Advantage', usps_media_mail: 'Media Mail',
+  ups_ground: 'Ground', ups_next_day_air: 'Next Day Air', ups_2nd_day_air: '2nd Day Air', ups_3_day_select: '3 Day Select',
+  fedex_ground: 'Ground', fedex_home_delivery: 'Home Delivery', fedex_express_saver: 'Express Saver',
+  fedex_2day: '2Day', fedex_standard_overnight: 'Std Overnight',
+  dhl_express_worldwide: 'Express Worldwide',
+};
 
 export default function ShippingLabels() {
   const queryClient = useQueryClient();
@@ -31,6 +42,24 @@ export default function ShippingLabels() {
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
+
+  // Fetch default shipping config (carrier + service)
+  const { data: shippingConfig } = useQuery({
+    queryKey: ['shipping-config'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('app_config')
+        .select('key, value')
+        .in('key', ['shipping_carrier', 'shipping_service_code']);
+      const cfg: Record<string, string> = {};
+      for (const row of data || []) cfg[row.key.replace('shipping_', '')] = row.value || '';
+      return cfg;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const carrierLabel = CARRIER_LABELS[shippingConfig?.carrier || 'usps'] || shippingConfig?.carrier || 'USPS';
+  const serviceLabel = SERVICE_LABELS[shippingConfig?.service_code || 'usps_priority_mail'] || shippingConfig?.service_code || 'Priority Mail';
 
   // Query shipments where label_url is null or empty
   const { data, isLoading } = useQuery({
@@ -290,6 +319,7 @@ export default function ShippingLabels() {
                 <TableHead>Address</TableHead>
                 <TableHead>Tracking</TableHead>
                 <TableHead>Show Date</TableHead>
+                <TableHead>Service</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -297,14 +327,14 @@ export default function ShippingLabels() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
+                    {Array.from({ length: 10 }).map((_, j) => (
                       <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : shipments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                     No shipments missing labels
                   </TableCell>
                 </TableRow>
@@ -323,7 +353,13 @@ export default function ShippingLabels() {
                     <TableCell className="max-w-[200px] truncate">{s.product_name || '—'}</TableCell>
                     <TableCell className="max-w-[200px] truncate text-xs">{s.address_full || '—'}</TableCell>
                     <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
-                    <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
+                    <TableCell className="text-xs">
+                      <div className="flex items-center gap-1">
+                        <Package className="h-3 w-3 text-muted-foreground" />
+                        <span className="font-medium">{carrierLabel}</span>
+                      </div>
+                      <span className="text-muted-foreground">{serviceLabel}</span>
+                    </TableCell>
                     <TableCell className="text-right space-y-1">
                       <Button
                         size="sm"
