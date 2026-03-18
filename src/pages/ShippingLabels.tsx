@@ -31,7 +31,7 @@ export default function ShippingLabels() {
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
-  // Fetch default shipping config (carrier + service)
+  // Fetch default shipping config and carriers
   const { data: shippingConfig } = useQuery({
     queryKey: ['shipping-config'],
     queryFn: async () => {
@@ -46,8 +46,33 @@ export default function ShippingLabels() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const carrierLabel = CARRIER_LABELS[shippingConfig?.carrier || 'usps'] || shippingConfig?.carrier || 'USPS';
-  const serviceLabel = SERVICE_LABELS[shippingConfig?.service_code || 'usps_priority_mail'] || shippingConfig?.service_code || 'Priority Mail';
+  const { data: carriersData } = useQuery({
+    queryKey: ['shipengine-carriers'],
+    queryFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) return [];
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-carriers`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      const payload = await response.json();
+      return payload.carriers || [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const selectedCarrier = (carriersData || []).find((c: any) =>
+    c.carrier_id === shippingConfig?.carrier || c.carrier_code === shippingConfig?.carrier
+  );
+  const carrierLabel = selectedCarrier?.name || shippingConfig?.carrier || '—';
+  const selectedService = (selectedCarrier?.services || []).find((s: any) => s.service_code === shippingConfig?.service_code);
+  const serviceLabel = selectedService?.name || shippingConfig?.service_code || '—';
 
   // Query shipments where label_url is null or empty
   const { data, isLoading } = useQuery({
