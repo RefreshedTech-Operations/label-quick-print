@@ -245,6 +245,12 @@ Deno.serve(async (req) => {
     const originCountryCode = normalizeCountryCode(cfg.ship_from_country || 'US')
     const isInternational = destinationCountryCode !== originCountryCode
 
+    // Fix scrambled city/state/zip fields
+    const fixed = fixScrambledFields(city, state, zip, destinationCountryCode)
+    city = fixed.city
+    state = fixed.state
+    zip = fixed.zip
+
     const quantity = typeof shipment.quantity === 'number' && shipment.quantity > 0 ? shipment.quantity : 1
     const itemDescription = String(shipment.product_name || 'Merchandise').slice(0, 100)
     const itemValue = parseCurrencyAmount(shipment.price)
