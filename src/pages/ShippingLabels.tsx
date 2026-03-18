@@ -467,44 +467,43 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
         </Card>
 
         <Card>
-          <CardContent className="p-0">
-            <Table>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10"><Checkbox checked={shipments.length > 0 && shipments.every(s => selectedIds.has(s.id))} onCheckedChange={handleSelectPage} /></TableHead>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>UID</TableHead>
-                  <TableHead>Buyer</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Tracking</TableHead>
-                  <TableHead>Show Date</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[15%]">Order</TableHead>
+                  <TableHead className="w-[12%]">Buyer</TableHead>
+                  <TableHead className="w-[15%]">Product</TableHead>
+                  <TableHead className="w-[22%]">Address</TableHead>
+                  <TableHead className="w-[8%]">Show Date</TableHead>
+                  <TableHead className="w-[13%]">Service</TableHead>
+                  <TableHead className="w-[15%] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>{Array.from({ length: 10 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                  <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
                 )) : shipments.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-12 text-muted-foreground">No shipments missing labels</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No shipments missing labels</TableCell></TableRow>
                 ) : shipments.map((s) => (
                   <TableRow key={s.id} className={rowErrors[s.id] ? 'bg-destructive/5' : ''}>
                     <TableCell><Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} /></TableCell>
-                    <TableCell className="font-mono text-xs">{s.order_id}</TableCell>
-                    <TableCell className="font-mono text-xs">{s.uid || '—'}</TableCell>
-                    <TableCell>{s.buyer || '—'}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{s.product_name || '—'}</TableCell>
-                    <TableCell className="max-w-[200px]">
+                    <TableCell className="font-mono text-xs truncate">
+                      <div className="truncate">{s.order_id}</div>
+                      {s.uid && <div className="text-muted-foreground truncate">{s.uid}</div>}
+                    </TableCell>
+                    <TableCell className="text-xs truncate">{s.buyer || '—'}</TableCell>
+                    <TableCell className="text-xs truncate">{s.product_name || '—'}</TableCell>
+                    <TableCell>
                       <button
-                        className="text-left text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors flex items-center gap-1 group"
+                        className="text-left text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors flex items-center gap-1 group w-full"
                         onClick={() => setEditingAddress({ id: s.id, address_full: s.address_full, buyer: s.buyer })}
                       >
                         <span className="truncate">{s.address_full || '—'}</span>
                         <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
                       </button>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{s.tracking || '—'}</TableCell>
                     <TableCell className="text-xs">{s.show_date || '—'}</TableCell>
                     <TableCell>
                       <ServiceOverridePopover
