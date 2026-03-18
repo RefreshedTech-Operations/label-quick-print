@@ -114,14 +114,40 @@ Deno.serve(async (req) => {
     const widthIn = parseFloat(cfg.width_in || '8')
     const heightIn = parseFloat(cfg.height_in || '4')
 
-    // Parse address (basic: "street, city, state zip, country" format)
+    // Parse address: "Name, Street, City, State, Zip, Country" format
     const addressParts = (shipment.address_full || '').split(',').map((s: string) => s.trim())
-    const street = addressParts[0] || ''
-    const city = addressParts[1] || ''
-    const stateZip = (addressParts[2] || '').split(' ')
-    const state = stateZip[0] || ''
-    const zip = stateZip[1] || ''
-    const destinationCountryCode = normalizeCountryCode(addressParts[3] || 'US')
+    // Detect format: if 6+ parts → Name, Street, City, State, Zip, Country
+    // if 4-5 parts → Street, City, State Zip, Country (legacy)
+    let recipientName: string, street: string, city: string, state: string, zip: string, countryRaw: string
+
+    if (addressParts.length >= 6) {
+      // Format: Name, Street, City, State, Zip, Country
+      recipientName = addressParts[0] || ''
+      street = addressParts[1] || ''
+      city = addressParts[2] || ''
+      state = addressParts[3] || ''
+      zip = addressParts[4] || ''
+      countryRaw = addressParts[5] || 'US'
+    } else if (addressParts.length === 5) {
+      // Format: Name, Street, City, State, Zip (no country)
+      recipientName = addressParts[0] || ''
+      street = addressParts[1] || ''
+      city = addressParts[2] || ''
+      state = addressParts[3] || ''
+      zip = addressParts[4] || ''
+      countryRaw = 'US'
+    } else {
+      // Legacy format: Street, City, State Zip, Country
+      recipientName = ''
+      street = addressParts[0] || ''
+      city = addressParts[1] || ''
+      const stateZip = (addressParts[2] || '').split(' ')
+      state = stateZip[0] || ''
+      zip = stateZip[1] || ''
+      countryRaw = addressParts[3] || 'US'
+    }
+
+    const destinationCountryCode = normalizeCountryCode(countryRaw)
     const originCountryCode = normalizeCountryCode(cfg.ship_from_country || 'US')
     const isInternational = destinationCountryCode !== originCountryCode
 
