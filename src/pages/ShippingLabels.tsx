@@ -43,6 +43,24 @@ export default function ShippingLabels() {
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
+  // Fetch default shipping config (carrier + service)
+  const { data: shippingConfig } = useQuery({
+    queryKey: ['shipping-config'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('app_config')
+        .select('key, value')
+        .in('key', ['shipping_carrier', 'shipping_service_code']);
+      const cfg: Record<string, string> = {};
+      for (const row of data || []) cfg[row.key.replace('shipping_', '')] = row.value || '';
+      return cfg;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const carrierLabel = CARRIER_LABELS[shippingConfig?.carrier || 'usps'] || shippingConfig?.carrier || 'USPS';
+  const serviceLabel = SERVICE_LABELS[shippingConfig?.service_code || 'usps_priority_mail'] || shippingConfig?.service_code || 'Priority Mail';
+
   // Query shipments where label_url is null or empty
   const { data, isLoading } = useQuery({
     queryKey: ['shipping-labels', debouncedSearch, selectedShowDate, page],
