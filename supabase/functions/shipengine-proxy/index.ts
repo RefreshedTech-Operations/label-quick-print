@@ -119,8 +119,19 @@ Deno.serve(async (req) => {
 
     if (!seResponse.ok) {
       console.error('ShipEngine error:', JSON.stringify(seData))
+      const errors = seData?.errors || []
+      const errorMessages = errors.map((e: any) => e.message).filter(Boolean)
+      const errorDetail = errorMessages.length > 0 ? errorMessages.join(' | ') : JSON.stringify(seData)
       return new Response(
-        JSON.stringify({ error: `ShipEngine API error [${seResponse.status}]: ${seData?.errors?.[0]?.message || JSON.stringify(seData)}` }),
+        JSON.stringify({ 
+          error: `ShipEngine API error [${seResponse.status}]: ${errorDetail}`,
+          errors: errors.map((e: any) => ({
+            message: e.message,
+            field: e.field_name,
+            code: e.error_code,
+            type: e.error_type,
+          })),
+        }),
         { status: 502, headers: corsHeaders }
       )
     }
