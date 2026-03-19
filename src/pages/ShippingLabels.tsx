@@ -590,7 +590,15 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [allShowsMode, setAllShowsMode] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string | undefined>();
+
+  // Compute the "last 5 days" cutoff date string
+  const last5DaysDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 5);
+    return d.toISOString().slice(0, 10);
+  })();
   const [voidingIds, setVoidingIds] = useState<Set<string>>(new Set());
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
@@ -620,7 +628,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['shipping-labels-generated', debouncedSearch, selectedShowDate, channelFilter, page],
+    queryKey: ['shipping-labels-generated', debouncedSearch, selectedShowDate, allShowsMode, channelFilter, page],
     queryFn: async () => {
       let query = supabase
         .from('shipments')
@@ -630,6 +638,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+      else if (!allShowsMode) query = query.gte('show_date', last5DaysDate);
       if (channelFilter) query = query.eq('channel', channelFilter);
       if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
       const { data, error, count } = await query;
@@ -680,6 +689,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
         .order('created_at', { ascending: false })
         .limit(50000);
       if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+      else if (!allShowsMode) query = query.gte('show_date', last5DaysDate);
       if (channelFilter) query = query.eq('channel', channelFilter);
       if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
       const { data, error } = await query;
@@ -718,7 +728,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     } finally {
       setExporting(false);
     }
-  }, [selectedShowDate, channelFilter, debouncedSearch]);
+  }, [selectedShowDate, allShowsMode, channelFilter, debouncedSearch, last5DaysDate]);
 
   return (
     <>
@@ -776,7 +786,8 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
             <ShowDateFilter
               selectedDate={selectedShowDate}
               recentDates={recentDates || []}
-              onDateSelect={(date) => { setSelectedShowDate(date); setPage(0); }}
+              onDateSelect={(date) => { setSelectedShowDate(date); if (date) setAllShowsMode(false); setPage(0); }}
+              onAllShowsEnable={() => setAllShowsMode(true)}
             />
           </div>
         </CardContent>
