@@ -731,8 +731,6 @@ export default function Orders() {
     setAllFilteredSelected(false);
   };
 
-  const allPageSelected = paginatedShipments.length > 0 && paginatedShipments.every(s => selectedShipments.has(s.id));
-  const hasMoreThanOnePage = totalCount > pageSize;
 
   const toggleSelectShipment = (id: string) => {
     const newSelected = new Set(selectedShipments);
