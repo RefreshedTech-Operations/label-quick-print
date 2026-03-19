@@ -462,7 +462,24 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
 
   const handleBulkGenerate = useCallback(async () => {
     if (selectedIds.size === 0) return;
-    for (const id of Array.from(selectedIds)) await handleGenerateLabel(id);
+    const ids = Array.from(selectedIds);
+    const total = ids.length;
+    let succeeded = 0;
+    let failed = 0;
+    setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
+    for (let i = 0; i < ids.length; i++) {
+      setBulkProgress({ current: i + 1, total, succeeded, failed });
+      await handleGenerateLabel(ids[i]);
+      // Check if it ended up in rowErrors
+      // We need to check after the call - use a timeout-free approach
+      setRowErrors(prev => {
+        if (prev[ids[i]]) { failed++; } else { succeeded++; }
+        setBulkProgress({ current: i + 1, total, succeeded, failed });
+        return prev;
+      });
+    }
+    setBulkProgress(null);
+    toast.success(`Label generation complete: ${succeeded} succeeded, ${failed} failed`);
     setSelectedIds(new Set());
   }, [selectedIds, handleGenerateLabel]);
 
