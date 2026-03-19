@@ -666,8 +666,11 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   }, [queryClient]);
 
   const [exporting, setExporting] = useState(false);
-  const handleExport = useCallback(async () => {
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
+  const runExport = useCallback(async (format: 'full' | 'tiktok') => {
     setExporting(true);
+    setExportDialogOpen(false);
     try {
       let query = supabase
         .from('shipments')
@@ -682,10 +685,23 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
       const { data, error } = await query;
       if (error) throw error;
       if (!data?.length) { toast.error('No data to export'); return; }
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Generated Labels');
-      XLSX.writeFile(wb, `generated-labels-${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+      if (format === 'tiktok') {
+        const tiktokData = data.map((r: any) => ({
+          'order_id': r.order_id,
+          'tracking_number': r.tracking || '',
+          'shipping_provider_name': 'Other',
+        }));
+        const ws = XLSX.utils.json_to_sheet(tiktokData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'TikTok Tracking Upload');
+        XLSX.writeFile(wb, `tiktok-tracking-upload-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      } else {
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Generated Labels');
+        XLSX.writeFile(wb, `generated-labels-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      }
       toast.success(`Exported ${data.length} records`);
     } catch (err: any) {
       toast.error(err?.message || 'Export failed');
@@ -698,11 +714,36 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     <>
       <div className="flex items-center justify-between">
         <Badge variant="secondary" className="text-lg px-3 py-1">{totalCount} generated</Badge>
-        <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting} className="gap-1">
+        <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)} disabled={exporting} className="gap-1">
           {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           Export
         </Button>
       </div>
+
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export Format</DialogTitle>
+            <DialogDescription>Choose how you'd like to export the filtered results.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <Button variant="outline" className="justify-start gap-2 h-auto py-3" onClick={() => runExport('full')}>
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <div className="text-left">
+                <div className="font-medium">Full Export</div>
+                <div className="text-xs text-muted-foreground">All columns (order, buyer, tracking, etc.)</div>
+              </div>
+            </Button>
+            <Button variant="outline" className="justify-start gap-2 h-auto py-3" onClick={() => runExport('tiktok')}>
+              <Package className="h-5 w-5 text-muted-foreground" />
+              <div className="text-left">
+                <div className="font-medium">TikTok Tracking Upload</div>
+                <div className="text-xs text-muted-foreground">Order ID, Tracking Number, Shipping Provider</div>
+              </div>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Card>
         <CardContent className="pt-4 pb-4">
           <div className="flex flex-wrap items-center gap-4">
