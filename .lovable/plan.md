@@ -1,40 +1,29 @@
 
-# Pack Page: Duplicate Scan Prevention and Visual Feedback
 
-## What will change
+## Add Show Date Filter to Generated Labels Tab
 
-The Pack page will be enhanced with three improvements:
+### What
+Replace the plain date input on the Generated Labels tab with the existing `ShowDateFilter` component, showing quick-select buttons for recent show dates (same UX as the Orders page).
 
-1. **Duplicate scan prevention** -- Once a package is successfully packed, scanning the same tracking number again will show an error (it already does this via the "Already packed" check, but we'll also track scans locally in the session to catch rapid re-scans before the DB is even queried).
+### How
 
-2. **Camera cooldown (5 seconds)** -- After the camera scanner decodes a barcode, it will pause for 5 seconds before accepting another scan. This prevents the same label from being read repeatedly while still in view.
+**File: `src/pages/ShippingLabels.tsx` (GeneratedLabelsTab function)**
 
-3. **Visual feedback with color flash** -- The scan card background will briefly flash **green** on a successful pack and **red** on any error (already packed, not found, etc.), then fade back to normal.
+1. Fetch recent show dates specific to generated labels using a query that aggregates distinct `show_date` values from shipments that have a `label_url` (not null/empty). This will show dates relevant to generated labels rather than all shipments.
 
----
+2. Replace the `<Input type="date">` (line 652) with the `<ShowDateFilter>` component, passing:
+   - `selectedDate={selectedShowDate}`
+   - `recentDates` from the new query
+   - `onDateSelect` handler (already exists)
 
-## Technical Details
+3. The recent dates query will select from `shipments` where `label_url` is not null/empty, group by `show_date`, count total and provide counts. Since this tab doesn't track "unprinted", the unprinted count will just mirror total count or be set to 0.
 
-All changes are in `src/pages/Pack.tsx`:
+4. Reset page to 0 when show date changes (already handled).
 
-### New state
-- `scanStatus: 'idle' | 'success' | 'error'` -- drives the background color of the scan card
-- `lastScannedTracking: string | null` + `cooldownActive: boolean` -- for camera cooldown logic
+### Technical Details
 
-### `processTracking` changes
-- Returns a result (`'success' | 'error'`) so callers can react
-- On any error path (not found, already packed, failed update), sets `scanStatus` to `'error'`
-- On success, sets `scanStatus` to `'success'`
-- After 2 seconds, resets `scanStatus` back to `'idle'` (auto-fade)
+- Reuses the existing `ShowDateFilter` component from `src/components/ShowDateFilter.tsx`
+- New query: `SELECT show_date, count(*) FROM shipments WHERE label_url IS NOT NULL AND label_url != '' GROUP BY show_date ORDER BY show_date DESC LIMIT 5`
+- Uses direct Supabase query (no new RPC needed) since this is a simple aggregation
+- Import `ShowDateFilter` at the top of ShippingLabels.tsx
 
-### Camera cooldown
-- After `onDecodeResult` fires and `processTracking` completes, set `cooldownActive = true` and store the decoded tracking number
-- Ignore any `onDecodeResult` calls while cooldown is active or if the decoded text matches the last scanned tracking
-- After 5 seconds, reset `cooldownActive` to `false` and clear `lastScannedTracking`
-
-### Visual feedback on the scan Card
-- Apply a CSS transition class to the scan `Card` based on `scanStatus`:
-  - `'success'` -- green background (`bg-green-500/20 border-green-500`)
-  - `'error'` -- red background (`bg-red-500/20 border-red-500`)
-  - `'idle'` -- default styling
-- Use `transition-colors duration-500` for a smooth fade effect
