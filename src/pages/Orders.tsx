@@ -1200,6 +1200,8 @@ export default function Orders() {
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const paginatedShipments = shipmentsResponse?.shipments || [];
+  const allPageSelected = paginatedShipments.length > 0 && paginatedShipments.every(s => selectedShipments.has(s.id));
+  const hasMoreThanOnePage = totalCount > pageSize;
 
   // Reset to page 1 when filter changes
   useEffect(() => {
