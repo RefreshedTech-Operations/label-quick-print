@@ -590,7 +590,15 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [allShowsMode, setAllShowsMode] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string | undefined>();
+
+  // Compute the "last 5 days" cutoff date string
+  const last5DaysDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 5);
+    return d.toISOString().slice(0, 10);
+  })();
   const [voidingIds, setVoidingIds] = useState<Set<string>>(new Set());
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
