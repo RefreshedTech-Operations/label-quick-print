@@ -512,6 +512,21 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 </Button>
               </div>
             )}
+            {bulkProgress && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="font-medium">Generating labels...</span>
+                  </div>
+                  <span className="text-muted-foreground">
+                    {bulkProgress.current} / {bulkProgress.total}
+                    {bulkProgress.failed > 0 && <span className="text-destructive ml-2">({bulkProgress.failed} failed)</span>}
+                  </span>
+                </div>
+                <Progress value={(bulkProgress.current / bulkProgress.total) * 100} className="h-2" />
+              </div>
+            )}
           </CardContent>
         </Card>
 
