@@ -687,11 +687,21 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
       if (!data?.length) { toast.error('No data to export'); return; }
 
       if (format === 'tiktok') {
-        const tiktokData = data.map((r: any) => ({
-          'order_id': r.order_id,
-          'tracking_number': r.tracking || '',
-          'shipping_provider_name': 'Other',
-        }));
+        const carrierNameMap: Record<string, string> = {
+          'usps': 'USPS',
+          'ups': 'UPS',
+          'fedex': 'FedEx',
+          'dhl': 'DHL',
+          'dhl_express': 'DHL Express',
+        };
+        const tiktokData = data.map((r: any) => {
+          const provider = (r.shipping_provider || '').toLowerCase();
+          return {
+            'order_id': r.order_id,
+            'tracking_number': r.tracking || '',
+            'shipping_provider_name': carrierNameMap[provider] || r.shipping_provider || 'Other',
+          };
+        });
         const ws = XLSX.utils.json_to_sheet(tiktokData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'TikTok Tracking Upload');
