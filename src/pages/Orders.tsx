@@ -1035,12 +1035,14 @@ export default function Orders() {
     setIsExporting(true);
     try {
       const { data, error } = await supabase
-        .rpc('search_shipments', {
-          search_term: '',
+        .rpc('search_all_shipments', {
+          search_term: null,
           p_show_date: showDateFilter || null,
           p_filter: 'all',
           p_limit: 999999,
           p_offset: 0,
+          p_include_archive: includeArchive,
+          p_channel: channelFilter || null
         });
 
       if (error) throw error;
@@ -1064,12 +1066,14 @@ export default function Orders() {
     setIsExporting(true);
     try {
       const { data, error } = await supabase
-        .rpc('search_shipments', {
-          search_term: debouncedSearch || '',
+        .rpc('search_all_shipments', {
+          search_term: debouncedSearch.trim() || null,
           p_show_date: showDateFilter || null,
           p_filter: effectiveFilter,
           p_limit: 999999,
           p_offset: 0,
+          p_include_archive: includeArchive,
+          p_channel: channelFilter || null
         });
 
       if (error) throw error;
