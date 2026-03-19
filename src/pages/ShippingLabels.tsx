@@ -589,20 +589,23 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [channelFilter, setChannelFilter] = useState<string | undefined>();
   const [voidingIds, setVoidingIds] = useState<Set<string>>(new Set());
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
-  // Fetch recent show dates for generated labels
+  // Fetch recent show dates for generated labels (filtered by channel)
   const { data: recentDates } = useQuery({
-    queryKey: ['shipping-labels-generated-show-dates'],
+    queryKey: ['shipping-labels-generated-show-dates', channelFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('shipments')
         .select('show_date')
         .not('label_url', 'is', null)
         .neq('label_url', '')
         .not('show_date', 'is', null);
+      if (channelFilter) query = query.eq('channel', channelFilter);
+      const { data, error } = await query;
       if (error) throw error;
       const counts: Record<string, number> = {};
       (data || []).forEach((s: any) => {
@@ -616,16 +619,17 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['shipping-labels-generated', debouncedSearch, selectedShowDate, page],
+    queryKey: ['shipping-labels-generated', debouncedSearch, selectedShowDate, channelFilter, page],
     queryFn: async () => {
       let query = supabase
         .from('shipments')
-        .select('id, order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, manifest_url, created_at', { count: 'exact' })
+        .select('id, order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, manifest_url, created_at, channel', { count: 'exact' })
         .not('label_url', 'is', null)
         .neq('label_url', '')
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+      if (channelFilter) query = query.eq('channel', channelFilter);
       if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
       const { data, error, count } = await query;
       if (error) throw error;
@@ -672,6 +676,18 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
             </div>
+            <Select value={channelFilter || 'all'} onValueChange={(v) => { setChannelFilter(v === 'all' ? undefined : v); setPage(0); }}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Channel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Channels</SelectItem>
+                <SelectItem value="regular">Regular</SelectItem>
+                <SelectItem value="tiktok">TikTok</SelectItem>
+                <SelectItem value="misfits">Misfits</SelectItem>
+                <SelectItem value="outlet">Outlet</SelectItem>
+              </SelectContent>
+            </Select>
             <ShowDateFilter
               selectedDate={selectedShowDate}
               recentDates={recentDates || []}
