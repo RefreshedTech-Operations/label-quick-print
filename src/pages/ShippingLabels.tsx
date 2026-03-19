@@ -589,20 +589,23 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [channelFilter, setChannelFilter] = useState<string | undefined>();
   const [voidingIds, setVoidingIds] = useState<Set<string>>(new Set());
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
-  // Fetch recent show dates for generated labels
+  // Fetch recent show dates for generated labels (filtered by channel)
   const { data: recentDates } = useQuery({
-    queryKey: ['shipping-labels-generated-show-dates'],
+    queryKey: ['shipping-labels-generated-show-dates', channelFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('shipments')
         .select('show_date')
         .not('label_url', 'is', null)
         .neq('label_url', '')
         .not('show_date', 'is', null);
+      if (channelFilter) query = query.eq('channel', channelFilter);
+      const { data, error } = await query;
       if (error) throw error;
       const counts: Record<string, number> = {};
       (data || []).forEach((s: any) => {
