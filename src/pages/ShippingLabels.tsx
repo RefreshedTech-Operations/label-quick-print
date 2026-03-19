@@ -497,7 +497,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
               </div>
               <Input type="date" value={selectedShowDate || ''} onChange={(e) => { setSelectedShowDate(e.target.value || undefined); setPage(0); }} className="w-[160px]" />
-              {selectedIds.size > 0 && (
+              {selectedIds.size > 0 && !bulkProgress && (
                 <div className="flex items-center gap-2">
                   <Button onClick={handleBulkGenerate} size="sm" className="gap-2"><Tag className="h-4 w-4" />Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}</Button>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
