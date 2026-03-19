@@ -31,7 +31,8 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
 
 const PAGE_SIZE = 25;
