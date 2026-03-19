@@ -676,6 +676,18 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
             </div>
+            <Select value={channelFilter || 'all'} onValueChange={(v) => { setChannelFilter(v === 'all' ? undefined : v); setPage(0); }}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Channel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Channels</SelectItem>
+                <SelectItem value="regular">Regular</SelectItem>
+                <SelectItem value="tiktok">TikTok</SelectItem>
+                <SelectItem value="misfits">Misfits</SelectItem>
+                <SelectItem value="outlet">Outlet</SelectItem>
+              </SelectContent>
+            </Select>
             <ShowDateFilter
               selectedDate={selectedShowDate}
               recentDates={recentDates || []}
