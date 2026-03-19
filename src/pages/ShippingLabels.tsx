@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -321,6 +322,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [serviceOverrides, setServiceOverrides] = useState<Record<string, { carrier_id: string; service_code: string }>>({});
   const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; succeeded: number; failed: number } | null>(null);
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
@@ -460,7 +462,24 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
 
   const handleBulkGenerate = useCallback(async () => {
     if (selectedIds.size === 0) return;
-    for (const id of Array.from(selectedIds)) await handleGenerateLabel(id);
+    const ids = Array.from(selectedIds);
+    const total = ids.length;
+    let succeeded = 0;
+    let failed = 0;
+    setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
+    for (let i = 0; i < ids.length; i++) {
+      setBulkProgress({ current: i + 1, total, succeeded, failed });
+      await handleGenerateLabel(ids[i]);
+      // Check if it ended up in rowErrors
+      // We need to check after the call - use a timeout-free approach
+      setRowErrors(prev => {
+        if (prev[ids[i]]) { failed++; } else { succeeded++; }
+        setBulkProgress({ current: i + 1, total, succeeded, failed });
+        return prev;
+      });
+    }
+    setBulkProgress(null);
+    toast.success(`Label generation complete: ${succeeded} succeeded, ${failed} failed`);
     setSelectedIds(new Set());
   }, [selectedIds, handleGenerateLabel]);
 
@@ -478,7 +497,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
               </div>
               <Input type="date" value={selectedShowDate || ''} onChange={(e) => { setSelectedShowDate(e.target.value || undefined); setPage(0); }} className="w-[160px]" />
-              {selectedIds.size > 0 && (
+              {selectedIds.size > 0 && !bulkProgress && (
                 <div className="flex items-center gap-2">
                   <Button onClick={handleBulkGenerate} size="sm" className="gap-2"><Tag className="h-4 w-4" />Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}</Button>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
@@ -491,6 +510,21 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={handleSelectAllFiltered} disabled={isSelectingAll}>
                   {isSelectingAll ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Selecting...</> : <>Select all {totalCount} orders</>}
                 </Button>
+              </div>
+            )}
+            {bulkProgress && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="font-medium">Generating labels...</span>
+                  </div>
+                  <span className="text-muted-foreground">
+                    {bulkProgress.current} / {bulkProgress.total}
+                    {bulkProgress.failed > 0 && <span className="text-destructive ml-2">({bulkProgress.failed} failed)</span>}
+                  </span>
+                </div>
+                <Progress value={(bulkProgress.current / bulkProgress.total) * 100} className="h-2" />
               </div>
             )}
           </CardContent>
