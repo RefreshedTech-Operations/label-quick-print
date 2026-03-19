@@ -31,7 +31,8 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
 
 const PAGE_SIZE = 25;
@@ -664,10 +665,43 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     }
   }, [queryClient]);
 
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      let query = supabase
+        .from('shipments')
+        .select('order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, channel, created_at')
+        .not('label_url', 'is', null)
+        .neq('label_url', '')
+        .order('created_at', { ascending: false })
+        .limit(50000);
+      if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+      if (channelFilter) query = query.eq('channel', channelFilter);
+      if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data?.length) { toast.error('No data to export'); return; }
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Generated Labels');
+      XLSX.writeFile(wb, `generated-labels-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`Exported ${data.length} records`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedShowDate, channelFilter, debouncedSearch]);
+
   return (
     <>
       <div className="flex items-center justify-between">
         <Badge variant="secondary" className="text-lg px-3 py-1">{totalCount} generated</Badge>
+        <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting} className="gap-1">
+          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          Export
+        </Button>
       </div>
       <Card>
         <CardContent className="pt-4 pb-4">
