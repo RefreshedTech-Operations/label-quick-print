@@ -628,7 +628,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['shipping-labels-generated', debouncedSearch, selectedShowDate, channelFilter, page],
+    queryKey: ['shipping-labels-generated', debouncedSearch, selectedShowDate, allShowsMode, channelFilter, page],
     queryFn: async () => {
       let query = supabase
         .from('shipments')
@@ -638,6 +638,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+      else if (!allShowsMode) query = query.gte('show_date', last5DaysDate);
       if (channelFilter) query = query.eq('channel', channelFilter);
       if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
       const { data, error, count } = await query;
