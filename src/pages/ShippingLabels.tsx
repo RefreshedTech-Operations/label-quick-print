@@ -728,7 +728,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     } finally {
       setExporting(false);
     }
-  }, [selectedShowDate, channelFilter, debouncedSearch]);
+  }, [selectedShowDate, allShowsMode, channelFilter, debouncedSearch, last5DaysDate]);
 
   return (
     <>
