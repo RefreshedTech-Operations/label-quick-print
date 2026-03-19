@@ -786,7 +786,8 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
             <ShowDateFilter
               selectedDate={selectedShowDate}
               recentDates={recentDates || []}
-              onDateSelect={(date) => { setSelectedShowDate(date); setPage(0); }}
+              onDateSelect={(date) => { setSelectedShowDate(date); if (date) setAllShowsMode(false); setPage(0); }}
+              onAllShowsEnable={() => setAllShowsMode(true)}
             />
           </div>
         </CardContent>
