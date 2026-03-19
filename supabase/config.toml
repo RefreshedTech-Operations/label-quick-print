@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.shipengine-label-download]
 verify_jwt = false
+
+[functions.shipengine-carriers]
+verify_jwt = false
