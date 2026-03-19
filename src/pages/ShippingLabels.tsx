@@ -689,6 +689,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
         .order('created_at', { ascending: false })
         .limit(50000);
       if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+      else if (!allShowsMode) query = query.gte('show_date', last5DaysDate);
       if (channelFilter) query = query.eq('channel', channelFilter);
       if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
       const { data, error } = await query;
