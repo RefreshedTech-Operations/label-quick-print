@@ -664,12 +664,21 @@ export default function Orders() {
     }
   };
 
+  const [allFilteredSelected, setAllFilteredSelected] = useState(false);
+  const [isSelectingAllFiltered, setIsSelectingAllFiltered] = useState(false);
+
+  // Reset allFilteredSelected when filters change
+  useEffect(() => {
+    setAllFilteredSelected(false);
+  }, [filter, showDateFilter, debouncedSearch, channelFilter, includeArchive]);
+
   const toggleSelectAll = () => {
     if (selectedShipments.size === paginatedShipments.length && paginatedShipments.length > 0) {
       // Deselect all on current page
       const newSelected = new Set(selectedShipments);
       paginatedShipments.forEach(s => newSelected.delete(s.id));
       setSelectedShipments(newSelected);
+      setAllFilteredSelected(false);
     } else {
       // Select all on current page
       const newSelected = new Set(selectedShipments);
@@ -677,6 +686,53 @@ export default function Orders() {
       setSelectedShipments(newSelected);
     }
   };
+
+  const selectAllFilteredRecords = async () => {
+    setIsSelectingAllFiltered(true);
+    try {
+      // Fetch ALL IDs matching current filter (no pagination)
+      let allIds: string[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .rpc('search_all_shipments', {
+            search_term: debouncedSearch.trim() || null,
+            p_show_date: showDateFilter || null,
+            p_printed: null,
+            p_filter: effectiveFilter,
+            p_limit: batchSize,
+            p_offset: offset,
+            p_include_archive: includeArchive,
+            p_channel: channelFilter || null
+          });
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allIds.push(...data.map((s: any) => s.id));
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+
+      setSelectedShipments(new Set(allIds));
+      setAllFilteredSelected(true);
+      toast.success(`Selected all ${allIds.length} records`);
+    } catch (error: any) {
+      toast.error('Failed to select all records', { description: error.message });
+    } finally {
+      setIsSelectingAllFiltered(false);
+    }
+  };
+
+  const clearAllSelections = () => {
+    setSelectedShipments(new Set());
+    setAllFilteredSelected(false);
+  };
+
+  const allPageSelected = paginatedShipments.length > 0 && paginatedShipments.every(s => selectedShipments.has(s.id));
+  const hasMoreThanOnePage = totalCount > pageSize;
 
   const toggleSelectShipment = (id: string) => {
     const newSelected = new Set(selectedShipments);
