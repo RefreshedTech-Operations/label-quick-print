@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil } from 'lucide-react';
+import { ShowDateFilter } from '@/components/ShowDateFilter';
 
 const PAGE_SIZE = 25;
 
@@ -592,6 +593,28 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
+  // Fetch recent show dates for generated labels
+  const { data: recentDates } = useQuery({
+    queryKey: ['shipping-labels-generated-show-dates'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('show_date')
+        .not('label_url', 'is', null)
+        .neq('label_url', '')
+        .not('show_date', 'is', null);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((s: any) => {
+        if (s.show_date) counts[s.show_date] = (counts[s.show_date] || 0) + 1;
+      });
+      return Object.entries(counts)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .slice(0, 5)
+        .map(([date, count]) => ({ date, count, unprintedCount: count }));
+    },
+  });
+
   const { data, isLoading } = useQuery({
     queryKey: ['shipping-labels-generated', debouncedSearch, selectedShowDate, page],
     queryFn: async () => {
@@ -649,7 +672,11 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
             </div>
-            <Input type="date" value={selectedShowDate || ''} onChange={(e) => { setSelectedShowDate(e.target.value || undefined); setPage(0); }} className="w-[160px]" />
+            <ShowDateFilter
+              selectedDate={selectedShowDate}
+              recentDates={recentDates || []}
+              onDateSelect={(date) => { setSelectedShowDate(date); setPage(0); }}
+            />
           </div>
         </CardContent>
       </Card>
