@@ -340,14 +340,16 @@ Deno.serve(async (req) => {
     const labelUrl = seData.label_download?.pdf || seData.label_download?.href || ''
     const trackingNumber = seData.tracking_number || shipment.tracking
     const shipEngineLabelId = seData.label_id || ''
+    const shippingProvider = seData.carrier_code || seData.carrier_id || carrierId || ''
 
-    // Update shipment with label URL, manifest, tracking, and ShipEngine label ID
+    // Update shipment with label URL, manifest, tracking, ShipEngine label ID, and shipping provider
     const { error: updateErr } = await serviceClient
       .from('shipments')
       .update({
         label_url: labelUrl,
         manifest_url: labelUrl,
         shipengine_label_id: shipEngineLabelId,
+        shipping_provider: shippingProvider,
         ...(trackingNumber ? { tracking: trackingNumber } : {}),
       })
       .eq('id', shipment_id)
