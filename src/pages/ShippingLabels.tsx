@@ -697,9 +697,9 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
         const tiktokData = data.map((r: any) => {
           const provider = (r.shipping_provider || '').toLowerCase();
           return {
-            'order_id': r.order_id,
-            'tracking_number': r.tracking || '',
-            'shipping_provider_name': carrierNameMap[provider] || r.shipping_provider || 'Other',
+            'Order ID': r.order_id,
+            'Tracking ID': r.tracking || '',
+            'Shipping Provider Name': carrierNameMap[provider] || r.shipping_provider || 'Other',
           };
         });
         const ws = XLSX.utils.json_to_sheet(tiktokData);
