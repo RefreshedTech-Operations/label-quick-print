@@ -1385,10 +1385,43 @@ export default function Orders() {
           )}
           <Button 
             variant="outline" 
-            onClick={() => setSelectedShipments(new Set())}
+            onClick={clearAllSelections}
             disabled={isBulkPrinting}
           >
             Clear Selection
+          </Button>
+        </div>
+      )}
+
+      {/* Select all filtered records banner */}
+      {allPageSelected && hasMoreThanOnePage && !allFilteredSelected && (
+        <div className="bg-muted/50 border rounded-lg px-4 py-2 text-sm text-center">
+          All {paginatedShipments.length} records on this page are selected.{' '}
+          <Button
+            variant="link"
+            size="sm"
+            className="px-1 h-auto"
+            onClick={selectAllFilteredRecords}
+            disabled={isSelectingAllFiltered}
+          >
+            {isSelectingAllFiltered ? (
+              <><Loader2 className="h-3 w-3 animate-spin mr-1" />Selecting...</>
+            ) : (
+              <>Select all {totalCount.toLocaleString()} records matching this filter</>
+            )}
+          </Button>
+        </div>
+      )}
+      {allFilteredSelected && (
+        <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 text-sm text-center">
+          All {selectedShipments.size.toLocaleString()} records matching this filter are selected.{' '}
+          <Button
+            variant="link"
+            size="sm"
+            className="px-1 h-auto"
+            onClick={clearAllSelections}
+          >
+            Clear selection
           </Button>
         </div>
       )}
