@@ -322,6 +322,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [serviceOverrides, setServiceOverrides] = useState<Record<string, { carrier_id: string; service_code: string }>>({});
   const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; succeeded: number; failed: number } | null>(null);
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
