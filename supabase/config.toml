@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.shipengine-carriers]
 verify_jwt = false
+
+[functions.shipengine-backfill-costs]
+verify_jwt = false
