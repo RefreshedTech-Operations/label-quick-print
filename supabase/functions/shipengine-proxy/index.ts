@@ -399,8 +399,9 @@ Deno.serve(async (req) => {
     const trackingNumber = seData.tracking_number || shipment.tracking
     const shipEngineLabelId = seData.label_id || ''
     const shippingProvider = seData.carrier_code || seData.carrier_id || carrierId || ''
+    const shippingCost = seData.shipment_cost?.amount ?? null
 
-    // Update shipment with label URL, manifest, tracking, ShipEngine label ID, and shipping provider
+    // Update shipment with label URL, manifest, tracking, ShipEngine label ID, shipping provider, and cost
     const { error: updateErr } = await serviceClient
       .from('shipments')
       .update({
@@ -409,6 +410,7 @@ Deno.serve(async (req) => {
         shipengine_label_id: shipEngineLabelId,
         shipping_provider: shippingProvider,
         ...(trackingNumber ? { tracking: trackingNumber } : {}),
+        ...(shippingCost !== null ? { shipping_cost: shippingCost } : {}),
       })
       .eq('id', shipment_id)
 

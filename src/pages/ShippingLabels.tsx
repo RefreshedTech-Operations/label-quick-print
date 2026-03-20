@@ -724,7 +724,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     try {
       let query = supabase
         .from('shipments')
-        .select('order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, channel, created_at, shipping_provider')
+        .select('order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, channel, created_at, shipping_provider, shipping_cost')
         .not('label_url', 'is', null)
         .neq('label_url', '')
         .order('created_at', { ascending: false })
