@@ -466,18 +466,25 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     const total = ids.length;
     let succeeded = 0;
     let failed = 0;
+    const BATCH_SIZE = 3;
     setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
-    for (let i = 0; i < ids.length; i++) {
-      setBulkProgress({ current: i + 1, total, succeeded, failed });
-      await handleGenerateLabel(ids[i]);
-      // Check if it ended up in rowErrors
-      // We need to check after the call - use a timeout-free approach
-      setRowErrors(prev => {
-        if (prev[ids[i]]) { failed++; } else { succeeded++; }
-        setBulkProgress({ current: i + 1, total, succeeded, failed });
-        return prev;
+
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batch = ids.slice(i, i + BATCH_SIZE);
+      const results = await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
+
+      results.forEach((_, idx) => {
+        const id = batch[idx];
+        setRowErrors(prev => {
+          if (prev[id]) { failed++; } else { succeeded++; }
+          return prev;
+        });
       });
+
+      const processed = Math.min(i + batch.length, total);
+      setBulkProgress({ current: processed, total, succeeded, failed });
     }
+
     setBulkProgress(null);
     toast.success(`Label generation complete: ${succeeded} succeeded, ${failed} failed`);
     setSelectedIds(new Set());
