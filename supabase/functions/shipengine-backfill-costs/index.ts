@@ -93,12 +93,10 @@ Deno.serve(async (req) => {
 
     // Find shipments missing costs (active + archive)
     const [activeRowsResult, archivedRowsResult] = await Promise.all([
-      getMissingRowsQuery('shipments')
-        .select('id, shipengine_label_id, created_at')
+      getMissingRowsQuery('shipments', 'id, shipengine_label_id, created_at')
         .order('created_at', { ascending: false })
         .limit(BATCH_SIZE),
-      getMissingRowsQuery('shipments_archive')
-        .select('id, shipengine_label_id, created_at')
+      getMissingRowsQuery('shipments_archive', 'id, shipengine_label_id, created_at')
         .order('created_at', { ascending: false })
         .limit(BATCH_SIZE),
     ])
