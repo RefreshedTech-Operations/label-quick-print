@@ -722,32 +722,68 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   const handleBackfillCosts = useCallback(async () => {
     setBackfilling(true);
     let totalUpdated = 0;
+    let stalledPasses = 0;
+    let pass = 0;
+    const maxPasses = 30;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error('Not authenticated'); return; }
 
+      const requestBody = {
+        showDate: selectedShowDate,
+        minShowDate: !selectedShowDate && !allShowsMode ? last5DaysDate : undefined,
+        channel: channelFilter,
+      };
+
       let hasMore = true;
-      while (hasMore) {
-        const res = await supabase.functions.invoke('shipengine-backfill-costs', {});
+      while (hasMore && pass < maxPasses) {
+        pass++;
+        const res = await supabase.functions.invoke('shipengine-backfill-costs', { body: requestBody });
         if (res.error) throw new Error(res.error.message);
-        const result = res.data;
-        totalUpdated += result.updated || 0;
+        const result = (res.data || {}) as {
+          updated?: number;
+          remaining?: number;
+          hasMore?: boolean;
+          errors?: string[];
+        };
+
+        const updatedThisPass = Number(result.updated || 0);
+        totalUpdated += updatedThisPass;
+        stalledPasses = updatedThisPass === 0 ? stalledPasses + 1 : 0;
+
         if (result.errors?.length) {
           console.warn('Backfill errors:', result.errors);
         }
-        hasMore = (result.remaining || 0) > 0;
+
+        const hasMoreFromServer = typeof result.hasMore === 'boolean'
+          ? result.hasMore
+          : Number(result.remaining || 0) > 0;
+
+        hasMore = hasMoreFromServer && stalledPasses < 2;
+
         if (hasMore) {
-          toast.info(`Backfilled ${totalUpdated} so far, ${result.remaining} remaining...`);
+          if (typeof result.remaining === 'number') {
+            toast.info(`Backfilled ${totalUpdated} so far, ${result.remaining} remaining...`);
+          } else {
+            toast.info(`Backfilled ${totalUpdated} so far, continuing...`);
+          }
         }
       }
-      toast.success(`Backfill complete! Updated ${totalUpdated} labels with costs.`);
-      queryClient.invalidateQueries({ queryKey: ['generated-labels'] });
+
+      if (totalUpdated > 0) {
+        toast.success(`Backfill complete! Updated ${totalUpdated} labels with costs.`);
+      } else {
+        toast.warning('No shipping costs were found for the current filter.');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['shipping-labels-generated'] });
+      queryClient.invalidateQueries({ queryKey: ['shipping-labels-generated-show-dates'] });
     } catch (err: any) {
       toast.error(err?.message || 'Backfill failed');
     } finally {
       setBackfilling(false);
     }
-  }, [queryClient]);
+  }, [queryClient, selectedShowDate, allShowsMode, channelFilter, last5DaysDate]);
 
   const runExport = useCallback(async (format: 'full' | 'tiktok') => {
     setExporting(true);

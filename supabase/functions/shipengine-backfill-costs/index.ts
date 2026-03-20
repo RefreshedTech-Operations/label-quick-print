@@ -7,12 +7,39 @@ const corsHeaders = {
 
 const BATCH_SIZE = 50
 
+type BackfillFilters = {
+  showDate?: string
+  minShowDate?: string
+  channel?: string
+}
+
+const normalizeFilters = (payload: unknown): BackfillFilters => {
+  const body = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+
+  const showDate = typeof body.showDate === 'string' && body.showDate ? body.showDate : undefined
+  const minShowDate = !showDate && typeof body.minShowDate === 'string' && body.minShowDate ? body.minShowDate : undefined
+  const channel = typeof body.channel === 'string' && body.channel ? body.channel : undefined
+
+  return { showDate, minShowDate, channel }
+}
+
+const applyBackfillFilters = (query: any, filters: BackfillFilters) => {
+  let next = query
+  if (filters.showDate) next = next.eq('show_date', filters.showDate)
+  else if (filters.minShowDate) next = next.gte('show_date', filters.minShowDate)
+  if (filters.channel) next = next.eq('channel', filters.channel)
+  return next
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
+    const requestBody = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+    const filters = normalizeFilters(requestBody)
+
     // Auth
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
@@ -50,25 +77,40 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'ShipEngine API key not configured' }), { status: 500, headers: corsHeaders })
     }
 
-    // Find shipments missing costs (active table)
-    const { data: activeRows } = await serviceClient
-      .from('shipments')
-      .select('id, shipengine_label_id')
-      .not('shipengine_label_id', 'is', null)
-      .is('shipping_cost', null)
-      .limit(BATCH_SIZE)
+    const getMissingRowsQuery = (
+      table: 'shipments' | 'shipments_archive',
+      columns: string,
+      selectOptions?: { count?: 'exact'; head?: boolean },
+    ) => {
+      const query = serviceClient
+        .from(table)
+        .select(columns, selectOptions)
+        .not('shipengine_label_id', 'is', null)
+        .neq('shipengine_label_id', '')
+        .is('shipping_cost', null)
+      return applyBackfillFilters(query, filters)
+    }
 
-    // Find archived shipments missing costs
-    const { data: archivedRows } = await serviceClient
-      .from('shipments_archive')
-      .select('id, shipengine_label_id')
-      .not('shipengine_label_id', 'is', null)
-      .is('shipping_cost', null)
-      .limit(BATCH_SIZE)
+    // Find shipments missing costs (active + archive)
+    const [activeRowsResult, archivedRowsResult] = await Promise.all([
+      getMissingRowsQuery('shipments', 'id, shipengine_label_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(BATCH_SIZE),
+      getMissingRowsQuery('shipments_archive', 'id, shipengine_label_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(BATCH_SIZE),
+    ])
+
+    if (activeRowsResult.error) {
+      throw new Error(`Failed to fetch active shipments: ${activeRowsResult.error.message}`)
+    }
+    if (archivedRowsResult.error) {
+      throw new Error(`Failed to fetch archived shipments: ${archivedRowsResult.error.message}`)
+    }
 
     const allRows = [
-      ...(activeRows || []).map(r => ({ ...r, table: 'shipments' as const })),
-      ...(archivedRows || []).map(r => ({ ...r, table: 'shipments_archive' as const })),
+      ...(activeRowsResult.data || []).map(r => ({ ...r, table: 'shipments' as const })),
+      ...(archivedRowsResult.data || []).map(r => ({ ...r, table: 'shipments_archive' as const })),
     ].slice(0, BATCH_SIZE)
 
     let updated = 0
@@ -103,34 +145,45 @@ Deno.serve(async (req) => {
           errors.push(`Label ${row.shipengine_label_id}: no cost in response`)
         }
       } catch (e) {
-        errors.push(`Label ${row.shipengine_label_id}: ${e.message}`)
+        const message = e instanceof Error ? e.message : String(e)
+        errors.push(`Label ${row.shipengine_label_id}: ${message}`)
       }
     }
 
-    // Count remaining
-    const { count: activeRemaining } = await serviceClient
-      .from('shipments')
-      .select('id', { count: 'exact', head: true })
-      .not('shipengine_label_id', 'is', null)
-      .is('shipping_cost', null)
+    // Count remaining (exact when available; fallback to probe)
+    const [activeRemainingResult, archivedRemainingResult] = await Promise.all([
+      getMissingRowsQuery('shipments', 'id', { count: 'exact', head: true }),
+      getMissingRowsQuery('shipments_archive', 'id', { count: 'exact', head: true }),
+    ])
 
-    const { count: archivedRemaining } = await serviceClient
-      .from('shipments_archive')
-      .select('id', { count: 'exact', head: true })
-      .not('shipengine_label_id', 'is', null)
-      .is('shipping_cost', null)
+    const activeRemaining = activeRemainingResult.error ? null : (activeRemainingResult.count || 0)
+    const archivedRemaining = archivedRemainingResult.error ? null : (archivedRemainingResult.count || 0)
 
-    const remaining = (activeRemaining || 0) + (archivedRemaining || 0)
+    let remaining: number | undefined
+    let hasMore = false
+
+    if (activeRemaining != null && archivedRemaining != null) {
+      remaining = activeRemaining + archivedRemaining
+      hasMore = remaining > 0
+    } else {
+      const [activeProbe, archivedProbe] = await Promise.all([
+        getMissingRowsQuery('shipments', 'id').limit(1),
+        getMissingRowsQuery('shipments_archive', 'id').limit(1),
+      ])
+      hasMore = (activeProbe.data?.length || 0) > 0 || (archivedProbe.data?.length || 0) > 0
+    }
 
     return new Response(JSON.stringify({
       updated,
       remaining,
+      hasMore,
       errors: errors.length > 0 ? errors : undefined,
       processed: allRows.length,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (err) {
     console.error('Unexpected error:', err)
-    return new Response(JSON.stringify({ error: err.message || 'Internal server error' }), { status: 500, headers: corsHeaders })
+    const message = err instanceof Error ? err.message : 'Internal server error'
+    return new Response(JSON.stringify({ error: message }), { status: 500, headers: corsHeaders })
   }
 })
