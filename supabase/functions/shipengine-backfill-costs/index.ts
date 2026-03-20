@@ -77,9 +77,14 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'ShipEngine API key not configured' }), { status: 500, headers: corsHeaders })
     }
 
-    const getMissingRowsQuery = (table: 'shipments' | 'shipments_archive') => {
+    const getMissingRowsQuery = (
+      table: 'shipments' | 'shipments_archive',
+      columns: string,
+      selectOptions?: { count?: 'exact'; head?: boolean },
+    ) => {
       const query = serviceClient
         .from(table)
+        .select(columns, selectOptions)
         .not('shipengine_label_id', 'is', null)
         .neq('shipengine_label_id', '')
         .is('shipping_cost', null)
@@ -149,8 +154,8 @@ Deno.serve(async (req) => {
 
     // Count remaining (exact when available; fallback to probe)
     const [activeRemainingResult, archivedRemainingResult] = await Promise.all([
-      getMissingRowsQuery('shipments').select('id', { count: 'exact', head: true }),
-      getMissingRowsQuery('shipments_archive').select('id', { count: 'exact', head: true }),
+      getMissingRowsQuery('shipments', 'id', { count: 'exact', head: true }),
+      getMissingRowsQuery('shipments_archive', 'id', { count: 'exact', head: true }),
     ])
 
     const activeRemaining = activeRemainingResult.error ? null : (activeRemainingResult.count || 0)
@@ -164,8 +169,8 @@ Deno.serve(async (req) => {
       hasMore = remaining > 0
     } else {
       const [activeProbe, archivedProbe] = await Promise.all([
-        getMissingRowsQuery('shipments').select('id').limit(1),
-        getMissingRowsQuery('shipments_archive').select('id').limit(1),
+        getMissingRowsQuery('shipments', 'id').limit(1),
+        getMissingRowsQuery('shipments_archive', 'id').limit(1),
       ])
       hasMore = (activeProbe.data?.length || 0) > 0 || (archivedProbe.data?.length || 0) > 0
     }
