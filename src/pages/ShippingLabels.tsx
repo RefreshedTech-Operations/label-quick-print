@@ -775,10 +775,16 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     <>
       <div className="flex items-center justify-between">
         <Badge variant="secondary" className="text-lg px-3 py-1">{totalCount} generated</Badge>
-        <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)} disabled={exporting} className="gap-1">
-          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Export
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleBackfillCosts} disabled={backfilling} className="gap-1">
+            {backfilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
+            Backfill Costs
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)} disabled={exporting} className="gap-1">
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Export
+          </Button>
+        </div>
       </div>
 
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
