@@ -717,6 +717,37 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
 
   const [exporting, setExporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+
+  const handleBackfillCosts = useCallback(async () => {
+    setBackfilling(true);
+    let totalUpdated = 0;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast.error('Not authenticated'); return; }
+
+      let hasMore = true;
+      while (hasMore) {
+        const res = await supabase.functions.invoke('shipengine-backfill-costs', {});
+        if (res.error) throw new Error(res.error.message);
+        const result = res.data;
+        totalUpdated += result.updated || 0;
+        if (result.errors?.length) {
+          console.warn('Backfill errors:', result.errors);
+        }
+        hasMore = (result.remaining || 0) > 0;
+        if (hasMore) {
+          toast.info(`Backfilled ${totalUpdated} so far, ${result.remaining} remaining...`);
+        }
+      }
+      toast.success(`Backfill complete! Updated ${totalUpdated} labels with costs.`);
+      queryClient.invalidateQueries({ queryKey: ['generated-labels'] });
+    } catch (err: any) {
+      toast.error(err?.message || 'Backfill failed');
+    } finally {
+      setBackfilling(false);
+    }
+  }, [queryClient]);
 
   const runExport = useCallback(async (format: 'full' | 'tiktok') => {
     setExporting(true);
