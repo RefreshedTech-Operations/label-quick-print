@@ -1,29 +1,43 @@
 
 
-## Add Show Date Filter to Generated Labels Tab
+## Plan: Add ShipEngine Address Validation Before Label Generation
 
-### What
-Replace the plain date input on the Generated Labels tab with the existing `ShowDateFilter` component, showing quick-select buttons for recent show dates (same UX as the Orders page).
+### What This Solves
+Currently, invalid addresses (like mismatched zip/state combos) are only caught when ShipEngine rejects the label request, wasting an API call and returning cryptic carrier errors. Adding a validation step catches these issues early with clear, actionable messages.
 
-### How
+### Approach
+Add address validation directly into the `shipengine-proxy` Edge Function, right after address parsing and before label creation. This keeps the change server-side with no frontend modifications needed — errors will surface through the existing error display (clickable error icons with popovers).
 
-**File: `src/pages/ShippingLabels.tsx` (GeneratedLabelsTab function)**
+### Changes
 
-1. Fetch recent show dates specific to generated labels using a query that aggregates distinct `show_date` values from shipments that have a `label_url` (not null/empty). This will show dates relevant to generated labels rather than all shipments.
+**1. `supabase/functions/shipengine-proxy/index.ts`**
 
-2. Replace the `<Input type="date">` (line 652) with the `<ShowDateFilter>` component, passing:
-   - `selectedDate={selectedShowDate}`
-   - `recentDates` from the new query
-   - `onDateSelect` handler (already exists)
+After the `shipToAddress` object is built (around line 267) and before the label creation call (line 309), insert a call to ShipEngine's address validation API:
 
-3. The recent dates query will select from `shipments` where `label_url` is not null/empty, group by `show_date`, count total and provide counts. Since this tab doesn't track "unprinted", the unprinted count will just mirror total count or be set to 0.
+```
+POST https://api.shipengine.com/v1/addresses/validate
+```
 
-4. Reset page to 0 when show date changes (already handled).
+- Send the parsed `ship_to` address to ShipEngine's validation endpoint
+- Check the response status: `verified`, `warning`, or `error`
+- If `error`: return a 400 response with the specific validation messages (e.g., "Invalid postal code for state NV") — no label is created
+- If `warning`: log the warnings but proceed, and use the corrected/matched address from ShipEngine's response if available
+- If `verified`: use the validated address (ShipEngine may correct formatting) and proceed to label creation
 
-### Technical Details
+This means scrambled fields like the IA/NV/50201 case will be caught before hitting the carrier, with a clear message like "The postal code 50201 does not match the state NV."
 
-- Reuses the existing `ShowDateFilter` component from `src/components/ShowDateFilter.tsx`
-- New query: `SELECT show_date, count(*) FROM shipments WHERE label_url IS NOT NULL AND label_url != '' GROUP BY show_date ORDER BY show_date DESC LIMIT 5`
-- Uses direct Supabase query (no new RPC needed) since this is a simple aggregation
-- Import `ShowDateFilter` at the top of ShippingLabels.tsx
+### Technical Detail
+
+The validation call payload format:
+```json
+[{
+  "address_line1": "710 S 11th St B120",
+  "city_locality": "IA",
+  "state_province": "NV",
+  "postal_code": "50201",
+  "country_code": "US"
+}]
+```
+
+Response includes a `status` field (`verified`/`unverified`/`warning`/`error`) and `messages` array with human-readable issues. On `verified` or `warning`, the response includes a `matched_address` with corrected fields that will be used for label generation.
 
