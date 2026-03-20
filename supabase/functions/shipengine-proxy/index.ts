@@ -266,6 +266,64 @@ Deno.serve(async (req) => {
       phone: cfg.ship_from_phone || undefined,
     }
 
+    // --- Address Validation Step ---
+    const valPayload = [{
+      address_line1: shipToAddress.address_line1,
+      ...(shipToAddress.address_line2 ? { address_line2: shipToAddress.address_line2 } : {}),
+      city_locality: shipToAddress.city_locality,
+      state_province: shipToAddress.state_province,
+      postal_code: shipToAddress.postal_code,
+      country_code: shipToAddress.country_code,
+    }]
+
+    console.log('Validating address:', JSON.stringify(valPayload))
+
+    const valResponse = await fetch('https://api.shipengine.com/v1/addresses/validate', {
+      method: 'POST',
+      headers: {
+        'API-Key': SHIPENGINE_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(valPayload),
+    })
+
+    const valData = await valResponse.json()
+    const valResult = valData?.[0]
+
+    if (valResult) {
+      const valStatus = valResult.status // verified, unverified, warning, error
+      const valMessages = (valResult.messages || []).map((m: any) => m.message).filter(Boolean)
+
+      if (valStatus === 'error' || valStatus === 'unverified') {
+        console.error('Address validation failed:', JSON.stringify(valResult))
+        const detail = valMessages.length > 0 ? valMessages.join(' | ') : 'Address could not be verified'
+        return new Response(
+          JSON.stringify({
+            error: `Address Validation Error: ${detail}`,
+            validation_status: valStatus,
+            messages: valMessages,
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      // Use corrected address from ShipEngine if available
+      const matched = valResult.matched_address
+      if (matched) {
+        shipToAddress.address_line1 = matched.address_line1 || shipToAddress.address_line1
+        if (matched.address_line2) shipToAddress.address_line2 = matched.address_line2
+        shipToAddress.city_locality = matched.city_locality || shipToAddress.city_locality
+        shipToAddress.state_province = matched.state_province || shipToAddress.state_province
+        shipToAddress.postal_code = matched.postal_code || shipToAddress.postal_code
+        shipToAddress.country_code = matched.country_code || shipToAddress.country_code
+      }
+
+      if (valStatus === 'warning') {
+        console.warn('Address validation warnings:', valMessages.join(' | '))
+      }
+    }
+    // --- End Address Validation ---
+
     const shipmentPayload: Record<string, unknown> = {
       ...(carrierId ? { carrier_id: carrierId } : {}),
       service_code: serviceCode,
