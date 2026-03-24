@@ -19,7 +19,7 @@ interface AppState {
   updateColumnMap: (map: Partial<ColumnMap>) => void;
   addRecentScan: (uid: string, status: string) => void;
   setPrintnodeApiKey: (key: string) => void;
-  loadPermissions: () => Promise<void>;
+  loadPermissions: (force?: boolean) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()((set, get) => ({
