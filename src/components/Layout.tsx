@@ -50,6 +50,15 @@ export default function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     loadPermissions();
+
+    // Re-load permissions when auth state changes (e.g. session restored on mobile)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        loadPermissions(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [loadPermissions]);
 
   const handleSignOut = async () => {
