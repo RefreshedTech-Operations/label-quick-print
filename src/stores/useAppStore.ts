@@ -60,13 +60,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({ printnodeApiKey: key, printnodeApiKeyLoaded: true });
   },
 
-  loadPermissions: async () => {
-    // Skip if already loaded
-    if (get().permissionsLoaded) return;
+  loadPermissions: async (force = false) => {
+    // Skip if already loaded (unless forcing a reload)
+    if (!force && get().permissionsLoaded) return;
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      set({ permissionsLoaded: true });
+      // Don't mark as loaded when there's no user — auth may still be restoring
       return;
     }
 
