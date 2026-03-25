@@ -365,6 +365,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
         .from('shipments')
         .select('id, order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, created_at', { count: 'exact' })
         .or('label_url.is.null,label_url.eq.')
+        .or('tracking.is.null,tracking.eq.')
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
