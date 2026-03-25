@@ -260,13 +260,65 @@ export default function Scan() {
     inputRef.current?.focus();
   }, [selectedShipment]);
 
+  // Generate manifest via ShipEngine for shipments missing both label_url and manifest_url
+  const generateManifestForShipment = async (shipment: Shipment): Promise<Partial<Shipment> | null> => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        toast.error('No active session. Please sign in again.');
+        return null;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ shipment_id: shipment.id }),
+      });
+
+      const raw = await response.text();
+      let payload: any = {};
+      if (raw) {
+        try { payload = JSON.parse(raw); } catch { payload = { error: raw }; }
+      }
+
+      if (!response.ok || payload?.error) {
+        const msg = payload?.error || `Label generation failed (${response.status})`;
+        toast.error('Failed to generate shipping label', { description: msg });
+        return null;
+      }
+
+      // Re-fetch the shipment to get updated manifest_url
+      const { data: updated } = await supabase
+        .from('shipments')
+        .select('manifest_url, label_url, tracking, shipping_provider, shipping_cost')
+        .eq('id', shipment.id)
+        .single();
+
+      if (!updated?.manifest_url) {
+        toast.error('Label generated but manifest URL not found');
+        return null;
+      }
+
+      toast.success('Shipping label generated');
+      return updated;
+    } catch (err: any) {
+      toast.error('Failed to generate shipping label', { description: err.message });
+      return null;
+    }
+  };
+
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedUid = uid.trim().toUpperCase();
     
     if (!trimmedUid) return;
 
-    const shipment = await findShipmentByUid(trimmedUid);
+    let shipment = await findShipmentByUid(trimmedUid);
 
     if (!shipment) {
       setScanStatus({
@@ -304,16 +356,23 @@ export default function Scan() {
       return;
     }
 
-    if (!shipment.manifest_url) {
-      setScanStatus({
-        type: 'missing_manifest',
-        message: 'MISSING MANIFEST URL',
-        details: 'This shipment does not have a manifest URL'
-      });
-      addRecentScan(trimmedUid, 'missing_manifest');
-      setSelectedShipment(shipment);
-      setUid('');
-      return;
+    // If no label_url, we'll print manifest only. If manifest is also missing, generate it.
+    if (!shipment.label_url && !shipment.manifest_url) {
+      toast.info('No label or manifest found — generating shipping label...');
+      const generated = await generateManifestForShipment(shipment);
+      if (!generated) {
+        setScanStatus({
+          type: 'missing_manifest',
+          message: 'MANIFEST GENERATION FAILED',
+          details: 'Could not generate a shipping label for this shipment'
+        });
+        addRecentScan(trimmedUid, 'missing_manifest');
+        setSelectedShipment(shipment);
+        setUid('');
+        return;
+      }
+      // Update shipment with the generated data
+      shipment = { ...shipment, ...generated };
     }
 
     // Clear any previous scan status on successful find
@@ -546,7 +605,8 @@ export default function Scan() {
     }
   };
 
-  const handlePrint = async (shipment: Shipment) => {
+  const handlePrint = async (shipmentArg: Shipment) => {
+    let shipment = shipmentArg;
     // For bundle items, check if this is the last item in the group
     if (shipment.bundle) {
       if (!shipment.order_group_id) {
@@ -588,10 +648,15 @@ export default function Scan() {
       }
     }
 
-    // Regular manifest printing for non-bundle items
+    // If manifest_url is missing, try to generate it
     if (!shipment.manifest_url) {
-      toast.error('Cannot print: Missing manifest URL');
-      return;
+      toast.info('No manifest found — generating shipping label...');
+      const generated = await generateManifestForShipment(shipment);
+      if (!generated?.manifest_url) {
+        toast.error('Cannot print: Failed to generate manifest');
+        return;
+      }
+      shipment = { ...shipment, ...generated } as Shipment;
     }
 
     if (!printnodeApiKey) {
