@@ -647,10 +647,15 @@ export default function Scan() {
       }
     }
 
-    // Regular manifest printing for non-bundle items
+    // If manifest_url is missing, try to generate it
     if (!shipment.manifest_url) {
-      toast.error('Cannot print: Missing manifest URL');
-      return;
+      toast.info('No manifest found — generating shipping label...');
+      const generated = await generateManifestForShipment(shipment);
+      if (!generated?.manifest_url) {
+        toast.error('Cannot print: Failed to generate manifest');
+        return;
+      }
+      shipment = { ...shipment, ...generated } as Shipment;
     }
 
     if (!printnodeApiKey) {
