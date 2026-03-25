@@ -1657,7 +1657,19 @@ export default function Orders() {
                         className="h-9 text-sm font-mono font-semibold"
                       />
                       <div className="text-xs text-muted-foreground">
-                        <div className="font-mono break-all">Order: <HighlightText text={shipment.order_id} searchTerm={debouncedSearch} /></div>
+                        <div className="font-mono break-all">Order: {(shipment as any).channel === 'tiktok' ? (
+                          <a
+                            href={`https://seller-us.tiktok.com/shipment/labels?fulfillment_global_search[]=${encodeURIComponent(shipment.order_id)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline hover:text-primary/80"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <HighlightText text={shipment.order_id} searchTerm={debouncedSearch} />
+                          </a>
+                        ) : (
+                          <HighlightText text={shipment.order_id} searchTerm={debouncedSearch} />
+                        )}</div>
                       </div>
                     </div>
                   </TableCell>
