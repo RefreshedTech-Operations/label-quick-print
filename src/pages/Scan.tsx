@@ -260,54 +260,64 @@ export default function Scan() {
     inputRef.current?.focus();
   }, [selectedShipment]);
 
-  // Generate manifest via ShipEngine for shipments missing both label_url and manifest_url
+  // Generate manifest for shipments missing manifest_url
+  // If label_url exists: call ShipEngine to generate label+manifest
+  // If no label_url: generate a local pick list PDF as the manifest (no ShipEngine)
   const generateManifestForShipment = async (shipment: Shipment): Promise<Partial<Shipment> | null> => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      if (!accessToken) {
-        toast.error('No active session. Please sign in again.');
-        return null;
+      // If shipment has a label_url, use ShipEngine to generate the manifest
+      if (shipment.label_url) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        if (!accessToken) {
+          toast.error('No active session. Please sign in again.');
+          return null;
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ shipment_id: shipment.id }),
+        });
+
+        const raw = await response.text();
+        let payload: any = {};
+        if (raw) {
+          try { payload = JSON.parse(raw); } catch { payload = { error: raw }; }
+        }
+
+        if (!response.ok || payload?.error) {
+          const msg = payload?.error || `Label generation failed (${response.status})`;
+          toast.error('Failed to generate shipping label', { description: msg });
+          return null;
+        }
+
+        // Re-fetch the shipment to get updated manifest_url
+        const { data: updated } = await supabase
+          .from('shipments')
+          .select('manifest_url, label_url, tracking, shipping_provider, shipping_cost')
+          .eq('id', shipment.id)
+          .single();
+
+        if (!updated?.manifest_url) {
+          toast.error('Label generated but manifest URL not found');
+          return null;
+        }
+
+        toast.success('Shipping label generated');
+        return updated;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ shipment_id: shipment.id }),
-      });
-
-      const raw = await response.text();
-      let payload: any = {};
-      if (raw) {
-        try { payload = JSON.parse(raw); } catch { payload = { error: raw }; }
-      }
-
-      if (!response.ok || payload?.error) {
-        const msg = payload?.error || `Label generation failed (${response.status})`;
-        toast.error('Failed to generate shipping label', { description: msg });
-        return null;
-      }
-
-      // Re-fetch the shipment to get updated manifest_url
-      const { data: updated } = await supabase
-        .from('shipments')
-        .select('manifest_url, label_url, tracking, shipping_provider, shipping_cost')
-        .eq('id', shipment.id)
-        .single();
-
-      if (!updated?.manifest_url) {
-        toast.error('Label generated but manifest URL not found');
-        return null;
-      }
-
-      toast.success('Shipping label generated');
-      return updated;
+      // No label_url — generate a pick list PDF as the manifest (no ShipEngine call)
+      // We'll handle printing the pick list directly in the print handler
+      // Just return a marker so the caller knows manifest is available via pick list
+      return { manifest_url: '__picklist__' };
     } catch (err: any) {
-      toast.error('Failed to generate shipping label', { description: err.message });
+      toast.error('Failed to generate manifest', { description: err.message });
       return null;
     }
   };
@@ -360,7 +370,7 @@ export default function Scan() {
     if (!shipment.manifest_url) {
       const toastMsg = shipment.label_url 
         ? 'No manifest found — generating manifest...'
-        : 'No label or manifest found — generating manifest...';
+        : 'No label — generating packing slip...';
       toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated) {
@@ -655,7 +665,7 @@ export default function Scan() {
     if (!shipment.manifest_url) {
       const toastMsg = shipment.label_url 
         ? 'No manifest found — generating manifest...'
-        : 'No manifest found — generating manifest...';
+        : 'No label — generating packing slip...';
       toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated?.manifest_url) {
@@ -688,13 +698,31 @@ export default function Scan() {
         return;
       }
 
-      // Print manifest
-      const manifestJob = createPrintJob(
-        parseInt(printerId),
-        shipment.uid,
-        shipment.manifest_url
-      );
-      const manifestJobId = await submitPrintJob(printnodeApiKey, manifestJob);
+      let manifestJobId: number;
+      
+      // If manifest_url is '__picklist__', generate and print a pick list PDF locally
+      if (shipment.manifest_url === '__picklist__') {
+        const pickListData: PickListData = {
+          buyer: shipment.buyer || 'Unknown',
+          tracking: shipment.tracking || 'N/A',
+          order_id: shipment.order_id,
+          items: [{
+            product_name: shipment.product_name || 'Unknown Product',
+            uid: shipment.uid,
+            quantity: shipment.quantity || 1,
+          }],
+        };
+        const pickListJob = createPickListPrintJob(parseInt(printerId), pickListData);
+        manifestJobId = await submitPrintJob(printnodeApiKey, pickListJob);
+      } else {
+        // Print manifest from URL
+        const manifestJob = createPrintJob(
+          parseInt(printerId),
+          shipment.uid,
+          shipment.manifest_url
+        );
+        manifestJobId = await submitPrintJob(printnodeApiKey, manifestJob);
+      }
 
       // If label_url exists, also print the label
       let labelJobId: number | null = null;
