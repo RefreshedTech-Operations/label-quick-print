@@ -312,6 +312,7 @@ export default function Scan() {
     }
   };
 
+  const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedUid = uid.trim().toUpperCase();
     
