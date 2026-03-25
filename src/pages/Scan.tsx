@@ -1335,11 +1335,6 @@ export default function Scan() {
                 <div>
                   <p className="text-sm text-muted-foreground">Order ID</p>
                   <p className="font-mono text-sm">{selectedShipment.order_id}</p>
-                  {/\d+/.test(selectedShipment.order_id) && (
-                    <p className="font-mono text-2xl font-bold text-primary">
-                      #{selectedShipment.order_id.replace(/\D/g, '')}
-                    </p>
-                  )}
                 </div>
                 {selectedShipment.order_group_id && (
                   <div className="col-span-2">
