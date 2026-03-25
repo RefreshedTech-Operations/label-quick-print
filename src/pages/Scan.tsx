@@ -1463,6 +1463,9 @@ export default function Scan() {
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">Tracking</p>
                     <p className="font-mono text-sm">{selectedShipment.tracking}</p>
+                    {!selectedShipment.label_url && (
+                      <p className="text-xs text-muted-foreground italic mt-1">No label</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1472,29 +1475,29 @@ export default function Scan() {
                 <ChargerWarning items={groupItems} compact channel={selectedShipment.channel} />
               )}
 
-              {(selectedShipment.manifest_url || selectedShipment.bundle) && (
-                <Button
-                  onClick={() => handlePrint(selectedShipment)}
-                  disabled={
-                    printing || 
-                    (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
-                    (selectedShipment.bundle && !isLastInGroup && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
-                    (selectedShipment.bundle && !isLastInGroup && recommendedLocation && !locationAcknowledged)
-                  }
-                  size="lg"
-                  className="w-full"
-                >
-                  <Printer className="h-5 w-5 mr-2" />
-                  {printing 
-                    ? 'Printing...' 
-                    : (selectedShipment.bundle && isLastInGroup) 
-                      ? 'Print Manifest & Clear Location'
-                      : (selectedShipment.bundle && !selectedShipment.group_id_printed) 
-                        ? 'Print Group ID Label' 
-                        : 'Print Label'
-                  }
-                </Button>
-              )}
+              <Button
+                onClick={() => handlePrint(selectedShipment)}
+                disabled={
+                  printing || 
+                  (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
+                  (selectedShipment.bundle && !isLastInGroup && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
+                  (selectedShipment.bundle && !isLastInGroup && recommendedLocation && !locationAcknowledged)
+                }
+                size="lg"
+                className="w-full"
+              >
+                <Printer className="h-5 w-5 mr-2" />
+                {printing 
+                  ? 'Printing...' 
+                  : (selectedShipment.bundle && isLastInGroup) 
+                    ? 'Print Manifest & Clear Location'
+                    : (selectedShipment.bundle && !selectedShipment.group_id_printed) 
+                      ? 'Print Group ID Label' 
+                      : selectedShipment.label_url 
+                        ? 'Print Label + Manifest'
+                        : 'Print Manifest'
+                }
+              </Button>
               
               {/* Show blocking reasons */}
               {selectedShipment.bundle && !selectedShipment.group_id_printed && (
