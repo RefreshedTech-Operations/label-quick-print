@@ -665,7 +665,7 @@ export default function Scan() {
     if (!shipment.manifest_url) {
       const toastMsg = shipment.label_url 
         ? 'No manifest found — generating manifest...'
-        : 'No manifest found — generating manifest...';
+        : 'No label — generating packing slip...';
       toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated?.manifest_url) {
@@ -698,13 +698,31 @@ export default function Scan() {
         return;
       }
 
-      // Print manifest
-      const manifestJob = createPrintJob(
-        parseInt(printerId),
-        shipment.uid,
-        shipment.manifest_url
-      );
-      const manifestJobId = await submitPrintJob(printnodeApiKey, manifestJob);
+      let manifestJobId: number;
+      
+      // If manifest_url is '__picklist__', generate and print a pick list PDF locally
+      if (shipment.manifest_url === '__picklist__') {
+        const pickListData: PickListData = {
+          buyer: shipment.buyer || 'Unknown',
+          tracking: shipment.tracking || 'N/A',
+          order_id: shipment.order_id,
+          items: [{
+            product_name: shipment.product_name || 'Unknown Product',
+            uid: shipment.uid,
+            quantity: shipment.quantity || 1,
+          }],
+        };
+        const pickListJob = createPickListPrintJob(parseInt(printerId), pickListData);
+        manifestJobId = await submitPrintJob(printnodeApiKey, pickListJob);
+      } else {
+        // Print manifest from URL
+        const manifestJob = createPrintJob(
+          parseInt(printerId),
+          shipment.uid,
+          shipment.manifest_url
+        );
+        manifestJobId = await submitPrintJob(printnodeApiKey, manifestJob);
+      }
 
       // If label_url exists, also print the label
       let labelJobId: number | null = null;
