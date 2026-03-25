@@ -260,7 +260,58 @@ export default function Scan() {
     inputRef.current?.focus();
   }, [selectedShipment]);
 
-  const handleScan = async (e: React.FormEvent) => {
+  // Generate manifest via ShipEngine for shipments missing both label_url and manifest_url
+  const generateManifestForShipment = async (shipment: Shipment): Promise<Partial<Shipment> | null> => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        toast.error('No active session. Please sign in again.');
+        return null;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ shipment_id: shipment.id }),
+      });
+
+      const raw = await response.text();
+      let payload: any = {};
+      if (raw) {
+        try { payload = JSON.parse(raw); } catch { payload = { error: raw }; }
+      }
+
+      if (!response.ok || payload?.error) {
+        const msg = payload?.error || `Label generation failed (${response.status})`;
+        toast.error('Failed to generate shipping label', { description: msg });
+        return null;
+      }
+
+      // Re-fetch the shipment to get updated manifest_url
+      const { data: updated } = await supabase
+        .from('shipments')
+        .select('manifest_url, label_url, tracking, shipping_provider, shipping_cost')
+        .eq('id', shipment.id)
+        .single();
+
+      if (!updated?.manifest_url) {
+        toast.error('Label generated but manifest URL not found');
+        return null;
+      }
+
+      toast.success('Shipping label generated');
+      return updated;
+    } catch (err: any) {
+      toast.error('Failed to generate shipping label', { description: err.message });
+      return null;
+    }
+  };
+
     e.preventDefault();
     const trimmedUid = uid.trim().toUpperCase();
     
