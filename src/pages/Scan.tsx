@@ -304,16 +304,23 @@ export default function Scan() {
       return;
     }
 
-    if (!shipment.manifest_url) {
-      setScanStatus({
-        type: 'missing_manifest',
-        message: 'MISSING MANIFEST URL',
-        details: 'This shipment does not have a manifest URL'
-      });
-      addRecentScan(trimmedUid, 'missing_manifest');
-      setSelectedShipment(shipment);
-      setUid('');
-      return;
+    // If no label_url, we'll print manifest only. If manifest is also missing, generate it.
+    if (!shipment.label_url && !shipment.manifest_url) {
+      toast.info('No label or manifest found — generating shipping label...');
+      const generated = await generateManifestForShipment(shipment);
+      if (!generated) {
+        setScanStatus({
+          type: 'missing_manifest',
+          message: 'MANIFEST GENERATION FAILED',
+          details: 'Could not generate a shipping label for this shipment'
+        });
+        addRecentScan(trimmedUid, 'missing_manifest');
+        setSelectedShipment(shipment);
+        setUid('');
+        return;
+      }
+      // Update shipment with the generated data
+      shipment = { ...shipment, ...generated };
     }
 
     // Clear any previous scan status on successful find
