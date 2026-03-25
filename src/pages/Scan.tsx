@@ -749,7 +749,7 @@ export default function Scan() {
         );
       }
 
-      const [updateResult] = await Promise.all(dbOps);
+      const [updateResult] = await Promise.all(promises);
 
       if (updateResult.error) {
         console.error('Failed to update shipment:', updateResult.error);
