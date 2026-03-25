@@ -1378,7 +1378,7 @@ export default function Scan() {
                       rel="noopener noreferrer"
                       className="font-mono text-sm text-primary underline hover:opacity-80"
                     >
-                      {selectedShipment.order_id} ↗
+                      {selectedShipment.order_id}
                     </a>
                   ) : (
                     <p className="font-mono text-sm">{selectedShipment.order_id}</p>
