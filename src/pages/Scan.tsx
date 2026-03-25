@@ -717,7 +717,8 @@ export default function Scan() {
             printed_at: now,
             printed_by_user_id: user.id
           })
-          .eq('id', shipment.id),
+          .eq('id', shipment.id)
+          .select(),
         supabase
           .from('print_jobs')
           .insert({
@@ -730,6 +731,7 @@ export default function Scan() {
             label_url: shipment.manifest_url,
             status: 'done'
           })
+          .select()
       ];
 
       if (labelJobId) {
@@ -746,6 +748,7 @@ export default function Scan() {
               label_url: shipment.label_url,
               status: 'done'
             })
+            .select()
         );
       }
 
