@@ -688,17 +688,28 @@ export default function Scan() {
         return;
       }
 
-      const printJob = createPrintJob(
+      // Print manifest
+      const manifestJob = createPrintJob(
         parseInt(printerId),
         shipment.uid,
         shipment.manifest_url
       );
+      const manifestJobId = await submitPrintJob(printnodeApiKey, manifestJob);
 
-      const jobId = await submitPrintJob(printnodeApiKey, printJob);
+      // If label_url exists, also print the label
+      let labelJobId: number | null = null;
+      if (shipment.label_url) {
+        const labelJob = createPrintJob(
+          parseInt(printerId),
+          shipment.uid,
+          shipment.label_url
+        );
+        labelJobId = await submitPrintJob(printnodeApiKey, labelJob);
+      }
 
-      // Parallelize shipment update + print job log
+      // Parallelize shipment update + print job log(s)
       const now = new Date().toISOString();
-      const [updateResult] = await Promise.all([
+      const dbOps: Promise<any>[] = [
         supabase
           .from('shipments')
           .update({ 
@@ -715,11 +726,30 @@ export default function Scan() {
             uid: shipment.uid,
             order_id: shipment.order_id,
             printer_id: printerId,
-            printnode_job_id: jobId,
+            printnode_job_id: manifestJobId,
             label_url: shipment.manifest_url,
             status: 'done'
           })
-      ]);
+      ];
+
+      if (labelJobId) {
+        dbOps.push(
+          supabase
+            .from('print_jobs')
+            .insert({
+              user_id: user.id,
+              shipment_id: shipment.id,
+              uid: shipment.uid,
+              order_id: shipment.order_id,
+              printer_id: printerId,
+              printnode_job_id: labelJobId,
+              label_url: shipment.label_url,
+              status: 'done'
+            })
+        );
+      }
+
+      const [updateResult] = await Promise.all(dbOps);
 
       if (updateResult.error) {
         console.error('Failed to update shipment:', updateResult.error);
@@ -735,8 +765,9 @@ export default function Scan() {
         ));
       }
       
-      toast.success('Label printed!', {
-        description: `Printed label for ${shipment.uid}`
+      const printedWhat = shipment.label_url ? 'Label + manifest printed!' : 'Manifest printed!';
+      toast.success(printedWhat, {
+        description: `Printed for ${shipment.uid}`
       });
 
 
