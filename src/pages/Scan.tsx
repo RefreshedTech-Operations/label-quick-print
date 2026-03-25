@@ -1371,19 +1371,18 @@ export default function Scan() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Order ID</p>
-                  <p className="font-mono text-sm">
-                    {selectedShipment.order_id}
-                    {selectedShipment.channel === 'tiktok' && (
-                      <a
-                        href={`https://seller-us.tiktok.com/shipment/labels?fulfillment_global_search[]=${encodeURIComponent(selectedShipment.order_id)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-2 text-xs text-primary underline hover:opacity-80"
-                      >
-                        TikTok ↗
-                      </a>
-                    )}
-                  </p>
+                  {selectedShipment.channel === 'tiktok' ? (
+                    <a
+                      href={`https://seller-us.tiktok.com/shipment/labels?fulfillment_global_search[]=${encodeURIComponent(selectedShipment.order_id)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-sm text-primary underline hover:opacity-80"
+                    >
+                      {selectedShipment.order_id} ↗
+                    </a>
+                  ) : (
+                    <p className="font-mono text-sm">{selectedShipment.order_id}</p>
+                  )}
                 </div>
                 {selectedShipment.order_group_id && (
                   <div className="col-span-2">
