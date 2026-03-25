@@ -370,7 +370,7 @@ export default function Scan() {
     if (!shipment.manifest_url) {
       const toastMsg = shipment.label_url 
         ? 'No manifest found — generating manifest...'
-        : 'No label or manifest found — generating manifest...';
+        : 'No label — generating packing slip...';
       toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated) {
