@@ -709,17 +709,15 @@ export default function Scan() {
 
       // Parallelize shipment update + print job log(s)
       const now = new Date().toISOString();
-      const dbOps: Promise<any>[] = [
-        supabase
+      const updatePromise = supabase
           .from('shipments')
           .update({ 
             printed: true, 
             printed_at: now,
             printed_by_user_id: user.id
           })
-          .eq('id', shipment.id)
-          .select(),
-        supabase
+          .eq('id', shipment.id);
+      const manifestLogPromise = supabase
           .from('print_jobs')
           .insert({
             user_id: user.id,
@@ -730,12 +728,12 @@ export default function Scan() {
             printnode_job_id: manifestJobId,
             label_url: shipment.manifest_url,
             status: 'done'
-          })
-          .select()
-      ];
+          });
+
+      const promises = [updatePromise, manifestLogPromise];
 
       if (labelJobId) {
-        dbOps.push(
+        promises.push(
           supabase
             .from('print_jobs')
             .insert({
@@ -747,8 +745,7 @@ export default function Scan() {
               printnode_job_id: labelJobId,
               label_url: shipment.label_url,
               status: 'done'
-            })
-            .select()
+            }) as any
         );
       }
 
