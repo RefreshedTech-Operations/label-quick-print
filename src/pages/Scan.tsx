@@ -356,15 +356,18 @@ export default function Scan() {
       return;
     }
 
-    // If no label_url, we'll print manifest only. If manifest is also missing, generate it.
-    if (!shipment.label_url && !shipment.manifest_url) {
-      toast.info('No label or manifest found — generating shipping label...');
+    // Generate manifest if missing (needed for all print scenarios)
+    if (!shipment.manifest_url) {
+      const toastMsg = shipment.label_url 
+        ? 'No manifest found — generating manifest...'
+        : 'No label or manifest found — generating manifest...';
+      toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated) {
         setScanStatus({
           type: 'missing_manifest',
           message: 'MANIFEST GENERATION FAILED',
-          details: 'Could not generate a shipping label for this shipment'
+          details: 'Could not generate a manifest for this shipment'
         });
         addRecentScan(trimmedUid, 'missing_manifest');
         setSelectedShipment(shipment);
@@ -650,7 +653,10 @@ export default function Scan() {
 
     // If manifest_url is missing, try to generate it
     if (!shipment.manifest_url) {
-      toast.info('No manifest found — generating shipping label...');
+      const toastMsg = shipment.label_url 
+        ? 'No manifest found — generating manifest...'
+        : 'No manifest found — generating manifest...';
+      toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated?.manifest_url) {
         toast.error('Cannot print: Failed to generate manifest');
@@ -682,26 +688,36 @@ export default function Scan() {
         return;
       }
 
-      const printJob = createPrintJob(
+      // Print manifest
+      const manifestJob = createPrintJob(
         parseInt(printerId),
         shipment.uid,
         shipment.manifest_url
       );
+      const manifestJobId = await submitPrintJob(printnodeApiKey, manifestJob);
 
-      const jobId = await submitPrintJob(printnodeApiKey, printJob);
+      // If label_url exists, also print the label
+      let labelJobId: number | null = null;
+      if (shipment.label_url) {
+        const labelJob = createPrintJob(
+          parseInt(printerId),
+          shipment.uid,
+          shipment.label_url
+        );
+        labelJobId = await submitPrintJob(printnodeApiKey, labelJob);
+      }
 
-      // Parallelize shipment update + print job log
+      // Parallelize shipment update + print job log(s)
       const now = new Date().toISOString();
-      const [updateResult] = await Promise.all([
-        supabase
+      const updatePromise = supabase
           .from('shipments')
           .update({ 
             printed: true, 
             printed_at: now,
             printed_by_user_id: user.id
           })
-          .eq('id', shipment.id),
-        supabase
+          .eq('id', shipment.id);
+      const manifestLogPromise = supabase
           .from('print_jobs')
           .insert({
             user_id: user.id,
@@ -709,11 +725,31 @@ export default function Scan() {
             uid: shipment.uid,
             order_id: shipment.order_id,
             printer_id: printerId,
-            printnode_job_id: jobId,
+            printnode_job_id: manifestJobId,
             label_url: shipment.manifest_url,
             status: 'done'
-          })
-      ]);
+          });
+
+      const promises = [updatePromise, manifestLogPromise];
+
+      if (labelJobId) {
+        promises.push(
+          supabase
+            .from('print_jobs')
+            .insert({
+              user_id: user.id,
+              shipment_id: shipment.id,
+              uid: shipment.uid,
+              order_id: shipment.order_id,
+              printer_id: printerId,
+              printnode_job_id: labelJobId,
+              label_url: shipment.label_url,
+              status: 'done'
+            }) as any
+        );
+      }
+
+      const [updateResult] = await Promise.all(promises);
 
       if (updateResult.error) {
         console.error('Failed to update shipment:', updateResult.error);
@@ -729,8 +765,9 @@ export default function Scan() {
         ));
       }
       
-      toast.success('Label printed!', {
-        description: `Printed label for ${shipment.uid}`
+      const printedWhat = shipment.label_url ? 'Label + manifest printed!' : 'Manifest printed!';
+      toast.success(printedWhat, {
+        description: `Printed for ${shipment.uid}`
       });
 
 
@@ -1426,6 +1463,9 @@ export default function Scan() {
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">Tracking</p>
                     <p className="font-mono text-sm">{selectedShipment.tracking}</p>
+                    {!selectedShipment.label_url && (
+                      <p className="text-xs text-muted-foreground italic mt-1">No label</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1435,29 +1475,29 @@ export default function Scan() {
                 <ChargerWarning items={groupItems} compact channel={selectedShipment.channel} />
               )}
 
-              {(selectedShipment.manifest_url || selectedShipment.bundle) && (
-                <Button
-                  onClick={() => handlePrint(selectedShipment)}
-                  disabled={
-                    printing || 
-                    (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
-                    (selectedShipment.bundle && !isLastInGroup && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
-                    (selectedShipment.bundle && !isLastInGroup && recommendedLocation && !locationAcknowledged)
-                  }
-                  size="lg"
-                  className="w-full"
-                >
-                  <Printer className="h-5 w-5 mr-2" />
-                  {printing 
-                    ? 'Printing...' 
-                    : (selectedShipment.bundle && isLastInGroup) 
-                      ? 'Print Manifest & Clear Location'
-                      : (selectedShipment.bundle && !selectedShipment.group_id_printed) 
-                        ? 'Print Group ID Label' 
-                        : 'Print Label'
-                  }
-                </Button>
-              )}
+              <Button
+                onClick={() => handlePrint(selectedShipment)}
+                disabled={
+                  printing || 
+                  (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
+                  (selectedShipment.bundle && !isLastInGroup && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
+                  (selectedShipment.bundle && !isLastInGroup && recommendedLocation && !locationAcknowledged)
+                }
+                size="lg"
+                className="w-full"
+              >
+                <Printer className="h-5 w-5 mr-2" />
+                {printing 
+                  ? 'Printing...' 
+                  : (selectedShipment.bundle && isLastInGroup) 
+                    ? 'Print Manifest & Clear Location'
+                    : (selectedShipment.bundle && !selectedShipment.group_id_printed) 
+                      ? 'Print Group ID Label' 
+                      : selectedShipment.label_url 
+                        ? 'Print Label + Manifest'
+                        : 'Print Manifest'
+                }
+              </Button>
               
               {/* Show blocking reasons */}
               {selectedShipment.bundle && !selectedShipment.group_id_printed && (
