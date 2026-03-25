@@ -266,7 +266,7 @@ export default function Scan() {
     
     if (!trimmedUid) return;
 
-    const shipment = await findShipmentByUid(trimmedUid);
+    let shipment = await findShipmentByUid(trimmedUid);
 
     if (!shipment) {
       setScanStatus({
