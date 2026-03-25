@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.search_all_shipments(text, text, boolean, text, integer, integer, boolean, text);
