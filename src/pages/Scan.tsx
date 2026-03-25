@@ -605,7 +605,8 @@ export default function Scan() {
     }
   };
 
-  const handlePrint = async (shipment: Shipment) => {
+  const handlePrint = async (shipmentArg: Shipment) => {
+    let shipment = shipmentArg;
     // For bundle items, check if this is the last item in the group
     if (shipment.bundle) {
       if (!shipment.order_group_id) {
