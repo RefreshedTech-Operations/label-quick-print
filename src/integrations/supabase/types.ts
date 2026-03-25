@@ -1053,48 +1053,6 @@ export type Database = {
               user_id: string
             }[]
           }
-        | {
-            Args: {
-              p_channel?: string
-              p_filter?: string
-              p_include_archive?: boolean
-              p_limit?: number
-              p_offset?: number
-              p_printed?: boolean
-              p_show_date?: string
-              search_term?: string
-            }
-            Returns: {
-              address_full: string
-              bundle: boolean
-              buyer: string
-              cancelled: string
-              channel: string
-              created_at: string
-              group_id_printed: boolean
-              group_id_printed_at: string
-              group_id_printed_by_email: string
-              group_id_printed_by_user_id: string
-              id: string
-              is_archived: boolean
-              label_url: string
-              location_id: string
-              manifest_url: string
-              order_group_id: string
-              order_id: string
-              price: string
-              printed: boolean
-              printed_at: string
-              printed_by_email: string
-              printed_by_user_id: string
-              product_name: string
-              quantity: number
-              show_date: string
-              tracking: string
-              uid: string
-              user_id: string
-            }[]
-          }
       search_shipments:
         | {
             Args: {
