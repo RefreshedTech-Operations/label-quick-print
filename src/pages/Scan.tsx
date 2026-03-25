@@ -356,15 +356,18 @@ export default function Scan() {
       return;
     }
 
-    // If no label_url, we'll print manifest only. If manifest is also missing, generate it.
-    if (!shipment.label_url && !shipment.manifest_url) {
-      toast.info('No label or manifest found — generating shipping label...');
+    // Generate manifest if missing (needed for all print scenarios)
+    if (!shipment.manifest_url) {
+      const toastMsg = shipment.label_url 
+        ? 'No manifest found — generating manifest...'
+        : 'No label or manifest found — generating manifest...';
+      toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated) {
         setScanStatus({
           type: 'missing_manifest',
           message: 'MANIFEST GENERATION FAILED',
-          details: 'Could not generate a shipping label for this shipment'
+          details: 'Could not generate a manifest for this shipment'
         });
         addRecentScan(trimmedUid, 'missing_manifest');
         setSelectedShipment(shipment);
@@ -650,7 +653,10 @@ export default function Scan() {
 
     // If manifest_url is missing, try to generate it
     if (!shipment.manifest_url) {
-      toast.info('No manifest found — generating shipping label...');
+      const toastMsg = shipment.label_url 
+        ? 'No manifest found — generating manifest...'
+        : 'No manifest found — generating manifest...';
+      toast.info(toastMsg);
       const generated = await generateManifestForShipment(shipment);
       if (!generated?.manifest_url) {
         toast.error('Cannot print: Failed to generate manifest');
