@@ -133,6 +133,7 @@ export function normalizeShipmentData(row: any, map: ColumnMap) {
     cancelled: getColumnValue(row, 'cancelled or failed', 'cancelled_or_failed'),
     manifest_url: getColumnValue(row, 'shipment manifest', 'shipment_manifest'),
     bundle,
+    unit_id: getColumnValue(row, 'unit id', 'unit_id') || undefined,
     raw: row
   };
 }

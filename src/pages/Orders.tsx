@@ -1670,6 +1670,9 @@ export default function Orders() {
                         ) : (
                           <HighlightText text={shipment.order_id} searchTerm={debouncedSearch} />
                         )}</div>
+                        {(shipment as any).unit_id && (
+                          <div className="font-mono break-all">Unit: <HighlightText text={(shipment as any).unit_id} searchTerm={debouncedSearch} /></div>
+                        )}
                       </div>
                     </div>
                   </TableCell>

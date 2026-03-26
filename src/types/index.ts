@@ -44,6 +44,7 @@ export interface Shipment {
   group_id_printed_by?: { email: string };
   group_id_printed_by_email?: string;
   show_date?: string;
+  unit_id?: string;
   created_at: string;
 }
 
