@@ -50,7 +50,10 @@ export default function Scan() {
   const [kitItemsToGather, setKitItemsToGather] = useState<{ product_name: string; quantity: number }[]>([]);
   const [pendingKitConfirmation, setPendingKitConfirmation] = useState(false);
   const [scanStatus, setScanStatus] = useState<ScanStatus>(null);
+  const [editingUid, setEditingUid] = useState('');
+  const [uidRequired, setUidRequired] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const uidInputRef = useRef<HTMLInputElement>(null);
   const cachedUserRef = useRef<{ id: string } | null>(null);
   const navigate = useNavigate();
   
