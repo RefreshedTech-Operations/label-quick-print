@@ -261,7 +261,7 @@ export default function Orders() {
   // React Query automatically cancels in-flight requests when queryKey changes
   // GUARD: Wait for show date to be auto-selected OR user explicitly enables "All Shows"
   const { data: shipmentsResponse, isLoading: loading } = useQuery({
-    queryKey: ['shipments', currentPage, effectiveFilter, showDateFilter, debouncedSearch, pageSize, includeArchive, channelFilter],
+    queryKey: ['shipments', currentPage, effectiveFilter, showDateFilter, debouncedSearch, pageSize, includeArchive, channelFilter, strictSearch],
     queryFn: async ({ signal }) => { // signal is automatically provided by React Query
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -282,12 +282,13 @@ export default function Orders() {
         .rpc('search_all_shipments', {
           search_term: debouncedSearch.trim() || null,
           p_show_date: showDateFilter || null,
-          p_printed: null, // Keep for backward compatibility
+          p_printed: null,
           p_filter: effectiveFilter,
           p_limit: pageSize,
           p_offset: (currentPage - 1) * pageSize,
           p_include_archive: includeArchive,
-          p_channel: channelFilter || null
+          p_channel: channelFilter || null,
+          p_strict: strictSearch
         });
 
       if (searchError) throw searchError;
@@ -302,16 +303,17 @@ export default function Orders() {
   // Separate query for aggregate stats (counts all records, not just current page)
   // PHASE 2: Lazy stats loading - only loads when enabled, with manual refresh button
   const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery({
-    queryKey: ['shipments-stats', showDateFilter, effectiveFilter, includeArchive, channelFilter],
+    queryKey: ['shipments-stats', showDateFilter, effectiveFilter, includeArchive, channelFilter, strictSearch],
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc('get_shipments_stats_with_archive', {
-          search_term: search.trim() || null, // Use instant search (no debounce) for filters
+          search_term: search.trim() || null,
           p_show_date: showDateFilter || null,
           p_printed: null,
           p_filter: effectiveFilter,
           p_include_archive: includeArchive,
-          p_channel: channelFilter || null
+          p_channel: channelFilter || null,
+          p_strict: strictSearch
         })
         .single();
 
@@ -1307,7 +1309,7 @@ export default function Orders() {
       <div className="flex gap-4 items-center flex-wrap">
         <div className="relative flex-1 min-w-[300px]">
           <Input
-            placeholder="Search by UID, Order ID, Buyer, Tracking, Location..."
+            placeholder={strictSearch ? "Exact match by UID, Order ID, Buyer, Tracking, Unit ID, Location..." : "Search by UID, Order ID, Buyer, Tracking, Location..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pr-10"
@@ -1315,6 +1317,16 @@ export default function Orders() {
           {loading && debouncedSearch && (
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
           )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={strictSearch}
+            onCheckedChange={setStrictSearch}
+            id="strict-search"
+          />
+          <label htmlFor="strict-search" className="text-sm font-medium cursor-pointer select-none">
+            Strict
+          </label>
         </div>
           <ShowDateFilter
             selectedDate={showDateFilter}
