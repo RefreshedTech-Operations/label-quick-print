@@ -336,6 +336,7 @@ export type Database = {
           show_date: string | null
           tracking: string | null
           uid: string | null
+          unit_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -378,6 +379,7 @@ export type Database = {
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
+          unit_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -420,6 +422,7 @@ export type Database = {
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
+          unit_id?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -481,6 +484,7 @@ export type Database = {
           show_date: string | null
           tracking: string | null
           uid: string | null
+          unit_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -524,6 +528,7 @@ export type Database = {
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
+          unit_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -567,6 +572,7 @@ export type Database = {
           show_date?: string | null
           tracking?: string | null
           uid?: string | null
+          unit_id?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -784,6 +790,7 @@ export type Database = {
           show_date: string | null
           tracking: string | null
           uid: string | null
+          unit_id: string | null
           user_id: string | null
         }[]
         SetofOptions: {
@@ -1010,6 +1017,7 @@ export type Database = {
           show_date: string
           tracking: string
           uid: string
+          unit_id: string
           user_id: string
         }[]
       }
