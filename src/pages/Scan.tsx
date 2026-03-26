@@ -209,16 +209,17 @@ export default function Scan() {
 
   const findShipmentByUid = async (uid: string): Promise<Shipment | null> => {
     const upperUid = uid.toUpperCase();
-    
-    // Single RPC call does exact → prefix → suffix on the server
+
+    // Server does strict UID + Unit ID matching; enforce unprinted-only client-side as well
     const { data, error } = await supabase.rpc('find_shipment_by_uid', { p_uid: upperUid });
-    
+
     if (error) {
       console.error('Failed to find shipment:', error);
       return null;
     }
-    
-    return (data && data.length > 0) ? data[0] as Shipment : null;
+
+    const candidates = (data || []) as Shipment[];
+    return candidates.find((item) => !item.printed) || null;
   };
 
   // Load printer ID from cookie on mount
