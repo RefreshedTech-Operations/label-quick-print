@@ -26,6 +26,7 @@ export interface Shipment {
   product_name: string;
   quantity?: number;
   price?: string;
+  shipping_cost?: number | null;
   cancelled?: string;
   manifest_url?: string;
   bundle?: boolean;
