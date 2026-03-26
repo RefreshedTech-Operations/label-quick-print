@@ -391,6 +391,14 @@ export default function Scan() {
       shipment = { ...shipment, ...generated };
     }
 
+    // Check if UID is missing but unit_id is present
+    if (shipment.unit_id && !shipment.uid) {
+      setUidRequired(true);
+      setEditingUid('');
+    } else {
+      setUidRequired(false);
+    }
+
     // Clear any previous scan status on successful find
     setScanStatus(null);
 
@@ -621,8 +629,36 @@ export default function Scan() {
     }
   };
 
+  const handleSaveUid = async () => {
+    if (!selectedShipment) return;
+    const newUid = editingUid.trim().toUpperCase();
+    if (!newUid) {
+      toast.error('Please enter a UID');
+      return;
+    }
+    const { error } = await supabase
+      .from('shipments')
+      .update({ uid: newUid })
+      .eq('id', selectedShipment.id);
+    if (error) {
+      toast.error('Failed to save UID');
+      console.error('Save UID error:', error);
+      return;
+    }
+    setSelectedShipment({ ...selectedShipment, uid: newUid });
+    setUidRequired(false);
+    toast.success(`UID saved: ${newUid}`);
+    // Also update groupItems if this shipment is in the list
+    setGroupItems(prev => prev.map(item => item.id === selectedShipment.id ? { ...item, uid: newUid } : item));
+  };
+
   const handlePrint = async (shipmentArg: Shipment) => {
     let shipment = shipmentArg;
+    // Block print if UID is required but not yet saved
+    if (shipment.unit_id && !shipment.uid) {
+      toast.error('Please enter and save a UID first');
+      return;
+    }
     // For bundle items, check if this is the last item in the group
     if (shipment.bundle) {
       if (!shipment.order_group_id) {
@@ -1397,8 +1433,32 @@ export default function Scan() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">UID</p>
-                  <p className="font-mono font-bold text-sm">{selectedShipment.uid}</p>
+                  <p className="text-sm text-muted-foreground">
+                    UID {uidRequired && <span className="text-destructive">* Required</span>}
+                  </p>
+                  {uidRequired ? (
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        ref={uidInputRef}
+                        value={editingUid}
+                        onChange={(e) => setEditingUid(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveUid();
+                          }
+                        }}
+                        placeholder="Enter UID..."
+                        className="h-9 font-mono"
+                        autoFocus
+                      />
+                      <Button size="sm" onClick={handleSaveUid} disabled={!editingUid.trim()}>
+                        Save
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="font-mono font-bold text-sm">{selectedShipment.uid}</p>
+                  )}
                 </div>
                 {selectedShipment.unit_id && (
                   <div>
