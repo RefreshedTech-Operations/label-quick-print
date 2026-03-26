@@ -1,28 +1,34 @@
 
 
-## Add Editable UID Field When Unit ID Present but UID Missing
+## Add Strict/Fuzzy Search Toggle to Orders Page
 
-**What changes**: When a shipment is found via `unit_id` and the `uid` field is empty, show an editable UID input field that the user must fill in before printing.
+**What changes**: Add a Switch next to the search bar that defaults to "Strict" search mode. When strict, search uses exact equality matching on key fields (uid, order_id, buyer, tracking, unit_id, location_id). When toggled off (fuzzy), it uses the current ILIKE/full-text search behavior.
 
 ### Steps
 
-**1. Add state for editable UID** (`src/pages/Scan.tsx`)
-- Add `editingUid` state and `uidRequired` flag
-- After a shipment is found in `handleScan`, if `selectedShipment.unit_id` is set and `selectedShipment.uid` is empty/null, set `uidRequired = true`
-- Block printing until UID is entered and saved
+**1. Add `p_strict` parameter to `search_all_shipments` RPC** (database migration)
+- Add `p_strict boolean DEFAULT true` parameter
+- When `p_strict = true`, replace the fuzzy ILIKE/tsquery search block with exact equality checks:
+  ```sql
+  UPPER(TRIM(cs.uid)) = UPPER(TRIM(search_term))
+  OR UPPER(TRIM(cs.order_id)) = UPPER(TRIM(search_term))
+  OR UPPER(TRIM(cs.buyer)) = UPPER(TRIM(search_term))
+  OR UPPER(TRIM(cs.tracking)) = UPPER(TRIM(search_term))
+  OR UPPER(TRIM(cs.unit_id)) = UPPER(TRIM(search_term))
+  OR UPPER(TRIM(cs.location_id)) = UPPER(TRIM(search_term))
+  ```
+- When `p_strict = false`, keep existing fuzzy logic (ILIKE + tsquery)
+- Do the same for `get_shipments_stats_with_archive` if it also has a search_term parameter
 
-**2. Update the shipment detail display** (`src/pages/Scan.tsx`, ~line 1396)
-- Replace the static UID display with conditional logic:
-  - If `uidRequired` (unit_id exists, uid is empty): show an `<Input>` field with a "Save UID" button, marked as required
-  - Otherwise: show the current static display
-- On save, update the shipment in the database (`supabase.from('shipments').update({ uid: newUid })`) and update local state
-
-**3. Block print until UID is filled** (`src/pages/Scan.tsx`)
-- In `handlePrint`, add a check: if the shipment has `unit_id` but no `uid`, show a toast error ("Please enter a UID first") and return early
-- Also disable the Print button visually when UID is required but not yet entered
+**2. Add strict search state and UI toggle** (`src/pages/Orders.tsx`)
+- Add `const [strictSearch, setStrictSearch] = useState(true)`
+- Next to the search Input (~line 1306), add a Switch with a label like "Strict"
+- Pass `p_strict: strictSearch` to both the `search_all_shipments` and `get_shipments_stats_with_archive` RPC calls
+- Add `strictSearch` to the React Query keys so toggling triggers a refetch
+- Update search placeholder text to reflect mode (e.g. "Exact match by UID, Order ID..." vs "Search by UID, Order ID...")
 
 ### Technical details
-- The editable UID input should trim and uppercase the value before saving (consistent with existing UID conventions)
-- After saving, update `selectedShipment` state with the new `uid` and clear `uidRequired`
-- Auto-focus the UID input when it appears
+- The `search_all_shipments` function currently has 8 parameters — adding `p_strict` makes 9. The old function signature must be dropped first.
+- The stats RPC needs the same parameter for consistency.
+- Switch defaults to `true` (strict) per user request.
 
