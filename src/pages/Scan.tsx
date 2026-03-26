@@ -636,6 +636,14 @@ export default function Scan() {
       toast.error('Please enter a UID');
       return;
     }
+    if (newUid.length < 5) {
+      toast.error('UID must be at least 5 characters');
+      return;
+    }
+    if (selectedShipment.unit_id && newUid === selectedShipment.unit_id.trim().toUpperCase()) {
+      toast.error('UID cannot be the same as the Unit ID');
+      return;
+    }
     const { error } = await supabase
       .from('shipments')
       .update({ uid: newUid })
@@ -1452,9 +1460,12 @@ export default function Scan() {
                         className="h-9 font-mono"
                         autoFocus
                       />
-                      <Button size="sm" onClick={handleSaveUid} disabled={!editingUid.trim()}>
+                      <Button size="sm" onClick={handleSaveUid} disabled={editingUid.trim().length < 5}>
                         Save
                       </Button>
+                      {editingUid.trim().length > 0 && editingUid.trim().length < 5 && (
+                        <p className="text-xs text-destructive mt-1">Min 5 characters</p>
+                      )}
                     </div>
                   ) : (
                     <p className="font-mono font-bold text-sm">{selectedShipment.uid}</p>
