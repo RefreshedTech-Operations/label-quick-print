@@ -583,6 +583,7 @@ export default function Upload() {
                           <td className="border p-2 text-center">
                             {normalized.label_url ? '✓' : '✗'}
                           </td>
+                          <td className="border p-2 font-mono whitespace-nowrap">{normalized.unit_id || '-'}</td>
                           <td className="border p-2 text-center">
                             {normalized.manifest_url ? '✓' : '✗'}
                           </td>
