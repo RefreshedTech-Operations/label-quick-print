@@ -5,15 +5,15 @@ import { DateRange } from 'react-day-picker';
 
 export function exportFilteredOrders(shipments: Shipment[], dateRange: DateRange) {
   const csvData = shipments.map(shipment => ({
-    'UID': `="${shipment.uid || '-'}"`,
-    'Order ID': `="${shipment.order_id || '-'}"`,
+    'UID': `\t${shipment.uid || '-'}`,
+    'Order ID': `\t${shipment.order_id || '-'}`,
     'Group ID': shipment.order_group_id || '-',
     'Buyer': shipment.buyer || '-',
     'Product Name': shipment.product_name || '-',
     'Quantity': shipment.quantity || '-',
     'Price': shipment.price || '-',
     'Shipping Cost': shipment.shipping_cost != null ? shipment.shipping_cost : '-',
-    'Tracking': `="${shipment.tracking || '-'}"`,
+    'Tracking': `\t${shipment.tracking || '-'}`,
     'Address': shipment.address_full || '-',
     'Location ID': shipment.location_id || '-',
     'Printed': shipment.printed ? 'Yes' : 'No',
@@ -86,15 +86,15 @@ export function exportOrders(
   }
 ) {
   const csvData = shipments.map(shipment => ({
-    'UID': `="${shipment.uid || '-'}"`,
-    'Order ID': `="${shipment.order_id || '-'}"`,
+    'UID': `\t${shipment.uid || '-'}`,
+    'Order ID': `\t${shipment.order_id || '-'}`,
     'Group ID': shipment.order_group_id || '-',
     'Buyer': shipment.buyer || '-',
     'Product Name': shipment.product_name || '-',
     'Quantity': shipment.quantity || '-',
     'Price': shipment.price || '-',
     'Shipping Cost': shipment.shipping_cost != null ? shipment.shipping_cost : '-',
-    'Tracking': `="${shipment.tracking || '-'}"`,
+    'Tracking': `\t${shipment.tracking || '-'}`,
     'Address': shipment.address_full || '-',
     'Location ID': shipment.location_id || '-',
     'Printed': shipment.printed ? 'Yes' : 'No',
