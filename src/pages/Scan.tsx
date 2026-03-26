@@ -1397,6 +1397,12 @@ export default function Scan() {
                   <p className="text-sm text-muted-foreground">UID</p>
                   <p className="font-mono font-bold text-sm">{selectedShipment.uid}</p>
                 </div>
+                {selectedShipment.unit_id && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Unit ID</p>
+                    <p className="font-mono font-bold text-sm">{selectedShipment.unit_id}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-muted-foreground">Order ID</p>
                   {selectedShipment.channel === 'tiktok' ? (
