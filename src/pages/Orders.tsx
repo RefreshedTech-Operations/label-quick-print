@@ -1657,7 +1657,7 @@ export default function Orders() {
                         className="h-9 text-sm font-mono font-semibold"
                       />
                       <div className="text-xs text-muted-foreground">
-                        <div className="font-mono break-all">Order: {shipment.channel === 'tiktok' ? (
+                        <div className="font-mono break-all">Order: {(shipment as any).channel === 'tiktok' ? (
                           <a
                             href={`https://seller-us.tiktok.com/shipment/labels?fulfillment_global_search[]=${shipment.order_id}`}
                             target="_blank"
