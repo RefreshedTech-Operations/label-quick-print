@@ -953,6 +953,7 @@ export type Database = {
               p_include_archive?: boolean
               p_printed?: boolean
               p_show_date?: string
+              p_strict?: boolean
               search_term?: string
             }
             Returns: {
@@ -987,6 +988,7 @@ export type Database = {
           p_offset?: number
           p_printed?: boolean
           p_show_date?: string
+          p_strict?: boolean
           search_term?: string
         }
         Returns: {
