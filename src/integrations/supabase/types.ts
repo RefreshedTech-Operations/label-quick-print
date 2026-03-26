@@ -1016,6 +1016,7 @@ export type Database = {
           printed_by_user_id: string
           product_name: string
           quantity: number
+          shipping_cost: number
           show_date: string
           tracking: string
           uid: string
