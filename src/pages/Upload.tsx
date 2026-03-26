@@ -554,6 +554,7 @@ export default function Upload() {
                       <th className="border p-2 whitespace-nowrap">Address</th>
                       <th className="border p-2 whitespace-nowrap">Cancelled</th>
                       <th className="border p-2 whitespace-nowrap">Label URL</th>
+                      <th className="border p-2 whitespace-nowrap">Unit ID</th>
                       <th className="border p-2 whitespace-nowrap">Manifest URL</th>
                     </tr>
                   </thead>
@@ -582,6 +583,7 @@ export default function Upload() {
                           <td className="border p-2 text-center">
                             {normalized.label_url ? '✓' : '✗'}
                           </td>
+                          <td className="border p-2 font-mono whitespace-nowrap">{normalized.unit_id || '-'}</td>
                           <td className="border p-2 text-center">
                             {normalized.manifest_url ? '✓' : '✗'}
                           </td>
