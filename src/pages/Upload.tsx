@@ -554,6 +554,7 @@ export default function Upload() {
                       <th className="border p-2 whitespace-nowrap">Address</th>
                       <th className="border p-2 whitespace-nowrap">Cancelled</th>
                       <th className="border p-2 whitespace-nowrap">Label URL</th>
+                      <th className="border p-2 whitespace-nowrap">Unit ID</th>
                       <th className="border p-2 whitespace-nowrap">Manifest URL</th>
                     </tr>
                   </thead>
