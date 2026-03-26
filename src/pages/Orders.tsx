@@ -104,6 +104,7 @@ export default function Orders() {
   const [includeArchive, setIncludeArchive] = useState(false);
   const [nonBundledSubFilter, setNonBundledSubFilter] = useState<'all' | 'unprinted'>('all');
   const [channelFilter, setChannelFilter] = useState<string | undefined>(undefined);
+  const [strictSearch, setStrictSearch] = useState(true);
 
   // Reset sub-filter when main filter changes away from non_bundled
   useEffect(() => {
