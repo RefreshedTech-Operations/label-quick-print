@@ -1587,6 +1587,7 @@ export default function Scan() {
                 onClick={() => handlePrint(selectedShipment)}
                 disabled={
                   printing || 
+                  uidRequired ||
                   (selectedShipment.bundle && selectedShipment.group_id_printed && !isLastInGroup) ||
                   (selectedShipment.bundle && !isLastInGroup && !selectedShipment.group_id_printed && (!selectedShipment.location_id || selectedShipment.location_id.trim() === '')) ||
                   (selectedShipment.bundle && !isLastInGroup && recommendedLocation && !locationAcknowledged)
