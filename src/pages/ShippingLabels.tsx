@@ -32,7 +32,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download, Link } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ShowDateFilter } from '@/components/ShowDateFilter';
 
@@ -1005,6 +1005,9 @@ function LabelLookupTab() {
   const [results, setResults] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkDialog, setLinkDialog] = useState<{ open: boolean; label: any | null }>({ open: false, label: null });
+  const [linkOrderId, setLinkOrderId] = useState('');
+  const [linking, setLinking] = useState(false);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -1052,6 +1055,52 @@ function LabelLookupTab() {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch {
       toast.error('Failed to download label');
+    }
+  };
+
+  const handleLinkToOrder = async () => {
+    if (!linkOrderId.trim() || !linkDialog.label) return;
+    setLinking(true);
+    try {
+      const label = linkDialog.label;
+      const pdfUrl = label.label_download?.pdf || label.label_download?.href || null;
+
+      // Find shipments matching this order_id
+      const { data: shipments, error: fetchErr } = await supabase
+        .from('shipments')
+        .select('id')
+        .eq('order_id', linkOrderId.trim())
+        .limit(100);
+
+      if (fetchErr) throw fetchErr;
+      if (!shipments || shipments.length === 0) {
+        toast.error(`No shipments found for order "${linkOrderId.trim()}"`);
+        setLinking(false);
+        return;
+      }
+
+      const ids = shipments.map(s => s.id);
+      const { error: updateErr } = await supabase
+        .from('shipments')
+        .update({
+          tracking: label.tracking_number || null,
+          label_url: pdfUrl,
+          manifest_url: pdfUrl,
+          shipengine_label_id: label.label_id || null,
+          shipping_provider: label.carrier_code || null,
+          shipping_cost: label.shipment_cost?.amount != null ? Number(label.shipment_cost.amount) : null,
+        })
+        .in('id', ids);
+
+      if (updateErr) throw updateErr;
+
+      toast.success(`Linked label to ${shipments.length} shipment(s) for order "${linkOrderId.trim()}"`);
+      setLinkDialog({ open: false, label: null });
+      setLinkOrderId('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to link label');
+    } finally {
+      setLinking(false);
     }
   };
 
@@ -1117,7 +1166,7 @@ function LabelLookupTab() {
                   <TableHead>Ship Date</TableHead>
                   <TableHead>Cost</TableHead>
                   <TableHead>Recipient</TableHead>
-                  <TableHead className="w-[80px]">PDF</TableHead>
+                  <TableHead className="w-[120px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1148,11 +1197,32 @@ function LabelLookupTab() {
                       <TableCell className="text-xs">{cost}</TableCell>
                       <TableCell className="text-xs max-w-[160px] truncate">{recipient || '—'}</TableCell>
                       <TableCell>
-                        {pdfUrl ? (
-                          <Button size="sm" variant="ghost" onClick={() => handleDownloadPdf(pdfUrl)}>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        ) : '—'}
+                        <div className="flex gap-1">
+                          {pdfUrl && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="ghost" onClick={() => handleDownloadPdf(pdfUrl)}>
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Download PDF</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {!label.voided && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="ghost" onClick={() => { setLinkDialog({ open: true, label }); setLinkOrderId(''); }}>
+                                    <Link className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Link to Order</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -1162,6 +1232,41 @@ function LabelLookupTab() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={linkDialog.open} onOpenChange={(open) => { if (!open) setLinkDialog({ open: false, label: null }); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Link Label to Order</DialogTitle>
+            <DialogDescription>
+              Enter the order number to attach this label's tracking, PDF, cost, and carrier data to the matching shipment(s).
+              {linkDialog.label && (
+                <span className="block mt-2 font-mono text-xs text-foreground">
+                  Label: {linkDialog.label.label_id} — {linkDialog.label.tracking_number || 'No tracking'}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label htmlFor="link-order-id">Order Number</Label>
+              <Input
+                id="link-order-id"
+                placeholder="Enter order number..."
+                value={linkOrderId}
+                onChange={e => setLinkOrderId(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLinkToOrder()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkDialog({ open: false, label: null })}>Cancel</Button>
+            <Button onClick={handleLinkToOrder} disabled={linking || !linkOrderId.trim()}>
+              {linking && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Link to Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
