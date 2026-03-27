@@ -1043,7 +1043,13 @@ function LabelLookupTab() {
       if (!res.ok) { toast.error('Failed to download label'); return; }
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `label.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch {
       toast.error('Failed to download label');
     }
