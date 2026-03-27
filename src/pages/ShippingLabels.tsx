@@ -997,3 +997,165 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     </>
   );
 }
+
+/* ─── Label Lookup Tab ─── */
+function LabelLookupTab() {
+  const [query, setQuery] = useState('');
+  const [searchType, setSearchType] = useState<'tracking' | 'order_id'>('tracking');
+  const [results, setResults] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setError(null);
+    setResults(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) { setError('Not authenticated'); setLoading(false); return; }
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-label-lookup?query=${encodeURIComponent(query.trim())}&search_type=${searchType}`,
+        { headers: { Authorization: `Bearer ${accessToken}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } }
+      );
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Search failed'); setLoading(false); return; }
+      setResults(data.labels || []);
+    } catch (err: any) {
+      setError(err.message || 'Unexpected error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async (pdfUrl: string) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) { toast.error('Not authenticated'); return; }
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-label-download?url=${encodeURIComponent(pdfUrl)}`,
+        { headers: { Authorization: `Bearer ${accessToken}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } }
+      );
+      if (!res.ok) { toast.error('Failed to download label'); return; }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch {
+      toast.error('Failed to download label');
+    }
+  };
+
+  return (
+    <>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Select value={searchType} onValueChange={(v: 'tracking' | 'order_id') => setSearchType(v)}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tracking">Tracking Number</SelectItem>
+                <SelectItem value="order_id">Order ID</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex-1 flex gap-2">
+              <Input
+                placeholder={searchType === 'tracking' ? 'Enter tracking number...' : 'Enter order ID...'}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              />
+              <Button onClick={handleSearch} disabled={loading || !query.trim()}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                Search
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {error && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <span>{error}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {results !== null && results.length === 0 && !loading && (
+        <Card>
+          <CardContent className="pt-6 text-center text-muted-foreground py-12">
+            No labels found for this search.
+          </CardContent>
+        </Card>
+      )}
+
+      {results && results.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Label ID</TableHead>
+                  <TableHead>Tracking #</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Carrier / Service</TableHead>
+                  <TableHead>Ship Date</TableHead>
+                  <TableHead>Cost</TableHead>
+                  <TableHead>Recipient</TableHead>
+                  <TableHead className="w-[80px]">PDF</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {results.map((label: any) => {
+                  const pdfUrl = label.label_download?.pdf || label.label_download?.href;
+                  const shipTo = label.ship_to || {};
+                  const recipient = [shipTo.name, shipTo.city_locality, shipTo.state_province].filter(Boolean).join(', ');
+                  const cost = label.shipment_cost?.amount != null
+                    ? `$${Number(label.shipment_cost.amount).toFixed(2)}`
+                    : '—';
+
+                  return (
+                    <TableRow key={label.label_id}>
+                      <TableCell className="font-mono text-xs">{label.label_id?.slice(0, 12)}...</TableCell>
+                      <TableCell className="font-mono text-xs">{label.tracking_number || '—'}</TableCell>
+                      <TableCell>
+                        {label.voided ? (
+                          <Badge variant="destructive">Voided</Badge>
+                        ) : (
+                          <Badge variant="secondary">{label.status || 'unknown'}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <div>{label.carrier_code || '—'}</div>
+                        <div className="text-muted-foreground">{label.service_code || ''}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">{label.ship_date || '—'}</TableCell>
+                      <TableCell className="text-xs">{cost}</TableCell>
+                      <TableCell className="text-xs max-w-[160px] truncate">{recipient || '—'}</TableCell>
+                      <TableCell>
+                        {pdfUrl ? (
+                          <Button size="sm" variant="ghost" onClick={() => handleDownloadPdf(pdfUrl)}>
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        ) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+}
