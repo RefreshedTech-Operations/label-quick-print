@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.shipengine-backfill-costs]
 verify_jwt = false
+
+[functions.shipengine-label-lookup]
+verify_jwt = false
