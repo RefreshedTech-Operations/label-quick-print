@@ -183,6 +183,12 @@ export default function Upload() {
       if (uploadIsLabelOnly && s.label_url) {
         shipment.manifest_url = s.label_url;
       }
+
+      // Prevent blank values from overwriting existing data on upsert
+      // By deleting the key, Supabase won't touch the existing column value
+      if (!shipment.uid || shipment.uid.trim() === '') delete shipment.uid;
+      if (!shipment.tracking || shipment.tracking.trim() === '') delete shipment.tracking;
+      if (!shipment.unit_id || shipment.unit_id.trim() === '') delete shipment.unit_id;
       
       return shipment;
     });
