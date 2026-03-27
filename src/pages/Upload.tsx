@@ -172,7 +172,35 @@ export default function Upload() {
 
     const formattedShowDate = `${uploadShowDate.getFullYear()}-${String(uploadShowDate.getMonth() + 1).padStart(2, '0')}-${String(uploadShowDate.getDate()).padStart(2, '0')}`;
 
-    const shipmentsWithUser = deduplicatedShipments.map(s => {
+    // Get order_ids of shipments that have already been printed to protect them
+    const allOrderIds = deduplicatedShipments.map(s => s.order_id);
+    const printedOrderIds = new Set<string>();
+    
+    // Check in batches of 500 to avoid query limits
+    for (let i = 0; i < allOrderIds.length; i += 500) {
+      const batch = allOrderIds.slice(i, i + 500);
+      const { data: printedRows } = await supabase
+        .from('shipments')
+        .select('order_id')
+        .in('order_id', batch)
+        .eq('printed', true);
+      
+      printedRows?.forEach(row => printedOrderIds.add(row.order_id));
+    }
+
+    if (printedOrderIds.size > 0) {
+      console.log(`Skipping ${printedOrderIds.size} already-printed shipments to protect data`);
+    }
+
+    const safeShipments = deduplicatedShipments.filter(s => !printedOrderIds.has(s.order_id));
+
+    if (safeShipments.length === 0 && printedOrderIds.size > 0) {
+      const msg = `All ${printedOrderIds.size} shipments already printed — upload skipped to protect existing data`;
+      toast.info('Nothing to upload', { description: msg });
+      return { success: true, message: msg, count: 0 };
+    }
+
+    const shipmentsWithUser = safeShipments.map(s => {
       const shipment = {
         ...s,
         user_id: user.id,
@@ -183,12 +211,6 @@ export default function Upload() {
       if (uploadIsLabelOnly && s.label_url) {
         shipment.manifest_url = s.label_url;
       }
-
-      // Prevent blank values from overwriting existing data on upsert
-      // By deleting the key, Supabase won't touch the existing column value
-      if (!shipment.uid || shipment.uid.trim() === '') delete shipment.uid;
-      if (!shipment.tracking || shipment.tracking.trim() === '') delete shipment.tracking;
-      if (!shipment.unit_id || shipment.unit_id.trim() === '') delete shipment.unit_id;
       
       return shipment;
     });
