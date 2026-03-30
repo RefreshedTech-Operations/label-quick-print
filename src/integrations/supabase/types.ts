@@ -332,6 +332,7 @@ export type Database = {
           search_vector: unknown
           shipengine_label_id: string | null
           shipping_cost: number | null
+          shipping_price: string | null
           shipping_provider: string | null
           show_date: string | null
           tracking: string | null
@@ -375,6 +376,7 @@ export type Database = {
           search_vector?: unknown
           shipengine_label_id?: string | null
           shipping_cost?: number | null
+          shipping_price?: string | null
           shipping_provider?: string | null
           show_date?: string | null
           tracking?: string | null
@@ -418,6 +420,7 @@ export type Database = {
           search_vector?: unknown
           shipengine_label_id?: string | null
           shipping_cost?: number | null
+          shipping_price?: string | null
           shipping_provider?: string | null
           show_date?: string | null
           tracking?: string | null
@@ -480,6 +483,7 @@ export type Database = {
           search_vector: unknown
           shipengine_label_id: string | null
           shipping_cost: number | null
+          shipping_price: string | null
           shipping_provider: string | null
           show_date: string | null
           tracking: string | null
@@ -524,6 +528,7 @@ export type Database = {
           search_vector?: unknown
           shipengine_label_id?: string | null
           shipping_cost?: number | null
+          shipping_price?: string | null
           shipping_provider?: string | null
           show_date?: string | null
           tracking?: string | null
@@ -568,6 +573,7 @@ export type Database = {
           search_vector?: unknown
           shipengine_label_id?: string | null
           shipping_cost?: number | null
+          shipping_price?: string | null
           shipping_provider?: string | null
           show_date?: string | null
           tracking?: string | null
@@ -786,6 +792,7 @@ export type Database = {
           search_vector: unknown
           shipengine_label_id: string | null
           shipping_cost: number | null
+          shipping_price: string | null
           shipping_provider: string | null
           show_date: string | null
           tracking: string | null
