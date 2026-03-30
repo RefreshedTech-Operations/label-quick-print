@@ -134,6 +134,7 @@ export function normalizeShipmentData(row: any, map: ColumnMap) {
     manifest_url: getColumnValue(row, 'shipment manifest', 'shipment_manifest'),
     bundle,
     unit_id: getColumnValue(row, 'unit id', 'unit_id') || undefined,
+    shipping_price: getColumnValue(row, 'shipping price', 'shipping_price') || undefined,
     raw: row
   };
 }
