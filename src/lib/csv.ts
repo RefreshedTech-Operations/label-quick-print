@@ -2,11 +2,48 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ColumnMap } from '@/types';
 
+const normalizedRowCache = new WeakMap<object, Map<string, unknown>>();
+
+function normalizeColumnName(name: string): string {
+  return String(name)
+    .replace(/\uFEFF/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u00A0\s]+/g, ' ')
+    .replace(/[_-]+/g, ' ')
+    .trim();
+}
+
+function getNormalizedRow(row: Record<string, unknown>): Map<string, unknown> {
+  let cached = normalizedRowCache.get(row);
+
+  if (!cached) {
+    cached = new Map(
+      Object.entries(row).map(([key, value]) => [normalizeColumnName(key), value])
+    );
+    normalizedRowCache.set(row, cached);
+  }
+
+  return cached;
+}
+
 // Helper function to get column value by trying multiple possible column names
 function getColumnValue(row: any, ...possibleNames: string[]): string {
+  if (!row || typeof row !== 'object') {
+    return '';
+  }
+
+  const normalizedRow = getNormalizedRow(row as Record<string, unknown>);
+
   for (const name of possibleNames) {
-    if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
-      return row[name].toString().trim();
+    const directValue = row[name];
+    if (directValue !== undefined && directValue !== null && directValue !== '') {
+      return directValue.toString().trim();
+    }
+
+    const normalizedValue = normalizedRow.get(normalizeColumnName(name));
+    if (normalizedValue !== undefined && normalizedValue !== null && normalizedValue !== '') {
+      return normalizedValue.toString().trim();
     }
   }
   return '';
