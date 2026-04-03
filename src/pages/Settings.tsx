@@ -997,10 +997,10 @@ export default function Settings() {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDeleteUpload(upload.created_at, upload.count)}
-                            disabled={deletingUpload === upload.created_at}
+                            onClick={() => handleDeleteUpload(upload)}
+                            disabled={deletingUpload === (upload.upload_id || upload.created_at)}
                           >
-                            {deletingUpload === upload.created_at ? (
+                            {deletingUpload === (upload.upload_id || upload.created_at) ? (
                               'Deleting...'
                             ) : (
                               <>
