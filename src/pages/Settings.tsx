@@ -1001,6 +1001,15 @@ export default function Settings() {
                             <span className="text-muted-foreground text-xs">No show date</span>
                           )}
                         </td>
+                        <td className="p-3">
+                          {upload.channel ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground capitalize">
+                              {upload.channel}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">Mixed</span>
+                          )}
+                        </td>
                         <td className="p-3 text-center">
                           <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-primary/10 text-primary font-medium">
                             {upload.count}
