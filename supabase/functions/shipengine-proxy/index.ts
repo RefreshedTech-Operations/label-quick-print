@@ -438,6 +438,8 @@ Deno.serve(async (req) => {
       label_url: labelUrl,
       tracking_number: trackingNumber,
       shipengine_label_id: shipEngineLabelId,
+      ...(validationWarnings.length > 0 ? { validation_warnings: validationWarnings } : {}),
+      ...(isPOBox ? { po_box_fallback: true } : {}),
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (err) {
