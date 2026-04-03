@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'ShipEngine API key not configured' }), { status: 500, headers: corsHeaders })
     }
 
-    const { shipment_id, override_carrier_id, override_service_code } = await req.json()
+    const { shipment_id, override_carrier_id, override_service_code, skip_validation } = await req.json()
     if (!shipment_id) {
       return new Response(JSON.stringify({ error: 'shipment_id is required' }), { status: 400, headers: corsHeaders })
     }
@@ -267,66 +267,81 @@ Deno.serve(async (req) => {
     }
 
     // --- Address Validation Step ---
-    const valPayload = [{
-      address_line1: shipToAddress.address_line1,
-      ...(shipToAddress.address_line2 ? { address_line2: shipToAddress.address_line2 } : {}),
-      city_locality: shipToAddress.city_locality,
-      state_province: shipToAddress.state_province,
-      postal_code: shipToAddress.postal_code,
-      country_code: shipToAddress.country_code,
-    }]
+    let validationWarnings: string[] = []
 
-    console.log('Validating address:', JSON.stringify(valPayload))
+    if (!skip_validation) {
+      const valPayload = [{
+        address_line1: shipToAddress.address_line1,
+        ...(shipToAddress.address_line2 ? { address_line2: shipToAddress.address_line2 } : {}),
+        city_locality: shipToAddress.city_locality,
+        state_province: shipToAddress.state_province,
+        postal_code: shipToAddress.postal_code,
+        country_code: shipToAddress.country_code,
+      }]
 
-    const valResponse = await fetch('https://api.shipengine.com/v1/addresses/validate', {
-      method: 'POST',
-      headers: {
-        'API-Key': SHIPENGINE_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(valPayload),
-    })
+      console.log('Validating address:', JSON.stringify(valPayload))
 
-    const valData = await valResponse.json()
-    const valResult = valData?.[0]
+      const valResponse = await fetch('https://api.shipengine.com/v1/addresses/validate', {
+        method: 'POST',
+        headers: {
+          'API-Key': SHIPENGINE_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(valPayload),
+      })
 
-    if (valResult) {
-      const valStatus = valResult.status // verified, unverified, warning, error
-      const valMessages = (valResult.messages || []).map((m: any) => m.message).filter(Boolean)
+      const valData = await valResponse.json()
+      const valResult = valData?.[0]
 
-      if (valStatus === 'error' || valStatus === 'unverified') {
-        console.error('Address validation failed:', JSON.stringify(valResult))
-        const detail = valMessages.length > 0 ? valMessages.join(' | ') : 'Address could not be verified'
-        return new Response(
-          JSON.stringify({
-            error: `Address Validation Error: ${detail}`,
-            validation_status: valStatus,
-            messages: valMessages,
-          }),
-          { status: 400, headers: corsHeaders }
-        )
-      }
+      if (valResult) {
+        const valStatus = valResult.status
+        const valMessages = (valResult.messages || []).map((m: any) => m.message).filter(Boolean)
 
-      // Use corrected address from ShipEngine if available
-      const matched = valResult.matched_address
-      if (matched) {
-        shipToAddress.address_line1 = matched.address_line1 || shipToAddress.address_line1
-        if (matched.address_line2) shipToAddress.address_line2 = matched.address_line2
-        shipToAddress.city_locality = matched.city_locality || shipToAddress.city_locality
-        shipToAddress.state_province = matched.state_province || shipToAddress.state_province
-        shipToAddress.postal_code = matched.postal_code || shipToAddress.postal_code
-        shipToAddress.country_code = matched.country_code || shipToAddress.country_code
-      }
+        if (valStatus === 'error' || valStatus === 'unverified') {
+          // Log but proceed anyway - address validation is advisory
+          console.warn('Address validation issue (proceeding anyway):', JSON.stringify(valResult))
+          validationWarnings = valMessages
+        }
 
-      if (valStatus === 'warning') {
-        console.warn('Address validation warnings:', valMessages.join(' | '))
+        // Use corrected address from ShipEngine if available
+        const matched = valResult.matched_address
+        if (matched) {
+          shipToAddress.address_line1 = matched.address_line1 || shipToAddress.address_line1
+          if (matched.address_line2) shipToAddress.address_line2 = matched.address_line2
+          shipToAddress.city_locality = matched.city_locality || shipToAddress.city_locality
+          shipToAddress.state_province = matched.state_province || shipToAddress.state_province
+          shipToAddress.postal_code = matched.postal_code || shipToAddress.postal_code
+          shipToAddress.country_code = matched.country_code || shipToAddress.country_code
+        }
+
+        if (valStatus === 'warning') {
+          console.warn('Address validation warnings:', valMessages.join(' | '))
+          validationWarnings = valMessages
+        }
       }
     }
     // --- End Address Validation ---
 
+    // --- PO Box Detection: auto-switch to USPS if using UPS/FedEx ---
+    const addressText = `${shipToAddress.address_line1 || ''} ${shipToAddress.address_line2 || ''}`.toLowerCase()
+    const isPOBox = /\b(p\.?\s*o\.?\s*box|post\s*office\s*box)\b/i.test(addressText)
+    let actualCarrierId = carrierId
+    let actualServiceCode = serviceCode
+
+    if (isPOBox) {
+      const carrierLower = (carrierId || '').toLowerCase() + (serviceCode || '').toLowerCase()
+      const isNonUSPS = carrierLower.includes('ups') || carrierLower.includes('fedex') || carrierLower.includes('dhl')
+      if (isNonUSPS) {
+        console.warn('PO Box detected with non-USPS carrier, falling back to USPS Priority Mail')
+        // Clear carrier_id so ShipEngine uses the service_code to find the right carrier
+        actualCarrierId = ''
+        actualServiceCode = 'usps_priority_mail'
+      }
+    }
+
     const shipmentPayload: Record<string, unknown> = {
-      ...(carrierId ? { carrier_id: carrierId } : {}),
-      service_code: serviceCode,
+      ...(actualCarrierId ? { carrier_id: actualCarrierId } : {}),
+      service_code: actualServiceCode,
       ship_to: shipToAddress,
       ship_from: {
         name: cfg.ship_from_name || 'Shipping Dept',
@@ -423,6 +438,8 @@ Deno.serve(async (req) => {
       label_url: labelUrl,
       tracking_number: trackingNumber,
       shipengine_label_id: shipEngineLabelId,
+      ...(validationWarnings.length > 0 ? { validation_warnings: validationWarnings } : {}),
+      ...(isPOBox ? { po_box_fallback: true } : {}),
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (err) {
