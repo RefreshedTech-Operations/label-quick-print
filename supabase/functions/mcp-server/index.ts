@@ -8,6 +8,20 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const app = new Hono();
 
+const MCP_API_KEY = Deno.env.get("MCP_API_KEY");
+
+// Auth middleware — require Bearer token matching MCP_API_KEY
+app.use("/*", async (c, next) => {
+  if (!MCP_API_KEY) {
+    return c.json({ error: "MCP_API_KEY not configured on server" }, 500);
+  }
+  const auth = c.req.header("Authorization");
+  if (!auth?.startsWith("Bearer ") || auth.slice(7) !== MCP_API_KEY) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  await next();
+});
+
 const mcpServer = new McpServer({
   name: "label-quick-print",
   version: "1.0.0",
