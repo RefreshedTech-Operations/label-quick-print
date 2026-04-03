@@ -75,8 +75,13 @@ mcpServer.tool("get_shipment_stats", {
   },
   handler: async (args: Record<string, unknown>) => {
     const { data, error } = await supabase.rpc("get_shipments_stats_with_archive", {
+      search_term: "",
       p_show_date: (args.show_date as string) || null,
+      p_printed: null,
+      p_filter: null,
       p_include_archive: false,
+      p_channel: null,
+      p_strict: false,
     });
     if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }] };
     return { content: [{ type: "text" as const, text: JSON.stringify(data?.[0] || data, null, 2) }] };
