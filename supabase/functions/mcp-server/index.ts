@@ -177,9 +177,8 @@ mcpServer.tool("update_customer", {
 });
 
 const transport = new StreamableHttpTransport();
+const handler = transport.bind(mcpServer);
 
-app.all("/*", async (c) => {
-  return await transport.handleRequest(c.req.raw, mcpServer);
-});
+app.all("/*", (c) => handler(c.req.raw));
 
 Deno.serve(app.fetch);
