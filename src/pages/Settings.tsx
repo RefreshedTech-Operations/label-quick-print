@@ -611,13 +611,20 @@ export default function Settings() {
     setDeletingUpload(deleteKey);
     try {
       // Get shipment IDs for this upload
-      let shipmentQuery = supabase.from('shipments').select('id');
+      let shipmentIds: { id: string }[] | null = null;
       if (upload.upload_id) {
-        shipmentQuery = shipmentQuery.eq('upload_id' as any, upload.upload_id);
+        const { data } = await supabase
+          .from('shipments')
+          .select('id')
+          .filter('upload_id', 'eq', upload.upload_id);
+        shipmentIds = data;
       } else {
-        shipmentQuery = shipmentQuery.eq('created_at', upload.created_at);
+        const { data } = await supabase
+          .from('shipments')
+          .select('id')
+          .eq('created_at', upload.created_at);
+        shipmentIds = data;
       }
-      const { data: shipmentIds } = await shipmentQuery;
 
       if (shipmentIds && shipmentIds.length > 0) {
         // Delete related print jobs in batches
