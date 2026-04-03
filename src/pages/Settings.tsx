@@ -78,6 +78,7 @@ export default function Settings() {
 
   // Upload management state
   const [recentUploads, setRecentUploads] = useState<Array<{
+    upload_id: string | null;
     created_at: string;
     count: number;
     user_id: string;
