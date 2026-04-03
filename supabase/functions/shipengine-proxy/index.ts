@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'ShipEngine API key not configured' }), { status: 500, headers: corsHeaders })
     }
 
-    const { shipment_id, override_carrier_id, override_service_code } = await req.json()
+    const { shipment_id, override_carrier_id, override_service_code, skip_validation } = await req.json()
     if (!shipment_id) {
       return new Response(JSON.stringify({ error: 'shipment_id is required' }), { status: 400, headers: corsHeaders })
     }
