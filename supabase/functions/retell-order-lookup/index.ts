@@ -43,23 +43,38 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data, error } = await supabase.rpc("search_all_shipments", {
-      search_term: orderId,
-      p_show_date: null,
-      p_printed: null,
-      p_limit: 10,
-      p_offset: 0,
-      p_include_archive: true,
-    });
+    // Direct indexed query instead of heavy search_all_shipments RPC
+    const { data: liveData, error: liveErr } = await supabase
+      .from("shipments")
+      .select("order_id, uid, buyer, product_name, quantity, price, tracking, shipping_cost, address_full, printed, printed_at, show_date, cancelled, label_url")
+      .eq("order_id", orderId)
+      .limit(10);
 
-    if (error) {
+    if (liveErr) {
       return new Response(
-        JSON.stringify({ error: error.message }),
+        JSON.stringify({ error: liveErr.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (!data || data.length === 0) {
+    // If not found in live, check archive
+    let results = liveData || [];
+    let fromArchive = false;
+
+    if (results.length === 0) {
+      const { data: archiveData, error: archiveErr } = await supabase
+        .from("shipments_archive")
+        .select("order_id, uid, buyer, product_name, quantity, price, tracking, shipping_cost, address_full, printed, printed_at, show_date, cancelled, label_url")
+        .eq("order_id", orderId)
+        .limit(10);
+
+      if (!archiveErr && archiveData && archiveData.length > 0) {
+        results = archiveData;
+        fromArchive = true;
+      }
+    }
+
+    if (results.length === 0) {
       return new Response(
         JSON.stringify({
           found: false,
@@ -69,7 +84,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const orders = data.map((s: any) => ({
+    const orders = results.map((s: any) => ({
       order_id: s.order_id,
       uid: s.uid,
       buyer: s.buyer,
@@ -82,7 +97,7 @@ Deno.serve(async (req) => {
       status: s.printed ? "printed" : "not yet printed",
       printed_at: s.printed_at || null,
       show_date: s.show_date,
-      is_archived: s.is_archived,
+      is_archived: fromArchive,
       is_cancelled: !!s.cancelled,
     }));
 
