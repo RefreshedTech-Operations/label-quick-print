@@ -338,6 +338,7 @@ export type Database = {
           tracking: string | null
           uid: string | null
           unit_id: string | null
+          upload_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -382,6 +383,7 @@ export type Database = {
           tracking?: string | null
           uid?: string | null
           unit_id?: string | null
+          upload_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -426,6 +428,7 @@ export type Database = {
           tracking?: string | null
           uid?: string | null
           unit_id?: string | null
+          upload_id?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -798,6 +801,7 @@ export type Database = {
           tracking: string | null
           uid: string | null
           unit_id: string | null
+          upload_id: string | null
           user_id: string | null
         }[]
         SetofOptions: {
