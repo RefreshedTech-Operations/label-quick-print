@@ -1,44 +1,27 @@
 
 
-## MCP Server for Label Quick Print
+## Fix Upload Management Grouping
 
-Build an MCP server as a Supabase Edge Function using `mcp-lite`, exposing tools to read shipments/orders and manage customers.
+**Problem**: When you upload a file with many shipments, they get inserted in batches of 100. Each batch gets a different `created_at` timestamp from the database, so the Upload Management section shows one upload as multiple separate entries with small counts (e.g., a 500-record upload shows as five 100-record entries).
 
-### Tools to Expose
+**Solution**: Add an `upload_id` column to the `shipments` table. Generate a single UUID per upload session and attach it to every record in that upload. Then group by `upload_id` instead of `created_at` in the Upload Management view.
 
-**Shipments / Orders (read-only)**
-1. `search_shipments` -- Search by order ID, tracking number, buyer name, UID, or free text. Returns matching shipment records with key fields.
-2. `get_shipment` -- Get a single shipment by ID with all details.
-3. `get_shipment_stats` -- Get counts (total, printed, unprinted, exceptions) for a given show date.
+### Changes
 
-**Customers (read + write)**
-4. `list_customers` -- List/search customers by name, email, or phone.
-5. `get_customer` -- Get a single customer by ID.
-6. `create_customer` -- Create a new customer record (name, phone, email, notes).
-7. `update_customer` -- Update an existing customer's fields.
+**1. Database migration** -- Add `upload_id` column to `shipments` table
+```sql
+ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS upload_id uuid;
+CREATE INDEX IF NOT EXISTS idx_shipments_upload_id ON public.shipments(upload_id);
+```
 
-### Technical Approach
+**2. Upload page** (`src/pages/Upload.tsx`) -- Generate one `upload_id` per upload session
+- At the start of `processAndUpload`, generate `const uploadId = crypto.randomUUID()`
+- Include `upload_id: uploadId` on every shipment record sent to the database
+- Also apply to the automation API paths (`__uploadCSV`, `__submitCSV`)
 
-- **Single file**: `supabase/functions/mcp-server/index.ts`
-- **Library**: `mcp-lite` (^0.10.0) with Hono for routing
-- **Auth**: Uses service role key internally (the MCP server itself is the trusted caller). Add `verify_jwt = false` in config.toml since MCP clients authenticate via the MCP protocol, not Supabase JWT.
-- **Database access**: Uses Supabase service client to query `shipments`, `customers`, and call existing RPC functions like `search_all_shipments`.
-- **Config**: Add `[functions.mcp-server]` block to `supabase/config.toml` with `verify_jwt = false`.
-- **Import map**: `deno.json` in the function directory for `mcp-lite` and `hono` dependencies.
-
-### Files
-
-| Action | File |
-|--------|------|
-| Create | `supabase/functions/mcp-server/index.ts` |
-| Update | `supabase/config.toml` (add mcp-server block) |
-
-### Implementation Details
-
-Each tool handler will:
-- Accept validated input parameters (using inline checks)
-- Query the database via the Supabase JS client with the service role key
-- Return structured JSON content blocks
-
-The `search_shipments` tool will leverage the existing `search_all_shipments` RPC for full-text search capability. Customer tools will use direct table queries.
+**3. Settings page** (`src/pages/Settings.tsx`) -- Group by `upload_id` instead of `created_at`
+- Update `loadRecentUploads` to query distinct `upload_id` values with counts, show dates, and timestamps
+- For older records without an `upload_id`, fall back to `created_at` grouping
+- Update `handleDeleteUpload` to delete by `upload_id` instead of `created_at`
+- Show the upload timestamp (from the earliest `created_at` in the group), record count, and show date
 
