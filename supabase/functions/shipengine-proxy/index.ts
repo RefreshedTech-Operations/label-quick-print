@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
         console.warn('PO Box detected with non-USPS carrier, falling back to USPS Priority Mail')
         // Clear carrier_id so ShipEngine uses the service_code to find the right carrier
         actualCarrierId = ''
-        actualServiceCode = 'usps_priority_mail'
+        actualServiceCode = 'usps_ground_advantage'
       }
     }
 
