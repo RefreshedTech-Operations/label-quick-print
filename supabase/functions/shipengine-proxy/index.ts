@@ -340,8 +340,8 @@ Deno.serve(async (req) => {
     }
 
     const shipmentPayload: Record<string, unknown> = {
-      ...(carrierId ? { carrier_id: carrierId } : {}),
-      service_code: serviceCode,
+      ...(actualCarrierId ? { carrier_id: actualCarrierId } : {}),
+      service_code: actualServiceCode,
       ship_to: shipToAddress,
       ship_from: {
         name: cfg.ship_from_name || 'Shipping Dept',
