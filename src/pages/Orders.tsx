@@ -45,7 +45,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2, Archive } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2, Archive, Eye } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Shipment } from '@/types';
@@ -1628,15 +1628,41 @@ export default function Orders() {
 
                   {/* Actions - Larger buttons for touchscreen */}
                   <TableCell className="sticky left-[60px] bg-background z-10 border-r">
-                    <Button
-                      size="sm"
-                      onClick={() => handlePrint(shipment)}
-                      disabled={!shipment.manifest_url || printing === shipment.id}
-                      className="h-9 text-sm px-3 touch-manipulation"
-                    >
-                      <Printer className="h-4 w-4 mr-1.5" />
-                      {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        size="sm"
+                        onClick={() => handlePrint(shipment)}
+                        disabled={!shipment.manifest_url || printing === shipment.id}
+                        className="h-9 text-sm px-3 touch-manipulation"
+                      >
+                        <Printer className="h-4 w-4 mr-1.5" />
+                        {printing === shipment.id ? 'Printing...' : shipment.printed ? 'Reprint' : 'Print'}
+                      </Button>
+                      {isAdmin && shipment.label_url && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs px-2 touch-manipulation"
+                          onClick={async () => {
+                            try {
+                              const { data: { session } } = await supabase.auth.getSession();
+                              if (!session) { toast.error('Not authenticated'); return; }
+                              const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-label-download?url=${encodeURIComponent(shipment.label_url!)}`;
+                              const res = await fetch(url, {
+                                headers: { Authorization: `Bearer ${session.access_token}` },
+                              });
+                              if (!res.ok) { toast.error('Failed to fetch label'); return; }
+                              const blob = await res.blob();
+                              const blobUrl = URL.createObjectURL(blob);
+                              window.open(blobUrl, '_blank');
+                            } catch { toast.error('Failed to open label'); }
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          View
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
 
                   {/* Order Details - UID (editable) and Order ID only */}
