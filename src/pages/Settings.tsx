@@ -963,6 +963,7 @@ export default function Settings() {
                     <tr>
                       <th className="text-left p-3 font-medium">Upload Date & Time</th>
                       <th className="text-left p-3 font-medium">Show Date</th>
+                      <th className="text-left p-3 font-medium">Channel</th>
                       <th className="text-center p-3 font-medium">Shipments</th>
                       <th className="text-right p-3 font-medium">Actions</th>
                     </tr>
