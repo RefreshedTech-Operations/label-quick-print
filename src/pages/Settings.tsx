@@ -557,25 +557,31 @@ export default function Settings() {
   const loadRecentUploads = async () => {
     setLoadingUploads(true);
     try {
-      // Get distinct upload batches (grouped by created_at timestamp)
+      // Get recent shipments with upload_id
       const { data, error } = await supabase
         .from('shipments')
-        .select('created_at, user_id, show_date')
+        .select('upload_id, created_at, user_id, show_date')
         .order('created_at', { ascending: false })
-        .limit(1000); // Get recent records to group
+        .limit(1000);
 
       if (error) throw error;
 
-      // Group by created_at timestamp (uploads are batched with same timestamp)
-      const uploadMap = new Map<string, { created_at: string; count: number; user_id: string; show_date: string | null }>();
+      // Group by upload_id (or created_at for legacy records without upload_id)
+      const uploadMap = new Map<string, { upload_id: string | null; created_at: string; count: number; user_id: string; show_date: string | null }>();
       
       data?.forEach(shipment => {
-        const timestamp = shipment.created_at;
-        if (uploadMap.has(timestamp)) {
-          uploadMap.get(timestamp)!.count++;
+        const key = (shipment as any).upload_id || `legacy_${shipment.created_at}`;
+        if (uploadMap.has(key)) {
+          const entry = uploadMap.get(key)!;
+          entry.count++;
+          // Use earliest created_at as the upload timestamp
+          if (shipment.created_at && shipment.created_at < entry.created_at) {
+            entry.created_at = shipment.created_at;
+          }
         } else {
-          uploadMap.set(timestamp, {
-            created_at: timestamp,
+          uploadMap.set(key, {
+            upload_id: (shipment as any).upload_id || null,
+            created_at: shipment.created_at || '',
             count: 1,
             user_id: shipment.user_id || 'unknown',
             show_date: shipment.show_date
@@ -583,10 +589,9 @@ export default function Settings() {
         }
       });
 
-      // Convert to array and sort by date (newest first)
       const uploads = Array.from(uploadMap.values())
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 20); // Show last 20 uploads
+        .slice(0, 20);
 
       setRecentUploads(uploads);
     } catch (error: any) {
@@ -597,39 +602,47 @@ export default function Settings() {
     }
   };
 
-  const handleDeleteUpload = async (createdAt: string, count: number) => {
-    if (!confirm(`Are you sure you want to delete this upload batch of ${count} shipments? This action cannot be undone.`)) {
+  const handleDeleteUpload = async (upload: { upload_id: string | null; created_at: string; count: number }) => {
+    if (!confirm(`Are you sure you want to delete this upload of ${upload.count} shipments? This action cannot be undone.`)) {
       return;
     }
 
-    setDeletingUpload(createdAt);
+    const deleteKey = upload.upload_id || upload.created_at;
+    setDeletingUpload(deleteKey);
     try {
-      // First delete related print jobs
-      const { data: shipmentIds } = await supabase
-        .from('shipments')
-        .select('id')
-        .eq('created_at', createdAt);
+      // Get shipment IDs for this upload
+      let shipmentQuery = supabase.from('shipments').select('id');
+      if (upload.upload_id) {
+        shipmentQuery = shipmentQuery.eq('upload_id' as any, upload.upload_id);
+      } else {
+        shipmentQuery = shipmentQuery.eq('created_at', upload.created_at);
+      }
+      const { data: shipmentIds } = await shipmentQuery;
 
       if (shipmentIds && shipmentIds.length > 0) {
-        await supabase
-          .from('print_jobs')
-          .delete()
-          .in('shipment_id', shipmentIds.map(s => s.id));
+        // Delete related print jobs in batches
+        const ids = shipmentIds.map(s => s.id);
+        for (let i = 0; i < ids.length; i += 500) {
+          await supabase
+            .from('print_jobs')
+            .delete()
+            .in('shipment_id', ids.slice(i, i + 500));
+        }
+
+        // Delete shipments in batches
+        for (let i = 0; i < ids.length; i += 500) {
+          const { error } = await supabase
+            .from('shipments')
+            .delete()
+            .in('id', ids.slice(i, i + 500));
+          if (error) throw error;
+        }
       }
 
-      // Then delete the shipments
-      const { error } = await supabase
-        .from('shipments')
-        .delete()
-        .eq('created_at', createdAt);
-
-      if (error) throw error;
-
       toast.success('Upload deleted successfully', {
-        description: `Removed ${count} shipments and their print jobs`
+        description: `Removed ${upload.count} shipments and their print jobs`
       });
 
-      // Reload the uploads list
       loadRecentUploads();
     } catch (error: any) {
       toast.error('Failed to delete upload', {
