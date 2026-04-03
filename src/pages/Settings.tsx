@@ -83,6 +83,7 @@ export default function Settings() {
     count: number;
     user_id: string;
     show_date: string | null;
+    channel: string | null;
   }>>([]);
   const [loadingUploads, setLoadingUploads] = useState(false);
   const [deletingUpload, setDeletingUpload] = useState<string | null>(null);
