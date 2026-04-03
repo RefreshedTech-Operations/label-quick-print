@@ -45,7 +45,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2, Archive } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, AlertCircle, CalendarIcon, Loader2, RefreshCw, Download, Trash2, Archive, Eye } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Shipment } from '@/types';
