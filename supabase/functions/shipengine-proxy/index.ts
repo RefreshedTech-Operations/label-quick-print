@@ -298,9 +298,12 @@ Deno.serve(async (req) => {
         const valMessages = (valResult.messages || []).map((m: any) => m.message).filter(Boolean)
 
         if (valStatus === 'error' || valStatus === 'unverified') {
-          // Log but proceed anyway - address validation is advisory
-          console.warn('Address validation issue (proceeding anyway):', JSON.stringify(valResult))
-          validationWarnings = valMessages
+          console.warn('Address validation failed:', JSON.stringify(valResult))
+          return new Response(JSON.stringify({
+            error: `Address Validation Error: ${valMessages.join(', ') || 'Address not found'}`,
+            validation_status: valStatus,
+            messages: valMessages,
+          }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
         }
 
         // Use corrected address from ShipEngine if available
@@ -335,7 +338,7 @@ Deno.serve(async (req) => {
         console.warn('PO Box detected with non-USPS carrier, falling back to USPS Priority Mail')
         // Clear carrier_id so ShipEngine uses the service_code to find the right carrier
         actualCarrierId = ''
-        actualServiceCode = 'usps_priority_mail'
+        actualServiceCode = 'usps_ground_advantage'
       }
     }
 
