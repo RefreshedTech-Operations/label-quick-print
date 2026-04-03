@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.mcp-server]
 verify_jwt = false
+
+[functions.retell-order-lookup]
+verify_jwt = false

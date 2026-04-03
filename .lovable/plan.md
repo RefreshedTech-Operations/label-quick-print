@@ -1,23 +1,29 @@
+## Build Retell AI Order Lookup Endpoint
 
+**What**: Create a new edge function (`retell-order-lookup`) that Retell AI can call as a Custom Function to look up orders by order number, returning full details + tracking.
 
-## Fix Double-Printing of Labels
-
-**Problem**: In both `Scan.tsx` (line 777) and `Orders.tsx` (line 515), after printing the manifest, the code checks `if (shipment.label_url)` and prints the label as a second job. For Label Only orders (where `label_url === manifest_url`), this sends the same PDF to the printer twice.
-
-**Fix**: Skip the second label print when the label URL is the same as the manifest URL.
+### How Retell Custom Functions Work
+Retell sends a POST request with a JSON body containing the function arguments. We return a JSON response with the result.
 
 ### Changes
 
-**`src/pages/Scan.tsx`** (line ~777):
-- Change `if (shipment.label_url)` to `if (shipment.label_url && shipment.label_url !== shipment.manifest_url)`
+**`supabase/functions/retell-order-lookup/index.ts`** (new file):
+- Accept POST with `{ order_id: string }` from Retell
+- Authenticate using `MCP_API_KEY` via Bearer token (same key already configured)
+- Search shipments using the existing `search_all_shipments` RPC
+- Return full order details: status, tracking, buyer, product, quantity, price, address, shipping cost, printed status
+- Include CORS headers for flexibility
+- Handle not-found gracefully with a friendly message the voice agent can read
 
-**`src/pages/Orders.tsx`** (line ~515):
-- Change `if (shipment.label_url)` to `if (shipment.label_url && shipment.label_url !== shipment.manifest_url)`
+**`supabase/config.toml`**:
+- Add `[functions.retell-order-lookup]` with `verify_jwt = false`
 
 | File | Change |
 |------|--------|
-| `src/pages/Scan.tsx` | Skip label print when label_url equals manifest_url |
-| `src/pages/Orders.tsx` | Skip label print when label_url equals manifest_url |
+| `supabase/functions/retell-order-lookup/index.ts` | New edge function for Retell AI order lookup |
+| `supabase/config.toml` | Add function config |
 
-This is a two-line fix that prevents the duplicate print job while preserving correct behavior for regular orders (where label and manifest are different PDFs).
-
+### Retell Dashboard Setup
+After deployment, in Retell you'd create a Custom Function tool pointing to:
+`POST https://yzpbiwexbppkmzpgorcd.supabase.co/functions/v1/retell-order-lookup`
+with header `Authorization: Bearer <MCP_API_KEY>`
