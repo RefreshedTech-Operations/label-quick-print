@@ -1,21 +1,23 @@
 
 
-## Add "View Label" Button for Admins on All Orders Page
+## Fix Double-Printing of Labels
 
-**What**: Add a "View" button next to the Print button in the Actions column that opens the label PDF in a new tab, visible only to admin users.
+**Problem**: In both `Scan.tsx` (line 777) and `Orders.tsx` (line 515), after printing the manifest, the code checks `if (shipment.label_url)` and prints the label as a second job. For Label Only orders (where `label_url === manifest_url`), this sends the same PDF to the printer twice.
+
+**Fix**: Skip the second label print when the label URL is the same as the manifest URL.
 
 ### Changes
 
-**`src/pages/Orders.tsx`** -- Add a View button in the Actions cell (lines ~1629-1640):
-- After the existing Print button, add a second button (only when `isAdmin` is true and `shipment.label_url` exists)
-- The button opens the label URL via the `shipengine-label-download` proxy in a new browser tab
-- Uses the `Eye` icon from lucide-react
-- Implementation: fetch the label as a blob through the edge function proxy, create an object URL, and open it via `window.open()`
-- Compact layout: stack the two buttons vertically with a small gap
+**`src/pages/Scan.tsx`** (line ~777):
+- Change `if (shipment.label_url)` to `if (shipment.label_url && shipment.label_url !== shipment.manifest_url)`
 
-**Label URL handling**: Labels are accessed through the `shipengine-label-download` edge function to attach the API key. The view button will call this proxy, receive the PDF blob, and open it in a new tab.
+**`src/pages/Orders.tsx`** (line ~515):
+- Change `if (shipment.label_url)` to `if (shipment.label_url && shipment.label_url !== shipment.manifest_url)`
 
 | File | Change |
 |------|--------|
-| `src/pages/Orders.tsx` | Add admin-only "View" button in Actions column |
+| `src/pages/Scan.tsx` | Skip label print when label_url equals manifest_url |
+| `src/pages/Orders.tsx` | Skip label print when label_url equals manifest_url |
+
+This is a two-line fix that prevents the duplicate print job while preserving correct behavior for regular orders (where label and manifest are different PDFs).
 
