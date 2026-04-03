@@ -774,7 +774,7 @@ export default function Scan() {
 
       // If label_url exists, also print the label
       let labelJobId: number | null = null;
-      if (shipment.label_url) {
+      if (shipment.label_url && shipment.label_url !== shipment.manifest_url) {
         const labelJob = createPrintJob(
           parseInt(printerId),
           shipment.uid,

@@ -512,7 +512,7 @@ export default function Orders() {
 
       // If label_url exists, also print the label
       let labelJobId: number | null = null;
-      if (shipment.label_url) {
+      if (shipment.label_url && shipment.label_url !== shipment.manifest_url) {
         const labelJob = createPrintJob(
           parseInt(settings.default_printer_id),
           shipment.uid,
