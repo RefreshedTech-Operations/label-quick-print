@@ -200,12 +200,16 @@ export default function Upload() {
       return { success: true, message: msg, count: 0 };
     }
 
+    // Generate a single upload_id for the entire upload session
+    const uploadId = crypto.randomUUID();
+
     const shipmentsWithUser = safeShipments.map(s => {
       const shipment = {
         ...s,
         user_id: user.id,
         channel: uploadChannel,
-        show_date: formattedShowDate
+        show_date: formattedShowDate,
+        upload_id: uploadId
       };
       
       if (uploadIsLabelOnly && s.label_url) {
