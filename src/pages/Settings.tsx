@@ -561,23 +561,26 @@ export default function Settings() {
       // Get recent shipments with upload_id
       const { data, error } = await supabase
         .from('shipments')
-        .select('upload_id, created_at, user_id, show_date')
+        .select('upload_id, created_at, user_id, show_date, channel')
         .order('created_at', { ascending: false })
         .limit(1000);
 
       if (error) throw error;
 
       // Group by upload_id (or created_at for legacy records without upload_id)
-      const uploadMap = new Map<string, { upload_id: string | null; created_at: string; count: number; user_id: string; show_date: string | null }>();
+      const uploadMap = new Map<string, { upload_id: string | null; created_at: string; count: number; user_id: string; show_date: string | null; channel: string | null }>();
       
       data?.forEach(shipment => {
         const key = (shipment as any).upload_id || `legacy_${shipment.created_at}`;
         if (uploadMap.has(key)) {
           const entry = uploadMap.get(key)!;
           entry.count++;
-          // Use earliest created_at as the upload timestamp
           if (shipment.created_at && shipment.created_at < entry.created_at) {
             entry.created_at = shipment.created_at;
+          }
+          // If mixed channels, show null
+          if (entry.channel !== shipment.channel) {
+            entry.channel = null;
           }
         } else {
           uploadMap.set(key, {
@@ -585,7 +588,8 @@ export default function Settings() {
             created_at: shipment.created_at || '',
             count: 1,
             user_id: shipment.user_id || 'unknown',
-            show_date: shipment.show_date
+            show_date: shipment.show_date,
+            channel: shipment.channel || null
           });
         }
       });
