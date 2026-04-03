@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.shipengine-label-lookup]
 verify_jwt = false
+
+[functions.mcp-server]
+verify_jwt = false
