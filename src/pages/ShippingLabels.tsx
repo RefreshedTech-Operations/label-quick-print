@@ -672,23 +672,15 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
   const { data: recentDates } = useQuery({
     queryKey: ['shipping-labels-generated-show-dates', channelFilter],
     queryFn: async () => {
-      let query = supabase
-        .from('shipments')
-        .select('show_date')
-        .not('label_url', 'is', null)
-        .neq('label_url', '')
-        .not('show_date', 'is', null);
-      if (channelFilter) query = query.eq('channel', channelFilter);
-      const { data, error } = await query;
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      (data || []).forEach((s: any) => {
-        if (s.show_date) counts[s.show_date] = (counts[s.show_date] || 0) + 1;
+      const { data, error } = await supabase.rpc('get_generated_label_date_counts', {
+        p_channel: channelFilter || null,
       });
-      return Object.entries(counts)
-        .sort(([a], [b]) => b.localeCompare(a))
-        .slice(0, 5)
-        .map(([date, count]) => ({ date, count, unprintedCount: count }));
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        date: d.show_date,
+        count: d.count,
+        unprintedCount: d.count,
+      }));
     },
   });
 
