@@ -891,6 +891,14 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_missing_label_date_counts: {
+        Args: { limit_rows?: number }
+        Returns: {
+          missing_count: number
+          show_date: string
+          total_count: number
+        }[]
+      }
       get_next_available_location: { Args: never; Returns: string }
       get_print_status_breakdown: {
         Args: { end_date: string; p_user_id?: string; start_date: string }

@@ -383,12 +383,12 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   const { data: recentDatesData } = useQuery({
     queryKey: ['missing-labels-recent-dates'],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_show_date_counts', { limit_rows: 5 });
+      const { data, error } = await supabase.rpc('get_missing_label_date_counts', { limit_rows: 5 });
       if (error) throw error;
       return (data || []).map((d: any) => ({
         date: d.show_date,
-        count: d.count,
-        unprintedCount: d.unprinted_count,
+        count: d.total_count,
+        unprintedCount: d.missing_count,
       }));
     },
   });
