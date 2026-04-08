@@ -1,26 +1,43 @@
 
 
-## Add Show Date Quick Filters + Custom Date to Missing Labels Tab
+## Fix Show Date Filter in Generated Labels Tab
 
-**What**: Replace the plain date input on line 511 with the `ShowDateFilter` component, which already includes both quick-select buttons AND a custom date picker calendar. The `ShowDateFilter` component has a built-in "Custom Date" popover with a full calendar, so no functionality is lost.
+**Problem**: The recent show dates query fetches all shipments with labels but hits Supabase's default 1000-row limit, causing unreliable date counts and missing dates. Additionally, `unprintedCount` is set equal to `count`, which is meaningless for generated labels.
 
-### Changes
+### Root Cause
 
-**`src/pages/ShippingLabels.tsx`** — `MissingLabelsTab`:
+The query on line 675 does `.select('show_date')` without overriding the 1000-row default limit. If there are more than 1000 labeled shipments, some dates get truncated or lost entirely, making the "last 5 shows" unreliable.
 
-1. **Add a query for recent show dates** (after line 381): Query distinct `show_date` values from `shipments` where labels are missing, with counts and unprinted counts, ordered descending, limited to 5. This provides the data for the quick-select buttons.
+### Solution
 
-2. **Replace the date input** (line 511): Remove `<Input type="date" .../>` and add `<ShowDateFilter>` on its own row below the search bar. This component renders:
-   - "All Dates" button
-   - "Today" button  
-   - Last 5 show dates with counts
-   - **"Custom Date" button** with a calendar popover for picking any date
+Replace the client-side counting approach with a server-side SQL RPC that uses `GROUP BY` to get accurate counts, or use a smarter direct query approach.
 
-3. **Import `ShowDateFilter`** at the top of the file.
+**`src/pages/ShippingLabels.tsx`** — Generated Labels `recentDates` query (lines 671-693):
 
-| File | Change |
+1. **Replace the fetch-all-and-count approach** with a direct query that selects distinct `show_date` values ordered descending, limited to 5, using a database RPC or a restructured query that avoids the 1000-row cap.
+
+2. **Create a new database RPC** `get_generated_label_date_counts` that runs:
+   ```sql
+   SELECT show_date as date, 
+          COUNT(*)::int as count
+   FROM shipments
+   WHERE label_url IS NOT NULL 
+     AND label_url != ''
+     AND show_date IS NOT NULL
+     AND (p_channel IS NULL OR channel = p_channel)
+   GROUP BY show_date
+   ORDER BY show_date DESC
+   LIMIT 5
+   ```
+
+3. **Update the ShowDateFilter display** for generated labels — show just the total count per date (not an "unprinted/total" split, since all have labels). Set `unprintedCount = count` so the display shows one number cleanly, or adjust the `ShowDateFilter` component to handle this case.
+
+### Technical Details
+
+| Step | Change |
 |------|--------|
-| `src/pages/ShippingLabels.tsx` | Add recent-dates query; replace date input with `ShowDateFilter` component |
+| Database migration | Create `get_generated_label_date_counts(p_channel text DEFAULT NULL)` RPC |
+| `src/pages/ShippingLabels.tsx` | Replace lines 671-693 with RPC call |
 
-The `ShowDateFilter` component already supports custom date selection via its built-in calendar popover, so both quick filters and arbitrary date picking will work.
+The missing labels tab query (lines 383+) should also be checked — it may use `get_show_date_counts` which could have the same 1000-row issue if it's also doing client-side aggregation.
 
