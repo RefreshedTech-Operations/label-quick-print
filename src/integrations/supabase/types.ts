@@ -851,6 +851,13 @@ export type Database = {
           unprinted_orders: number
         }[]
       }
+      get_generated_label_date_counts: {
+        Args: { p_channel?: string }
+        Returns: {
+          count: number
+          show_date: string
+        }[]
+      }
       get_hourly_print_rate: {
         Args: { end_date: string; p_user_id?: string; start_date: string }
         Returns: {
