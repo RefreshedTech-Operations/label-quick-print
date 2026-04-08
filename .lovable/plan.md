@@ -1,29 +1,26 @@
-## Build Retell AI Order Lookup Endpoint
 
-**What**: Create a new edge function (`retell-order-lookup`) that Retell AI can call as a Custom Function to look up orders by order number, returning full details + tracking.
 
-### How Retell Custom Functions Work
-Retell sends a POST request with a JSON body containing the function arguments. We return a JSON response with the result.
+## Add Show Date Quick Filters + Custom Date to Missing Labels Tab
+
+**What**: Replace the plain date input on line 511 with the `ShowDateFilter` component, which already includes both quick-select buttons AND a custom date picker calendar. The `ShowDateFilter` component has a built-in "Custom Date" popover with a full calendar, so no functionality is lost.
 
 ### Changes
 
-**`supabase/functions/retell-order-lookup/index.ts`** (new file):
-- Accept POST with `{ order_id: string }` from Retell
-- Authenticate using `MCP_API_KEY` via Bearer token (same key already configured)
-- Search shipments using the existing `search_all_shipments` RPC
-- Return full order details: status, tracking, buyer, product, quantity, price, address, shipping cost, printed status
-- Include CORS headers for flexibility
-- Handle not-found gracefully with a friendly message the voice agent can read
+**`src/pages/ShippingLabels.tsx`** — `MissingLabelsTab`:
 
-**`supabase/config.toml`**:
-- Add `[functions.retell-order-lookup]` with `verify_jwt = false`
+1. **Add a query for recent show dates** (after line 381): Query distinct `show_date` values from `shipments` where labels are missing, with counts and unprinted counts, ordered descending, limited to 5. This provides the data for the quick-select buttons.
+
+2. **Replace the date input** (line 511): Remove `<Input type="date" .../>` and add `<ShowDateFilter>` on its own row below the search bar. This component renders:
+   - "All Dates" button
+   - "Today" button  
+   - Last 5 show dates with counts
+   - **"Custom Date" button** with a calendar popover for picking any date
+
+3. **Import `ShowDateFilter`** at the top of the file.
 
 | File | Change |
 |------|--------|
-| `supabase/functions/retell-order-lookup/index.ts` | New edge function for Retell AI order lookup |
-| `supabase/config.toml` | Add function config |
+| `src/pages/ShippingLabels.tsx` | Add recent-dates query; replace date input with `ShowDateFilter` component |
 
-### Retell Dashboard Setup
-After deployment, in Retell you'd create a Custom Function tool pointing to:
-`POST https://yzpbiwexbppkmzpgorcd.supabase.co/functions/v1/retell-order-lookup`
-with header `Authorization: Bearer <MCP_API_KEY>`
+The `ShowDateFilter` component already supports custom date selection via its built-in calendar popover, so both quick filters and arbitrary date picking will work.
+
