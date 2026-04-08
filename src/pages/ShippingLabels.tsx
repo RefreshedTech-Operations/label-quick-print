@@ -584,8 +584,8 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 ) : shipments.map((s) => (
                   <TableRow key={s.id} className={rowErrors[s.id] ? 'bg-destructive/5' : ''}>
                     <TableCell><Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} /></TableCell>
-                    <TableCell className="font-mono text-xs truncate">
-                      <div className="truncate">{s.order_id}</div>
+                    <TableCell className="font-mono text-xs">
+                      <div className="break-all">{s.order_id}</div>
                       {s.uid && <div className="text-muted-foreground truncate">{s.uid}</div>}
                     </TableCell>
                     <TableCell className="text-xs truncate">{s.buyer || '—'}</TableCell>
