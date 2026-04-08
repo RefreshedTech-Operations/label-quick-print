@@ -28,6 +28,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { ShowDateFilter } from '@/components/ShowDateFilter';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
@@ -380,6 +381,19 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     },
   });
 
+  const { data: recentDatesData } = useQuery({
+    queryKey: ['missing-labels-recent-dates'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_show_date_counts', { limit_rows: 5 });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        date: d.show_date,
+        count: d.count,
+        unprintedCount: d.unprinted_count,
+      }));
+    },
+  });
+
   const shipments = data?.shipments || [];
   const totalCount = data?.total || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -508,7 +522,12 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
               </div>
-              <Input type="date" value={selectedShowDate || ''} onChange={(e) => { setSelectedShowDate(e.target.value || undefined); setPage(0); }} className="w-[160px]" />
+            </div>
+            <ShowDateFilter
+              selectedDate={selectedShowDate}
+              recentDates={recentDatesData || []}
+              onDateSelect={(date) => { setSelectedShowDate(date); setPage(0); }}
+            />
               {selectedIds.size > 0 && !bulkProgress && (
                 <div className="flex items-center gap-2">
                   <Button onClick={handleBulkGenerate} size="sm" className="gap-2"><Tag className="h-4 w-4" />Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}</Button>
