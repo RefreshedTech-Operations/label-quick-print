@@ -522,18 +522,19 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Search orders, buyers, tracking..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9" />
               </div>
-            </div>
-            <ShowDateFilter
-              selectedDate={selectedShowDate}
-              recentDates={recentDatesData || []}
-              onDateSelect={(date) => { setSelectedShowDate(date); setPage(0); }}
-            />
               {selectedIds.size > 0 && !bulkProgress && (
                 <div className="flex items-center gap-2">
                   <Button onClick={handleBulkGenerate} size="sm" className="gap-2"><Tag className="h-4 w-4" />Generate {selectedIds.size} Label{selectedIds.size > 1 ? 's' : ''}</Button>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
                 </div>
               )}
+            </div>
+            <div className="mt-2">
+              <ShowDateFilter
+                selectedDate={selectedShowDate}
+                recentDates={recentDatesData || []}
+                onDateSelect={(date) => { setSelectedShowDate(date); setPage(0); }}
+              />
             </div>
             {shipments.length > 0 && shipments.every(s => selectedIds.has(s.id)) && selectedIds.size < totalCount && (
               <div className="flex items-center justify-center gap-2 pt-2 text-sm text-muted-foreground">
