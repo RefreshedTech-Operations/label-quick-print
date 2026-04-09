@@ -838,7 +838,7 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
         });
         const ws = XLSX.utils.json_to_sheet(tiktokData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'TikTok Tracking Upload');
+        XLSX.utils.book_append_sheet(wb, ws, 'Shipping info');
         XLSX.writeFile(wb, `tiktok-tracking-upload-${new Date().toISOString().slice(0, 10)}.xlsx`);
       } else {
         const ws = XLSX.utils.json_to_sheet(data);
