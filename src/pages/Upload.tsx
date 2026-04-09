@@ -95,7 +95,11 @@ export default function Upload() {
     
     const shipments = data
       .map(row => normalizeShipmentData(row, currentColumnMap))
-      .filter(s => !s.cancelled || s.cancelled.trim() === '')
+      .filter(s => {
+        if (!s.cancelled || s.cancelled.trim() === '') return true;
+        const val = s.cancelled.trim().toLowerCase();
+        return val === 'false' || val === 'no' || val === '0' || val === 'n';
+      })
       .filter(s => s.order_id && s.order_id.trim() !== '');
     
     console.log('After cancelled and empty order_id filter:', shipments.length);
