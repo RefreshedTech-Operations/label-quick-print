@@ -836,9 +836,13 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
             'Shipping Provider Name': carrierNameMap[provider] || r.shipping_provider || 'Other',
           };
         });
-        const ws = XLSX.utils.json_to_sheet(tiktokData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Shipping info');
+        // Fetch the official TikTok template and populate the "Shipping info" sheet
+        const templateResp = await fetch('/tiktok-template.xlsx');
+        const templateBuf = await templateResp.arrayBuffer();
+        const wb = XLSX.read(templateBuf);
+        const ws = wb.Sheets['Shipping info'];
+        const rows = tiktokData.map((r: any) => [r['Order ID'], r['Tracking ID'], r['Shipping Provider Name']]);
+        XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A3' });
         XLSX.writeFile(wb, `tiktok-tracking-upload-${new Date().toISOString().slice(0, 10)}.xlsx`);
       } else {
         const ws = XLSX.utils.json_to_sheet(data);
