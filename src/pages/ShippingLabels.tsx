@@ -805,19 +805,34 @@ function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof us
     setExporting(true);
     setExportDialogOpen(false);
     try {
-      let query = supabase
-        .from('shipments')
-        .select('order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, channel, created_at, shipping_provider, shipping_cost')
-        .not('label_url', 'is', null)
-        .neq('label_url', '')
-        .order('created_at', { ascending: false })
-        .limit(50000);
-      if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
-      else if (!allShowsMode) query = query.gte('show_date', last5DaysDate);
-      if (channelFilter) query = query.eq('channel', channelFilter);
-      if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
-      const { data, error } = await query;
-      if (error) throw error;
+      // Paginate to bypass the 1000-row default limit
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        let query = supabase
+          .from('shipments')
+          .select('order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url, channel, created_at, shipping_provider, shipping_cost')
+          .not('label_url', 'is', null)
+          .neq('label_url', '')
+          .order('created_at', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (selectedShowDate) query = query.eq('show_date', selectedShowDate);
+        else if (!allShowsMode) query = query.gte('show_date', last5DaysDate);
+        if (channelFilter) query = query.eq('channel', channelFilter);
+        if (debouncedSearch) query = query.or(`order_id.ilike.%${debouncedSearch}%,uid.ilike.%${debouncedSearch}%,buyer.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%,tracking.ilike.%${debouncedSearch}%`);
+        const { data: page, error } = await query;
+        if (error) throw error;
+        if (page && page.length > 0) {
+          allData = allData.concat(page);
+          offset += PAGE_SIZE;
+          if (page.length < PAGE_SIZE) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+      }
+      const data = allData;
       if (!data?.length) { toast.error('No data to export'); return; }
 
       if (format === 'tiktok') {
