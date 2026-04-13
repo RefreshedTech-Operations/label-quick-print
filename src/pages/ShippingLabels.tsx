@@ -327,6 +327,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
   const [serviceOverrides, setServiceOverrides] = useState<Record<string, { carrier_id: string; service_code: string }>>({});
   const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; succeeded: number; failed: number } | null>(null);
+  const [bulkFailedIds, setBulkFailedIds] = useState<Set<string>>(new Set());
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
@@ -484,19 +485,21 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     const total = ids.length;
     let succeeded = 0;
     let failed = 0;
+    const failedIdSet = new Set<string>();
     const BATCH_SIZE = 10;
+    setBulkFailedIds(new Set());
     setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
 
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batch = ids.slice(i, i + BATCH_SIZE);
-      const results = await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
+      await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
 
-      results.forEach((_, idx) => {
-        const id = batch[idx];
-        setRowErrors(prev => {
-          if (prev[id]) { failed++; } else { succeeded++; }
-          return prev;
+      // Check rowErrors for each item in the batch after settling
+      setRowErrors(prev => {
+        batch.forEach(id => {
+          if (prev[id]) { failed++; failedIdSet.add(id); } else { succeeded++; }
         });
+        return prev;
       });
 
       const processed = Math.min(i + batch.length, total);
@@ -504,8 +507,16 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     }
 
     setBulkProgress(null);
-    toast.success(`Label generation complete: ${succeeded} succeeded, ${failed} failed`);
-    setSelectedIds(new Set());
+
+    if (failedIdSet.size > 0) {
+      setBulkFailedIds(failedIdSet);
+      setSelectedIds(failedIdSet);
+      toast.error(`${failed} label${failed > 1 ? 's' : ''} failed. ${succeeded} succeeded. Failed labels are still selected for review.`);
+    } else {
+      setBulkFailedIds(new Set());
+      setSelectedIds(new Set());
+      toast.success(`All ${succeeded} labels generated successfully!`);
+    }
   }, [selectedIds, handleGenerateLabel]);
 
   return (
@@ -541,6 +552,25 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
                 <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={handleSelectAllFiltered} disabled={isSelectingAll}>
                   {isSelectingAll ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Selecting...</> : <>Select all {totalCount} orders</>}
                 </Button>
+              </div>
+            )}
+            {bulkFailedIds.size > 0 && !bulkProgress && (
+              <div className="mt-3 flex items-center gap-3 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                <span className="text-sm font-medium text-destructive">
+                  {bulkFailedIds.size} label{bulkFailedIds.size > 1 ? 's' : ''} failed — fix addresses and retry
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set(bulkFailedIds))}>
+                    Select Failed
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={handleBulkGenerate}>
+                    Retry {bulkFailedIds.size} Failed
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setBulkFailedIds(new Set())}>
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
             {bulkProgress && (
