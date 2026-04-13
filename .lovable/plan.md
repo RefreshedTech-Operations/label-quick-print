@@ -1,45 +1,89 @@
 
 
-## Skip Errors During Bulk Label Generation
+## Fix: Bulk Generation Error Tracking Race Condition
 
-**Problem**: When a label fails (usually due to an address issue), the error handling in `handleBulkGenerate` counts it but the failed shipment stays selected and mixed in with the queue. After bulk generation completes, the selection is cleared and there's no easy way to find/retry just the failed ones.
+**Root cause**: `handleGenerateLabel` stores errors via `setRowErrors()` (React state), and then `handleBulkGenerate` tries to read those errors via `setRowErrors(prev => ...)` immediately after `Promise.allSettled`. Due to React 18's automatic batching, the state updates from the individual label calls may not be flushed yet, causing incorrect success/failure counts.
 
-**Solution**: Track failed shipment IDs during bulk generation, skip them gracefully, and after completion present a summary with the option to select only the failed ones for review/retry.
+Additionally, if any unhandled exception escapes, it could break the batch loop entirely.
 
-### Changes — `src/pages/ShippingLabels.tsx`
+**Fix**: Instead of relying on React state to detect failures, collect results directly from the `Promise.allSettled` return values. Wrap each call so it returns a clear success/failure signal.
 
-1. **Add `failedIds` state** to track which shipments errored during the last bulk run:
-   ```ts
-   const [bulkFailedIds, setBulkFailedIds] = useState<Set<string>>(new Set());
-   ```
+### Changes — `src/pages/ShippingLabels.tsx` (lines 493-506)
 
-2. **Update `handleBulkGenerate`** (~lines 481-509):
-   - Collect failed IDs as errors occur
-   - After completion, set `selectedIds` to only the failed IDs (instead of clearing)
-   - Store failed IDs in `bulkFailedIds` for the UI banner
-   - Only clear selection if everything succeeded
+Replace the current batch loop with:
 
-3. **Add a "failed summary" banner** after bulk generation completes with failures:
-   - Show count of failed labels with a dismissible alert
-   - "Select All Failed" button that re-selects just the failed shipments
-   - "Retry Failed" button to re-run generation on only the errored ones
-   - Failed rows already have inline error messages via `rowErrors` state, so users can see and fix addresses before retrying
+```typescript
+for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+  const batch = ids.slice(i, i + BATCH_SIZE);
+  const results = await Promise.allSettled(
+    batch.map(async (id) => {
+      try {
+        await handleGenerateLabel(id);
+        // Check if an error was set by handleGenerateLabel's catch block
+        // We can't rely on state, so we return the id and check after
+        return id;
+      } catch {
+        return Promise.reject(id);
+      }
+    })
+  );
 
-4. **Keep the queue moving**: The current `Promise.allSettled` already prevents one failure from blocking others within a batch. The key change is in the post-completion UX — don't lose track of which ones failed.
+  results.forEach((result, idx) => {
+    const id = batch[idx];
+    if (result.status === 'fulfilled') {
+      // Need to also verify no rowError was silently set — but since
+      // handleGenerateLabel catches internally, we check differently
+      succeeded++;
+    } else {
+      failed++;
+      failedIdSet.add(id);
+    }
+  });
 
-### Implementation detail
-
-The updated `handleBulkGenerate` will:
+  const processed = Math.min(i + batch.length, total);
+  setBulkProgress({ current: processed, total, succeeded, failed });
+}
 ```
-- Run all batches (errors don't block)  ← already works
-- Collect failedIds from rowErrors     ← new
-- If failures > 0: set selectedIds = failedIds, show banner  ← new  
-- If all succeeded: clear selection     ← current behavior
+
+**Problem**: `handleGenerateLabel` catches its own errors and never rejects — so `Promise.allSettled` always sees "fulfilled". The real fix is to make `handleGenerateLabel` **return** a success/failure indicator instead of swallowing errors silently.
+
+**Better approach**: Modify `handleGenerateLabel` to return `{ success: boolean }`, then use that return value directly:
+
+1. **Update `handleGenerateLabel`** (line 446): Change return type to return `{ success: true }` on success and `{ success: false, error: string }` on failure (still sets rowErrors for the UI).
+
+2. **Update `handleBulkGenerate`** (lines 493-506): Use the return value from each `handleGenerateLabel` call to determine success/failure directly, removing the unreliable `setRowErrors(prev => ...)` check.
+
+```typescript
+// handleGenerateLabel — add returns
+try {
+  // ... existing fetch logic ...
+  return { success: true };
+} catch (err: any) {
+  const msg = err?.message || 'Failed to generate label';
+  setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
+  return { success: false, error: msg };
+} finally {
+  setGeneratingIds(prev => { const next = new Set(prev); next.delete(shipmentId); return next; });
+}
+
+// handleBulkGenerate — use return values
+const results = await Promise.allSettled(
+  batch.map(id => handleGenerateLabel(id))
+);
+results.forEach((result, idx) => {
+  const id = batch[idx];
+  if (result.status === 'fulfilled' && result.value.success) {
+    succeeded++;
+  } else {
+    failed++;
+    failedIdSet.add(id);
+  }
+});
 ```
 
-The banner will appear above the table when `bulkFailedIds.size > 0` and auto-dismiss when the user navigates away or starts a new bulk run.
+This removes the dependency on React state for tracking results and ensures each of the 10 parallel labels is independently tracked — a failure in one never affects the other 9.
 
 | File | Change |
 |------|--------|
-| `src/pages/ShippingLabels.tsx` | Add `bulkFailedIds` state, update bulk handler to track/select failures, add failed-summary banner with retry button |
+| `src/pages/ShippingLabels.tsx` | Make `handleGenerateLabel` return `{ success }`, update batch loop to use return values instead of reading `rowErrors` state |
 
