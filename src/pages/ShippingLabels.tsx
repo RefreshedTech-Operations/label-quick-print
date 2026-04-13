@@ -484,7 +484,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     const total = ids.length;
     let succeeded = 0;
     let failed = 0;
-    const BATCH_SIZE = 3;
+    const BATCH_SIZE = 10;
     setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
 
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
