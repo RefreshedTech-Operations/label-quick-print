@@ -471,9 +471,11 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
       toast.success('Shipping label generated successfully');
       queryClient.invalidateQueries({ queryKey: ['shipping-labels-missing'] });
       queryClient.invalidateQueries({ queryKey: ['shipping-labels-generated'] });
+      return { success: true as const };
     } catch (err: any) {
       const msg = err?.message || 'Failed to generate label';
       setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
+      return { success: false as const, error: msg };
     } finally {
       setGeneratingIds(prev => { const next = new Set(prev); next.delete(shipmentId); return next; });
     }
@@ -492,14 +494,16 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
 
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batch = ids.slice(i, i + BATCH_SIZE);
-      await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
+      const results = await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
 
-      // Check rowErrors for each item in the batch after settling
-      setRowErrors(prev => {
-        batch.forEach(id => {
-          if (prev[id]) { failed++; failedIdSet.add(id); } else { succeeded++; }
-        });
-        return prev;
+      results.forEach((result, idx) => {
+        const id = batch[idx];
+        if (result.status === 'fulfilled' && result.value.success) {
+          succeeded++;
+        } else {
+          failed++;
+          failedIdSet.add(id);
+        }
       });
 
       const processed = Math.min(i + batch.length, total);
