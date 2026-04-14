@@ -1,7 +1,7 @@
 import { ReactNode, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, MessageSquare, Users, Shield, BarChart3, Truck } from 'lucide-react';
+import { Package, Upload, List, Settings, Printer, LogOut, Package2, Monitor, MessageSquare, Users, Shield, BarChart3, Truck, FileSpreadsheet } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -30,6 +30,7 @@ const NAV_ITEMS = [
   { title: 'Print Jobs', url: '/print-jobs', icon: Printer, group: 'Operations' },
   { title: 'Pack', url: '/pack', icon: Package2, group: 'Operations' },
   { title: 'Shipping Labels', url: '/shipping-labels', icon: Truck, group: 'Operations' },
+  { title: 'Sheet Prep', url: '/sheet-prep', icon: FileSpreadsheet, group: 'Operations' },
   { title: 'TV Dashboard', url: '/tv-dashboard', icon: Monitor, group: 'Monitoring' },
   { title: 'Analytics', url: '/analytics', icon: BarChart3, group: 'Monitoring' },
   { title: 'Messages', url: '/messages', icon: MessageSquare, group: 'Communication' },

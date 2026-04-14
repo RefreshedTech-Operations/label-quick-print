@@ -18,6 +18,7 @@ import Messages from "./pages/Messages";
 import Customers from "./pages/Customers";
 import CustomerProfile from "./pages/CustomerProfile";
 import ShippingLabels from "./pages/ShippingLabels";
+import SheetPrep from "./pages/SheetPrep";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/messages" element={<Layout><Messages /></Layout>} />
             <Route path="/customers" element={<Layout><Customers /></Layout>} />
             <Route path="/shipping-labels" element={<Layout><ShippingLabels /></Layout>} />
+            <Route path="/sheet-prep" element={<Layout><SheetPrep /></Layout>} />
             <Route path="/customers/:id" element={<Layout><CustomerProfile /></Layout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
