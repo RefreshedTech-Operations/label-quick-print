@@ -1,26 +1,29 @@
 
 
-## Fix: Scanning a printed UID shows "Not Found" instead of "Already Printed"
+## Add "Sheet Prep" Page
 
-**Problem**: When a UID is scanned and that shipment has already been printed, the scan page shows "SHIPMENT NOT FOUND" instead of "ALREADY PRINTED". This happens because `findShipmentByUid` (line 222) filters results to only unprinted shipments, returning `null` when all matches are printed. The `handleScan` function then treats `null` as not found, never reaching the `already_printed` check on line 349.
+A new page and nav item for preparing upload sheets with configurable prep rules per platform (starting with TikTok).
 
-**Fix**: Change `findShipmentByUid` to return the first matching shipment regardless of print status, so `handleScan` can properly detect and display "ALREADY PRINTED".
+### UI Design
+
+- New route `/sheet-prep` under the "Operations" group in the sidebar
+- Page layout:
+  1. **Header**: "Sheet Prep" title
+  2. **File upload area**: Drag-and-drop or click to select a CSV/XLSX file
+  3. **Prep type selector**: Radio group or select dropdown (only "TikTok" for now, extensible)
+  4. **Preview table**: Shows first ~10 rows of the uploaded file
+  5. **"Process" button**: Runs the selected prep rules and produces a downloadable output file
+  6. **Download button**: Appears after processing, lets user download the prepped file
 
 ### Steps
 
-1. **Update `findShipmentByUid` in `src/pages/Scan.tsx`** (line 221-222):
-   - Instead of filtering to only unprinted, return the first unprinted match if one exists, otherwise return the first printed match
-   - This lets `handleScan`'s existing `already_printed` check (line 349) work correctly
+1. **Create `src/pages/SheetPrep.tsx`** — Page component with file upload, prep type selection, raw preview table, process button, and download output. Uses existing `parseFile` from `src/lib/csv.ts` for parsing. Prep rules will be a placeholder pass-through for now (TikTok selected, no transformations yet).
 
-```typescript
-// Before:
-const candidates = (data || []) as Shipment[];
-return candidates.find((item) => !item.printed) || null;
+2. **Update `src/App.tsx`** — Add route `/sheet-prep` wrapped in Layout.
 
-// After:
-const candidates = (data || []) as Shipment[];
-return candidates.find((item) => !item.printed) || candidates[0] || null;
-```
+3. **Update `src/components/Layout.tsx`** — Add "Sheet Prep" nav item in the Operations group with a `FileSpreadsheet` icon.
 
-This single-line change preserves the existing priority (unprinted first) while falling back to any printed match, allowing the already-printed UI feedback to display correctly.
+4. **Update `src/lib/pagePermissions.ts`** — Add `/sheet-prep` to `ALL_PAGES` in the Operations group.
+
+5. **Add default permission** — Database migration to insert `/sheet-prep` into `role_page_defaults` for admin, manager, and labeler roles.
 
