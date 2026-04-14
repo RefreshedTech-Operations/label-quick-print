@@ -219,7 +219,7 @@ export default function Scan() {
     }
 
     const candidates = (data || []) as Shipment[];
-    return candidates.find((item) => !item.printed) || null;
+    return candidates.find((item) => !item.printed) || candidates[0] || null;
   };
 
   // Load printer ID from cookie on mount
