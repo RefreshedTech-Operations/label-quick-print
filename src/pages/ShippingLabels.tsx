@@ -489,6 +489,10 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
     let failed = 0;
     const failedIdSet = new Set<string>();
     const BATCH_SIZE = 10;
+    const MAX_RETRIES = 2;
+    const isRetryableError = (msg: string) =>
+      /rate limit|429|503|server unavailable|temporarily/i.test(msg);
+
     setBulkFailedIds(new Set());
     setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
 
@@ -496,18 +500,51 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
       const batch = ids.slice(i, i + BATCH_SIZE);
       const results = await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
 
+      // Separate successes, retryable failures, and permanent failures
+      const retryQueue: string[] = [];
       results.forEach((result, idx) => {
         const id = batch[idx];
         if (result.status === 'fulfilled' && result.value.success) {
           succeeded++;
         } else {
-          failed++;
-          failedIdSet.add(id);
+          const errMsg = result.status === 'fulfilled' ? result.value.error || '' : String(result.reason);
+          if (isRetryableError(errMsg)) {
+            retryQueue.push(id);
+          } else {
+            failed++;
+            failedIdSet.add(id);
+          }
         }
       });
 
+      // Retry transient failures with exponential backoff, one at a time
+      for (const retryId of retryQueue) {
+        let retrySuccess = false;
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          const delayMs = attempt * 3000; // 3s, 6s
+          await new Promise(r => setTimeout(r, delayMs));
+          const retryResult = await handleGenerateLabel(retryId);
+          if (retryResult.success) {
+            retrySuccess = true;
+            succeeded++;
+            break;
+          }
+          // If still retryable, continue loop; if permanent error, stop
+          if (!isRetryableError(retryResult.error || '')) break;
+        }
+        if (!retrySuccess) {
+          failed++;
+          failedIdSet.add(retryId);
+        }
+      }
+
       const processed = Math.min(i + batch.length, total);
       setBulkProgress({ current: processed, total, succeeded, failed });
+
+      // If we saw any rate limits in this batch, pause before next batch
+      if (retryQueue.length > 0 && i + BATCH_SIZE < ids.length) {
+        await new Promise(r => setTimeout(r, 5000));
+      }
     }
 
     setBulkProgress(null);
