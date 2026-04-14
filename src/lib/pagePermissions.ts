@@ -7,6 +7,7 @@ export const ALL_PAGES = [
   { path: '/print-jobs', label: 'Print Jobs', group: 'Operations' },
   { path: '/pack', label: 'Pack', group: 'Operations' },
   { path: '/shipping-labels', label: 'Shipping Labels', group: 'Operations' },
+  { path: '/sheet-prep', label: 'Sheet Prep', group: 'Operations' },
   { path: '/tv-dashboard', label: 'TV Dashboard', group: 'Monitoring' },
   { path: '/analytics', label: 'Analytics', group: 'Monitoring' },
   { path: '/messages', label: 'Messages', group: 'Communication' },
