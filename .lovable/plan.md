@@ -1,14 +1,26 @@
 
 
-## Fix Duplicate TikTok Upload (Wrong Show Date)
+## Fix: Scanning a printed UID shows "Not Found" instead of "Already Printed"
 
-**Problem**: The TikTok CSV (610 records) was uploaded twice — once correctly for April 10th and once incorrectly for April 13th. Since the upload uses `onConflict: 'order_id'`, the second upload overwrote the first, so now all 610 TikTok records have `show_date = 2026-04-13` instead of `2026-04-10`.
+**Problem**: When a UID is scanned and that shipment has already been printed, the scan page shows "SHIPMENT NOT FOUND" instead of "ALREADY PRINTED". This happens because `findShipmentByUid` (line 222) filters results to only unprinted shipments, returning `null` when all matches are printed. The `handleScan` function then treats `null` as not found, never reaching the `already_printed` check on line 349.
 
-**Fix**: Update the `show_date` from `2026-04-13` to `2026-04-10` for the TikTok upload (`upload_id: 05cb2e07-348b-4781-901f-1bbbbe3394d1`).
+**Fix**: Change `findShipmentByUid` to return the first matching shipment regardless of print status, so `handleScan` can properly detect and display "ALREADY PRINTED".
 
 ### Steps
 
-1. **Update show_date** on the 610 shipments with `upload_id = '05cb2e07-348b-4781-901f-1bbbbe3394d1'` from `2026-04-13` to `2026-04-10` using the database insert tool (data update).
+1. **Update `findShipmentByUid` in `src/pages/Scan.tsx`** (line 221-222):
+   - Instead of filtering to only unprinted, return the first unprinted match if one exists, otherwise return the first printed match
+   - This lets `handleScan`'s existing `already_printed` check (line 349) work correctly
 
-No code changes needed — this is a data correction only.
+```typescript
+// Before:
+const candidates = (data || []) as Shipment[];
+return candidates.find((item) => !item.printed) || null;
+
+// After:
+const candidates = (data || []) as Shipment[];
+return candidates.find((item) => !item.printed) || candidates[0] || null;
+```
+
+This single-line change preserves the existing priority (unprinted first) while falling back to any printed match, allowing the already-printed UI feedback to display correctly.
 
