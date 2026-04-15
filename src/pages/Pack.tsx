@@ -10,6 +10,16 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useZxing } from 'react-zxing';
 import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 
+// Module-level constant — stable reference prevents useZxing reinitialization
+const BARCODE_HINTS = new Map();
+BARCODE_HINTS.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.ITF,
+  BarcodeFormat.CODABAR,
+]);
+BARCODE_HINTS.set(DecodeHintType.TRY_HARDER, true);
+
 interface PackStation {
   id: string;
   name: string;
