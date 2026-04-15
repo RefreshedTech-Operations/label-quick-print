@@ -81,8 +81,9 @@ export default function Pack() {
 
   const stripPrefix = (input: string): string => {
     const trimmed = input.trim();
-    if (trimmed.length > 22) {
-      return trimmed.substring(12);
+    if (trimmed.startsWith('1Z')) return trimmed;
+    if (trimmed.length > 30) {
+      return trimmed.substring(15);
     }
     return trimmed;
   };
