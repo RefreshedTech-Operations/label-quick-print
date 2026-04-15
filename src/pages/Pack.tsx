@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Package2, ScanLine, Camera, Keyboard, ChevronDown } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
@@ -288,28 +288,39 @@ export default function Pack() {
           <Package2 className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-bold">Pack</h1>
         </div>
-        {stationName && !showStationPicker ? (
-          <button
-            onClick={() => setShowStationPicker(true)}
-            className="flex items-center gap-1 text-sm px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground"
-          >
-            {stationName}
-            <ChevronDown className="h-3 w-3" />
-          </button>
-        ) : (
-          <div className="w-40">
-            <Select value={selectedStation} onValueChange={setSelectedStation}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="Station..." />
-              </SelectTrigger>
-              <SelectContent>
-                {stations.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+      <button
+          onClick={() => setShowStationPicker(true)}
+          className="flex items-center gap-1 text-sm px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground"
+        >
+          {stationName || 'Select Station'}
+          <ChevronDown className="h-3 w-3" />
+        </button>
+
+        <Sheet open={showStationPicker} onOpenChange={setShowStationPicker}>
+          <SheetContent side="bottom" className="px-4 pb-8 pt-4 rounded-t-xl">
+            <SheetHeader className="mb-3">
+              <SheetTitle>Select Pack Station</SheetTitle>
+            </SheetHeader>
+            <div className="space-y-1.5">
+              {stations.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setSelectedStation(s.id);
+                    setShowStationPicker(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    selectedStation === s.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                  }`}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* Scan input — hero element */}
