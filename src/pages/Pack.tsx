@@ -297,7 +297,7 @@ export default function Pack() {
         </button>
 
         <Sheet open={showStationPicker} onOpenChange={setShowStationPicker}>
-          <SheetContent side="bottom" className="px-4 pb-8 pt-4 rounded-t-xl">
+          <SheetContent side="bottom" className="px-4 pb-10 pt-4 rounded-t-xl max-h-[60vh]">
             <SheetHeader className="mb-3">
               <SheetTitle>Select Pack Station</SheetTitle>
             </SheetHeader>
