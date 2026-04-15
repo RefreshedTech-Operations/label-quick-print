@@ -89,6 +89,16 @@ export default function Pack() {
     return cleaned;
   };
 
+  const isLikelyTrackingBarcode = (input: string): boolean => {
+    const cleaned = stripPrefix(input).toUpperCase();
+
+    return (
+      /^1Z[0-9A-Z]{16}$/.test(cleaned) ||
+      /^[0-9]{12,35}$/.test(cleaned) ||
+      /^[A-Z]{2}[0-9]{9}[A-Z]{2}$/.test(cleaned)
+    );
+  };
+
   const flashStatus = (status: 'success' | 'error') => {
     setScanStatus(status);
     if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
@@ -110,7 +120,7 @@ export default function Pack() {
       return 'error';
     }
 
-    const tracking = stripPrefix(rawInput);
+    const tracking = stripPrefix(rawInput).toUpperCase();
 
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -187,35 +197,31 @@ export default function Pack() {
   };
 
   const barcodeHints = new Map();
-  barcodeHints.set(DecodeHintType.POSSIBLE_FORMATS, [
-    BarcodeFormat.CODE_128,
-    BarcodeFormat.CODE_39,
-    BarcodeFormat.ITF,
-    BarcodeFormat.CODABAR,
-    BarcodeFormat.EAN_13,
-    BarcodeFormat.UPC_A,
-  ]);
+  barcodeHints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
   barcodeHints.set(DecodeHintType.TRY_HARDER, true);
 
   const { ref: cameraRef } = useZxing({
     paused: !cameraMode || cooldownActive,
     hints: barcodeHints,
-    timeBetweenDecodingAttempts: 300,
+    timeBetweenDecodingAttempts: 150,
     constraints: {
       video: {
-        facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
       },
     },
     onDecodeResult(result) {
       const text = result.getText().trim();
-      // Reject obviously bad reads: too short or non-alphanumeric
-      if (text.length < 10 || !/^[A-Za-z0-9]+$/.test(text)) return;
-      if (cooldownActive || text === lastScannedTracking) return;
-      setLastScannedTracking(text);
+      const trackingCandidate = stripPrefix(text).toUpperCase();
+
+      if (!isLikelyTrackingBarcode(trackingCandidate)) return;
+      if (cooldownActive || trackingCandidate === lastScannedTracking) return;
+
+      setLastScannedTracking(trackingCandidate);
       setCooldownActive(true);
-      processTracking(text);
+      processTracking(trackingCandidate);
+
       if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
       cooldownTimeoutRef.current = setTimeout(() => {
         setCooldownActive(false);
