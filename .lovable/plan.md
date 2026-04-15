@@ -1,34 +1,32 @@
 
 
-## Optimize Pack Page for Barcode Scanner Input
+## Fix Camera Barcode Scanner Detection
 
-**Problem**: Physical barcode scanners work by rapidly "typing" characters then sending Enter. The current implementation has issues:
-1. The `stripPrefix` function may not handle hidden characters scanners inject (carriage returns `\r`, tabs, etc.)
-2. No debounce protection against partial submissions if the form triggers mid-scan
-3. The 500ms focus-steal interval could interfere during rapid input
+**Root cause**: The `barcodeHints` Map is created fresh on every render, causing `useZxing` to continuously reinitialize the decoder — it never stabilizes long enough to read a barcode. Additionally, only CODE_128 is enabled, but UPS labels commonly use Code 39 or ITF formats.
 
 ### Changes to `src/pages/Pack.tsx`
 
-1. **Sanitize scanner input** — In `stripPrefix`, strip all non-printable characters (`\r`, `\n`, `\t`, etc.) before any logic runs. Use a regex like `/[\r\n\t\x00-\x1f]/g` to remove control characters.
+1. **Move `barcodeHints` outside the component** — Create the hints Map as a module-level constant so it's stable across renders and doesn't trigger `useZxing` reinitialization.
 
-2. **Add scan-speed debounce** — Instead of processing immediately on form submit, add a short debounce (~50ms) to ensure the scanner has finished sending all characters before processing. This prevents partial tracking number submissions.
+2. **Add all common shipping barcode formats** — Include CODE_128, CODE_39, ITF, and CODABAR to cover UPS, USPS, and FedEx labels.
 
-3. **Trim whitespace aggressively** — Apply `.replace(/\s+/g, '')` to remove any spaces/whitespace that scanners may inject between characters.
+3. **Remove the `isMobile` gate on the Camera button** — Desktop users with webcams should also be able to use camera scanning.
 
-4. **Disable autocomplete attributes** — Add `autoCorrect="off"`, `spellCheck={false}`, and `autoCapitalize="off"` to the input to prevent mobile keyboards and browsers from interfering with raw scanner input.
+4. **Simplify camera constraints for desktop** — Use `facingMode: { ideal: 'environment' }` which gracefully falls back to the default camera on desktops.
 
-The updated `stripPrefix` function:
 ```typescript
-const stripPrefix = (input: string): string => {
-  // Remove all control characters and whitespace
-  const cleaned = input.replace(/[\r\n\t\x00-\x1f\s]/g, '');
-  if (cleaned.startsWith('1Z')) return cleaned;
-  if (cleaned.length > 30) {
-    return cleaned.substring(15);
-  }
-  return cleaned;
-};
+// Module-level constant — stable reference, no re-renders
+const BARCODE_HINTS = new Map();
+BARCODE_HINTS.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.ITF,
+  BarcodeFormat.CODABAR,
+]);
+BARCODE_HINTS.set(DecodeHintType.TRY_HARDER, true);
 ```
+
+Then reference `BARCODE_HINTS` in the `useZxing` call instead of the inline `barcodeHints`. Remove the `{isMobile && ...}` wrapper around the Camera/Type toggle button.
 
 No backend changes needed.
 
