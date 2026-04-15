@@ -80,12 +80,13 @@ export default function Pack() {
   };
 
   const stripPrefix = (input: string): string => {
-    const trimmed = input.trim();
-    if (trimmed.startsWith('1Z')) return trimmed;
-    if (trimmed.length > 30) {
-      return trimmed.substring(15);
+    // Remove all control characters and whitespace (scanner artifacts)
+    const cleaned = input.replace(/[\r\n\t\x00-\x1f\s]/g, '');
+    if (cleaned.startsWith('1Z')) return cleaned;
+    if (cleaned.length > 30) {
+      return cleaned.substring(15);
     }
-    return trimmed;
+    return cleaned;
   };
 
   const flashStatus = (status: 'success' | 'error') => {
@@ -217,11 +218,18 @@ export default function Pack() {
     },
   });
 
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!scanInput.trim()) return;
+    const captured = scanInput;
     setScanInput('');
-    await processTracking(scanInput);
+    // Short debounce to let scanner finish injecting all characters
+    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+    scanTimeoutRef.current = setTimeout(() => {
+      processTracking(captured);
+    }, 50);
   };
 
   const stationName = stations.find(s => s.id === selectedStation)?.name;
@@ -293,6 +301,9 @@ export default function Pack() {
               placeholder="Scan or type tracking..."
               autoFocus
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="text-lg h-14 font-mono"
             />
           </form>
