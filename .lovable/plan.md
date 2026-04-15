@@ -1,29 +1,22 @@
 
 
-## Add "Sheet Prep" Page
+## Mobile-Friendly Pack Page Redesign
 
-A new page and nav item for preparing upload sheets with configurable prep rules per platform (starting with TikTok).
+The current layout has excessive padding, cards with heavy borders, a large header, and a table that doesn't work well on narrow screens. Here's the plan:
 
-### UI Design
+### Changes to `src/pages/Pack.tsx`
 
-- New route `/sheet-prep` under the "Operations" group in the sidebar
-- Page layout:
-  1. **Header**: "Sheet Prep" title
-  2. **File upload area**: Drag-and-drop or click to select a CSV/XLSX file
-  3. **Prep type selector**: Radio group or select dropdown (only "TikTok" for now, extensible)
-  4. **Preview table**: Shows first ~10 rows of the uploaded file
-  5. **"Process" button**: Runs the selected prep rules and produces a downloadable output file
-  6. **Download button**: Appears after processing, lets user download the prepped file
+1. **Compact header** — Shrink from `text-3xl` to `text-xl`, remove subtitle text, make it a single line with the station badge inline.
 
-### Steps
+2. **Inline station selector** — Remove the station Card wrapper entirely. Show the station selector as a simple dropdown directly below the header, no card/border. If a station is already selected (persisted in localStorage), collapse it into a small pill that can be tapped to change.
 
-1. **Create `src/pages/SheetPrep.tsx`** — Page component with file upload, prep type selection, raw preview table, process button, and download output. Uses existing `parseFile` from `src/lib/csv.ts` for parsing. Prep rules will be a placeholder pass-through for now (TikTok selected, no transformations yet).
+3. **Scan area as the hero** — Make the scan input/camera the dominant element. Remove the Card wrapper; use the full-screen flash color effect on the outer container instead. Increase input height for easier tapping.
 
-2. **Update `src/App.tsx`** — Add route `/sheet-prep` wrapped in Layout.
+4. **Replace table with stacked cards for recent packs** — On mobile, the 4-column table is cramped. Replace with a simple stacked list showing buyer + product on one line, tracking + time on a second line. Keep it compact.
 
-3. **Update `src/components/Layout.tsx`** — Add "Sheet Prep" nav item in the Operations group with a `FileSpreadsheet` icon.
+5. **Reduce spacing** — Change `space-y-6` to `space-y-3`, reduce container padding from `p-4` to `p-3`.
 
-4. **Update `src/lib/pagePermissions.ts`** — Add `/sheet-prep` to `ALL_PAGES` in the Operations group.
+6. **Always show camera toggle on mobile** — Already conditional on `isMobile`, keep that but make the button more prominent (full-width toggle).
 
-5. **Add default permission** — Database migration to insert `/sheet-prep` into `role_page_defaults` for admin, manager, and labeler roles.
+### No backend or routing changes needed — purely UI refactoring within `Pack.tsx`.
 
