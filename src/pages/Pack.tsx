@@ -362,8 +362,8 @@ export default function Pack() {
           <div className="relative overflow-hidden rounded-lg border border-border bg-black">
             <div id="pack-camera-reader" className="w-full" />
             {cooldownActive && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-green-500/20">
-                <span className="text-lg font-bold text-green-400">✓ Scanned</span>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/20">
+                <span className="text-lg font-bold text-primary">✓ Scanned</span>
               </div>
             )}
           </div>
