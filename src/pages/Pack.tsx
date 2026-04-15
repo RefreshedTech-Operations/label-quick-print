@@ -4,9 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Package2, ScanLine, Camera, Keyboard, ChevronDown } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.CODE_128,
@@ -49,6 +49,7 @@ export default function Pack() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const cooldownRef = useRef(false);
   const lastTrackingRef = useRef<string | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     loadStations();
@@ -63,17 +64,26 @@ export default function Pack() {
   }, [selectedStation]);
 
   useEffect(() => {
-    if (cameraMode) return;
+    if (cameraMode || showStationPicker || isMobile) return;
     const interval = setInterval(() => {
       if (inputRef.current && document.activeElement !== inputRef.current) {
         inputRef.current.focus();
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [cameraMode]);
+  }, [cameraMode, showStationPicker, isMobile]);
+
+  useEffect(() => {
+    if (!showStationPicker) return;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, [showStationPicker]);
 
   const loadUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     setUserId(user?.id || null);
   };
 
@@ -120,7 +130,9 @@ export default function Pack() {
       return 'error';
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       toast.error('Not authenticated');
       flashStatus('error');
@@ -202,10 +214,8 @@ export default function Pack() {
     return 'success';
   }, []);
 
-  // Camera scanner lifecycle
   useEffect(() => {
     if (!cameraMode) {
-      // Stop scanner if running
       if (scannerRef.current) {
         scannerRef.current.stop().catch(() => {}).finally(() => {
           scannerRef.current?.clear();
@@ -228,7 +238,7 @@ export default function Pack() {
         qrbox: { width: 300, height: 100 },
         aspectRatio: 1.333,
       },
-      (decodedText) => {
+      decodedText => {
         const trackingCandidate = stripPrefix(decodedText).toUpperCase();
         if (!isLikelyTrackingBarcode(trackingCandidate)) return;
         if (cooldownRef.current || trackingCandidate === lastTrackingRef.current) return;
@@ -248,8 +258,8 @@ export default function Pack() {
           setLastScannedTracking(null);
         }, 5000);
       },
-      () => {} // ignore decode errors (no match frames)
-    ).catch((err) => {
+      () => {}
+    ).catch(err => {
       console.error('Camera start failed:', err);
       toast.error('Camera access denied');
       setCameraMode(false);
@@ -282,51 +292,58 @@ export default function Pack() {
       scanStatus === 'success' ? 'bg-green-500/10' :
       scanStatus === 'error' ? 'bg-red-500/10' : ''
     }`}>
-      {/* Compact header with inline station */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <Package2 className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-bold">Pack</h1>
         </div>
-      <button
-          onClick={() => setShowStationPicker(true)}
-          className="flex items-center gap-1 text-sm px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground"
-        >
-          {stationName || 'Select Station'}
-          <ChevronDown className="h-3 w-3" />
-        </button>
 
-        <Sheet open={showStationPicker} onOpenChange={setShowStationPicker}>
-          <SheetContent side="bottom" className="px-4 pb-10 pt-4 rounded-t-xl max-h-[60vh]">
-            <SheetHeader className="mb-3">
-              <SheetTitle>Select Pack Station</SheetTitle>
-            </SheetHeader>
-            <div className="space-y-1.5">
-              {stations.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setSelectedStation(s.id);
-                    setShowStationPicker(false);
-                  }}
-                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                    selectedStation === s.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-accent'
-                  }`}
-                >
-                  {s.name}
-                </button>
-              ))}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <button
+            onClick={() => {
+              inputRef.current?.blur();
+              setShowStationPicker(prev => !prev);
+            }}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-sm text-secondary-foreground"
+          >
+            <span className="max-w-[8rem] truncate">{stationName || 'Select Station'}</span>
+            <ChevronDown className={`h-3 w-3 transition-transform ${showStationPicker ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showStationPicker && (
+            <div className="w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-border bg-card p-2 shadow-lg">
+              <div className="px-2 pb-2 pt-1 text-sm font-semibold text-foreground">Select Pack Station</div>
+              <div className="space-y-1.5">
+                {stations.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setSelectedStation(s.id);
+                      setShowStationPicker(false);
+                    }}
+                    className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${
+                      selectedStation === s.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+                {stations.length === 0 && (
+                  <div className="rounded-lg bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                    No active stations available.
+                  </div>
+                )}
+              </div>
             </div>
-          </SheetContent>
-        </Sheet>
+          )}
+        </div>
       </div>
 
-      {/* Scan input — hero element */}
       <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <ScanLine className="h-4 w-4" />
             Scan Tracking
           </span>
@@ -334,18 +351,18 @@ export default function Pack() {
             variant={cameraMode ? 'secondary' : 'outline'}
             size="sm"
             onClick={() => setCameraMode(!cameraMode)}
-            className="gap-1.5 h-8"
+            className="h-8 gap-1.5"
           >
             {cameraMode ? <Keyboard className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
             {cameraMode ? 'Type' : 'Camera'}
           </Button>
         </div>
         {cameraMode ? (
-          <div className="rounded-lg overflow-hidden border border-border bg-black relative">
+          <div className="relative overflow-hidden rounded-lg border border-border bg-black">
             <div id="pack-camera-reader" className="w-full" />
             {cooldownActive && (
-              <div className="absolute inset-0 flex items-center justify-center bg-green-500/20 pointer-events-none">
-                <span className="text-green-400 font-bold text-lg">✓ Scanned</span>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/20">
+                <span className="text-lg font-bold text-primary">✓ Scanned</span>
               </div>
             )}
           </div>
@@ -356,21 +373,20 @@ export default function Pack() {
               value={scanInput}
               onChange={e => setScanInput(e.target.value)}
               placeholder="Scan or type tracking..."
-              autoFocus
+              autoFocus={!isMobile}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="text-lg h-14 font-mono"
+              className="h-14 text-lg font-mono"
             />
           </form>
         )}
       </div>
 
-      {/* Recent packs — stacked cards */}
       {recentPacks.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-medium text-muted-foreground">Recent</span>
             <Badge variant="outline" className="text-xs">{recentPacks.length}</Badge>
           </div>
@@ -381,13 +397,13 @@ export default function Pack() {
                 className="rounded-md border border-border bg-card px-3 py-2"
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-medium truncate">{pack.buyer}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  <span className="truncate text-sm font-medium">{pack.buyer}</span>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
                     {new Date(pack.packed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <div className="flex items-baseline justify-between gap-2 mt-0.5">
-                  <span className="text-xs text-muted-foreground truncate">{pack.product_name}</span>
+                <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                  <span className="truncate text-xs text-muted-foreground">{pack.product_name}</span>
                   <span className="text-[10px] font-mono text-muted-foreground">{pack.tracking?.slice(-8)}</span>
                 </div>
               </div>
