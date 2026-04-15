@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Package2, ScanLine, Camera, Keyboard, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Button } from '@/components/ui/button';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useIsMobile } from '@/hooks/use-mobile';
 
