@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -6,19 +6,14 @@ import { toast } from 'sonner';
 import { Package2, ScanLine, Camera, Keyboard, ChevronDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { useZxing } from 'react-zxing';
-import { DecodeHintType, BarcodeFormat } from '@zxing/library';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
-// Module-level constant — stable reference prevents useZxing reinitialization
-const BARCODE_HINTS = new Map();
-BARCODE_HINTS.set(DecodeHintType.POSSIBLE_FORMATS, [
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.CODE_39,
-  BarcodeFormat.ITF,
-  BarcodeFormat.CODABAR,
-]);
-BARCODE_HINTS.set(DecodeHintType.TRY_HARDER, true);
+const SUPPORTED_FORMATS = [
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.CODABAR,
+];
 
 interface PackStation {
   id: string;
@@ -48,10 +43,12 @@ export default function Pack() {
   const [cooldownActive, setCooldownActive] = useState(false);
   const [lastScannedTracking, setLastScannedTracking] = useState<string | null>(null);
   const [showStationPicker, setShowStationPicker] = useState(false);
-  const isMobile = useIsMobile();
   const inputRef = useRef<HTMLInputElement>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const cooldownRef = useRef(false);
+  const lastTrackingRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadStations();
@@ -90,7 +87,6 @@ export default function Pack() {
   };
 
   const stripPrefix = (input: string): string => {
-    // Remove all control characters and whitespace (scanner artifacts)
     const cleaned = input.replace(/[\r\n\t\x00-\x1f\s]/g, '');
     if (cleaned.startsWith('1Z')) return cleaned;
     if (cleaned.length > 30) {
@@ -101,7 +97,6 @@ export default function Pack() {
 
   const isLikelyTrackingBarcode = (input: string): boolean => {
     const cleaned = stripPrefix(input).toUpperCase();
-
     return (
       /^1Z[0-9A-Z]{16}$/.test(cleaned) ||
       /^[0-9]{12,35}$/.test(cleaned) ||
@@ -115,23 +110,24 @@ export default function Pack() {
     statusTimeoutRef.current = setTimeout(() => setScanStatus('idle'), 2000);
   };
 
-  const processTracking = async (rawInput: string): Promise<'success' | 'error'> => {
+  const processTracking = useCallback(async (rawInput: string): Promise<'success' | 'error'> => {
     if (!rawInput.trim()) return 'error';
 
-    if (!selectedStation) {
+    const stationId = localStorage.getItem('pack-station-id') || '';
+    if (!stationId) {
       toast.error('Select a station first');
       flashStatus('error');
       return 'error';
     }
 
-    if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       toast.error('Not authenticated');
       flashStatus('error');
       return 'error';
     }
 
     const tracking = stripPrefix(rawInput).toUpperCase();
-
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
     const { data: shipments, error } = await supabase
@@ -178,8 +174,8 @@ export default function Pack() {
       .update({
         packed: true,
         packed_at: now,
-        packed_by_user_id: userId,
-        pack_station_id: selectedStation,
+        packed_by_user_id: user.id,
+        pack_station_id: stationId,
       })
       .eq('id', shipment.id);
 
@@ -204,43 +200,67 @@ export default function Pack() {
     }, ...prev]);
 
     return 'success';
-  };
+  }, []);
 
-  const { ref: cameraRef } = useZxing({
-    paused: !cameraMode || cooldownActive,
-    hints: BARCODE_HINTS,
-    timeBetweenDecodingAttempts: 150,
-    constraints: {
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      },
-    },
-    onDecodeResult(result) {
-      const text = result.getText().trim();
-      const trackingCandidate = stripPrefix(text).toUpperCase();
-
-      if (!isLikelyTrackingBarcode(trackingCandidate)) return;
-      if (cooldownActive || trackingCandidate === lastScannedTracking) return;
-
-      setLastScannedTracking(trackingCandidate);
-      setCooldownActive(true);
-      processTracking(trackingCandidate);
-
-      if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
-      cooldownTimeoutRef.current = setTimeout(() => {
-        setCooldownActive(false);
-        setLastScannedTracking(null);
-      }, 5000);
-    },
-    onError(err) {
-      if (err instanceof DOMException) {
-        toast.error('Camera access denied');
-        setCameraMode(false);
+  // Camera scanner lifecycle
+  useEffect(() => {
+    if (!cameraMode) {
+      // Stop scanner if running
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {}).finally(() => {
+          scannerRef.current?.clear();
+          scannerRef.current = null;
+        });
       }
-    },
-  });
+      return;
+    }
+
+    const scanner = new Html5Qrcode('pack-camera-reader', {
+      formatsToSupport: SUPPORTED_FORMATS,
+      verbose: false,
+    });
+    scannerRef.current = scanner;
+
+    scanner.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 300, height: 100 },
+        aspectRatio: 1.333,
+      },
+      (decodedText) => {
+        const trackingCandidate = stripPrefix(decodedText).toUpperCase();
+        if (!isLikelyTrackingBarcode(trackingCandidate)) return;
+        if (cooldownRef.current || trackingCandidate === lastTrackingRef.current) return;
+
+        lastTrackingRef.current = trackingCandidate;
+        cooldownRef.current = true;
+        setCooldownActive(true);
+        setLastScannedTracking(trackingCandidate);
+
+        processTracking(trackingCandidate);
+
+        if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
+        cooldownTimeoutRef.current = setTimeout(() => {
+          cooldownRef.current = false;
+          lastTrackingRef.current = null;
+          setCooldownActive(false);
+          setLastScannedTracking(null);
+        }, 5000);
+      },
+      () => {} // ignore decode errors (no match frames)
+    ).catch((err) => {
+      console.error('Camera start failed:', err);
+      toast.error('Camera access denied');
+      setCameraMode(false);
+    });
+
+    return () => {
+      scanner.stop().catch(() => {});
+      scanner.clear();
+      scannerRef.current = null;
+    };
+  }, [cameraMode, processTracking]);
 
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -249,7 +269,6 @@ export default function Pack() {
     if (!scanInput.trim()) return;
     const captured = scanInput;
     setScanInput('');
-    // Short debounce to let scanner finish injecting all characters
     if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
     scanTimeoutRef.current = setTimeout(() => {
       processTracking(captured);
@@ -312,11 +331,7 @@ export default function Pack() {
         </div>
         {cameraMode ? (
           <div className="rounded-lg overflow-hidden border border-border bg-black relative">
-            <video ref={cameraRef} className="w-full aspect-[4/3] object-cover" />
-            {/* Targeting reticle */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-[70%] h-16 border-2 border-red-500 rounded-md opacity-80" />
-            </div>
+            <div id="pack-camera-reader" className="w-full" />
             {cooldownActive && (
               <div className="absolute inset-0 flex items-center justify-center bg-green-500/20 pointer-events-none">
                 <span className="text-green-400 font-bold text-lg">✓ Scanned</span>
