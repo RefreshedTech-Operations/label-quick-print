@@ -198,8 +198,11 @@ export default function Pack() {
   const { ref: cameraRef } = useZxing({
     paused: !cameraMode || cooldownActive,
     hints: barcodeHints,
+    timeBetweenDecodingAttempts: 500,
     onDecodeResult(result) {
-      const text = result.getText();
+      const text = result.getText().trim();
+      // Reject obviously bad reads: too short or non-alphanumeric
+      if (text.length < 10 || !/^[A-Za-z0-9]+$/.test(text)) return;
       if (cooldownActive || text === lastScannedTracking) return;
       setLastScannedTracking(text);
       setCooldownActive(true);
@@ -289,8 +292,17 @@ export default function Pack() {
           )}
         </div>
         {cameraMode ? (
-          <div className="rounded-lg overflow-hidden border border-border bg-black">
+          <div className="rounded-lg overflow-hidden border border-border bg-black relative">
             <video ref={cameraRef} className="w-full aspect-[4/3] object-cover" />
+            {/* Targeting reticle */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-[70%] h-16 border-2 border-red-500 rounded-md opacity-80" />
+            </div>
+            {cooldownActive && (
+              <div className="absolute inset-0 flex items-center justify-center bg-green-500/20 pointer-events-none">
+                <span className="text-green-400 font-bold text-lg">✓ Scanned</span>
+              </div>
+            )}
           </div>
         ) : (
           <form onSubmit={handleScan}>
