@@ -111,10 +111,13 @@ export default function Pack() {
 
     const tracking = stripPrefix(rawInput);
 
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+
     const { data: shipments, error } = await supabase
       .from('shipments')
       .select('id, tracking, buyer, product_name, order_id, packed, packed_at, packed_by_user_id')
-      .ilike('tracking', tracking)
+      .eq('tracking', tracking)
+      .gte('created_at', fiveDaysAgo)
       .limit(1);
 
     if (error) {
