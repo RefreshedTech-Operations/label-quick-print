@@ -192,13 +192,22 @@ export default function Pack() {
     BarcodeFormat.CODE_39,
     BarcodeFormat.ITF,
     BarcodeFormat.CODABAR,
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.UPC_A,
   ]);
   barcodeHints.set(DecodeHintType.TRY_HARDER, true);
 
   const { ref: cameraRef } = useZxing({
     paused: !cameraMode || cooldownActive,
     hints: barcodeHints,
-    timeBetweenDecodingAttempts: 500,
+    timeBetweenDecodingAttempts: 300,
+    constraints: {
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    },
     onDecodeResult(result) {
       const text = result.getText().trim();
       // Reject obviously bad reads: too short or non-alphanumeric
