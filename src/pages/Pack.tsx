@@ -52,8 +52,13 @@ export default function Pack() {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    loadStations();
-    loadUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        loadStations();
+        loadUser();
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
