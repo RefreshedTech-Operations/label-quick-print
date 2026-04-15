@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Package2, ScanLine, Camera, Keyboard, ChevronDown } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
 import { Button } from '@/components/ui/button';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -293,53 +293,53 @@ export default function Pack() {
       scanStatus === 'success' ? 'bg-green-500/10' :
       scanStatus === 'error' ? 'bg-red-500/10' : ''
     }`}>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <Package2 className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-bold">Pack</h1>
         </div>
 
-        <button
-          onClick={() => {
-            inputRef.current?.blur();
-            setShowStationPicker(true);
-          }}
-          className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-sm text-secondary-foreground"
-        >
-          <span className="max-w-[8rem] truncate">{stationName || 'Select Station'}</span>
-          <ChevronDown className="h-3 w-3" />
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <button
+            onClick={() => {
+              inputRef.current?.blur();
+              setShowStationPicker(prev => !prev);
+            }}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-sm text-secondary-foreground"
+          >
+            <span className="max-w-[8rem] truncate">{stationName || 'Select Station'}</span>
+            <ChevronDown className={`h-3 w-3 transition-transform ${showStationPicker ? 'rotate-180' : ''}`} />
+          </button>
 
-        <Sheet open={showStationPicker} onOpenChange={setShowStationPicker}>
-          <SheetContent side="bottom" className="max-h-[60vh] overflow-y-auto rounded-t-xl px-4 pb-10 pt-4">
-            <SheetHeader className="mb-3">
-              <SheetTitle>Select Pack Station</SheetTitle>
-            </SheetHeader>
-            <div className="space-y-1.5">
-              {stations.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setSelectedStation(s.id);
-                    setShowStationPicker(false);
-                  }}
-                  className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${
-                    selectedStation === s.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-accent'
-                  }`}
-                >
-                  {s.name}
-                </button>
-              ))}
-              {stations.length === 0 && (
-                <div className="rounded-lg bg-secondary px-4 py-3 text-sm text-muted-foreground">
-                  No active stations available.
-                </div>
-              )}
+          {showStationPicker && (
+            <div className="w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-border bg-card p-2 shadow-lg">
+              <div className="px-2 pb-2 pt-1 text-sm font-semibold text-foreground">Select Pack Station</div>
+              <div className="space-y-1.5">
+                {stations.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setSelectedStation(s.id);
+                      setShowStationPicker(false);
+                    }}
+                    className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${
+                      selectedStation === s.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+                {stations.length === 0 && (
+                  <div className="rounded-lg bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                    No active stations available.
+                  </div>
+                )}
+              </div>
             </div>
-          </SheetContent>
-        </Sheet>
+          )}
+        </div>
       </div>
 
       <div>
