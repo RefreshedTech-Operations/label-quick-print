@@ -104,8 +104,8 @@ export default function Pack() {
   const stripPrefix = (input: string): string => {
     const cleaned = input.replace(/[\r\n\t\x00-\x1f\s]/g, '');
     if (cleaned.startsWith('1Z')) return cleaned;
-    if (cleaned.length > 30) {
-      return cleaned.substring(15);
+    if (cleaned.length > 22) {
+      return cleaned.substring(12);
     }
     return cleaned;
   };
