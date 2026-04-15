@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_shipments_tracking_created ON public.shipments (tracking, created_at DESC);
