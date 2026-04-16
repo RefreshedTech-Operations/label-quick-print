@@ -278,7 +278,18 @@ export default function Pack() {
         }, 5000);
       },
       () => {}
-    ).catch(err => {
+    ).then(() => {
+      // Detect torch support after camera starts
+      try {
+        const videoEl = document.querySelector('#pack-camera-reader video') as HTMLVideoElement | null;
+        const stream = videoEl?.srcObject as MediaStream | null;
+        const track = stream?.getVideoTracks?.()[0];
+        const caps = (track?.getCapabilities?.() as any) || {};
+        setTorchSupported(!!caps.torch);
+      } catch {
+        setTorchSupported(false);
+      }
+    }).catch(err => {
       console.error('Camera start failed:', err);
       toast.error('Camera access denied');
       setCameraMode(false);
