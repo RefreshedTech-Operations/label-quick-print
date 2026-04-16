@@ -381,9 +381,24 @@ export default function Pack() {
         {cameraMode ? (
           <div className="relative overflow-hidden rounded-lg border border-border bg-black">
             <div id="pack-camera-reader" className="w-full" />
+            {/* Alignment overlay: guides user to position the long tracking barcode horizontally */}
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <div className="relative w-[88%] h-[28%] max-h-40">
+                {/* Corner brackets */}
+                <div className="absolute -top-0.5 -left-0.5 h-6 w-6 border-t-2 border-l-2 border-primary rounded-tl" />
+                <div className="absolute -top-0.5 -right-0.5 h-6 w-6 border-t-2 border-r-2 border-primary rounded-tr" />
+                <div className="absolute -bottom-0.5 -left-0.5 h-6 w-6 border-b-2 border-l-2 border-primary rounded-bl" />
+                <div className="absolute -bottom-0.5 -right-0.5 h-6 w-6 border-b-2 border-r-2 border-primary rounded-br" />
+                {/* Center scan line */}
+                <div className="absolute left-2 right-2 top-1/2 h-0.5 -translate-y-1/2 bg-primary/70 shadow-[0_0_8px_hsl(var(--primary))]" />
+              </div>
+              <span className="mt-3 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white">
+                Align barcode horizontally inside the box
+              </span>
+            </div>
             {cooldownActive && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/20">
-                <span className="text-lg font-bold text-primary">✓ Scanned</span>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/30">
+                <span className="text-lg font-bold text-primary-foreground">✓ Scanned</span>
               </div>
             )}
           </div>
