@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Package2, ScanLine, Camera, Keyboard, ChevronDown } from 'lucide-react';
+import { Package2, ScanLine, Camera, Keyboard, ChevronDown, Flashlight, FlashlightOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -43,6 +43,8 @@ export default function Pack() {
   const [cooldownActive, setCooldownActive] = useState(false);
   const [lastScannedTracking, setLastScannedTracking] = useState<string | null>(null);
   const [showStationPicker, setShowStationPicker] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -276,7 +278,18 @@ export default function Pack() {
         }, 5000);
       },
       () => {}
-    ).catch(err => {
+    ).then(() => {
+      // Detect torch support after camera starts
+      try {
+        const videoEl = document.querySelector('#pack-camera-reader video') as HTMLVideoElement | null;
+        const stream = videoEl?.srcObject as MediaStream | null;
+        const track = stream?.getVideoTracks?.()[0];
+        const caps = (track?.getCapabilities?.() as any) || {};
+        setTorchSupported(!!caps.torch);
+      } catch {
+        setTorchSupported(false);
+      }
+    }).catch(err => {
       console.error('Camera start failed:', err);
       toast.error('Camera access denied');
       setCameraMode(false);
@@ -284,6 +297,8 @@ export default function Pack() {
 
     return () => {
       scannerRef.current = null;
+      setTorchSupported(false);
+      setTorchOn(false);
       const state = scanner.getState?.();
       if (state === 2 || state === 3) {
         scanner.stop().then(() => scanner.clear()).catch(() => {});
@@ -292,6 +307,21 @@ export default function Pack() {
       }
     };
   }, [cameraMode, processTracking]);
+
+  const toggleTorch = async () => {
+    try {
+      const videoEl = document.querySelector('#pack-camera-reader video') as HTMLVideoElement | null;
+      const stream = videoEl?.srcObject as MediaStream | null;
+      const track = stream?.getVideoTracks?.()[0];
+      if (!track) return;
+      const next = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: next } as any] });
+      setTorchOn(next);
+    } catch (err) {
+      console.error('Torch toggle failed:', err);
+      toast.error('Flashlight not available');
+    }
+  };
 
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -381,6 +411,18 @@ export default function Pack() {
         {cameraMode ? (
           <div className="relative overflow-hidden rounded-lg border border-border bg-black">
             <div id="pack-camera-reader" className="w-full" />
+            {torchSupported && (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                aria-label={torchOn ? 'Turn flashlight off' : 'Turn flashlight on'}
+                className={`absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition-colors ${
+                  torchOn ? 'bg-primary text-primary-foreground' : 'bg-black/50 text-white hover:bg-black/70'
+                }`}
+              >
+                {torchOn ? <Flashlight className="h-5 w-5" /> : <FlashlightOff className="h-5 w-5" />}
+              </button>
+            )}
             {/* Alignment overlay: guides user to position the long tracking barcode horizontally */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
               <div className="relative w-[88%] h-[28%] max-h-40">
