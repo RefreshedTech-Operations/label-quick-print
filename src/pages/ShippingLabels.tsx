@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -279,7 +280,21 @@ function ServiceOverridePopover({
 
 export default function ShippingLabels() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('missing');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'missing';
+  const initialShowDate = searchParams.get('showDate') || undefined;
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Clear URL params after consuming so refresh/navigation isn't sticky
+  useEffect(() => {
+    if (searchParams.get('tab') || searchParams.get('showDate')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('tab');
+      next.delete('showDate');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -302,10 +317,10 @@ export default function ShippingLabels() {
           <TabsTrigger value="lookup" className="gap-2"><Search className="h-4 w-4" />Label Lookup</TabsTrigger>
         </TabsList>
         <TabsContent value="missing" className="space-y-4 mt-4">
-          <MissingLabelsTab queryClient={queryClient} />
+          <MissingLabelsTab queryClient={queryClient} initialShowDate={initialShowDate} />
         </TabsContent>
         <TabsContent value="generated" className="space-y-4 mt-4">
-          <GeneratedLabelsTab queryClient={queryClient} />
+          <GeneratedLabelsTab queryClient={queryClient} initialShowDate={initialShowDate} />
         </TabsContent>
         <TabsContent value="lookup" className="space-y-4 mt-4">
           <LabelLookupTab />
@@ -316,10 +331,10 @@ export default function ShippingLabels() {
 }
 
 /* ─── Missing Labels Tab ─── */
-function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: ReturnType<typeof useQueryClient>; initialShowDate?: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>(initialShowDate);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -722,10 +737,10 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
 }
 
 /* ─── Generated Labels Tab ─── */
-function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+function GeneratedLabelsTab({ queryClient, initialShowDate }: { queryClient: ReturnType<typeof useQueryClient>; initialShowDate?: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>(initialShowDate);
   const [allShowsMode, setAllShowsMode] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string | undefined>();
 
