@@ -101,17 +101,24 @@ export default function Pack() {
     setStations(data || []);
   };
 
-  const stripPrefix = (input: string): string => {
-    const cleaned = input.replace(/[\r\n\t\x00-\x1f\s]/g, '');
-    if (cleaned.startsWith('1Z')) return cleaned;
+  const normalizeTracking = (input: string): string => {
+    // Strip control chars, whitespace, and GS1/AIM symbology prefixes
+    let cleaned = input.replace(/[\r\n\t\x00-\x1f\s]/g, '').replace(/^\]C1/, '');
+    // UPS: keep as-is
+    if (cleaned.startsWith('1Z')) return cleaned.toUpperCase();
+    // USPS GS1-128: starts with 420 + ZIP, extract trailing 22-digit tracking
+    if (/^420\d/.test(cleaned) && cleaned.length > 22) {
+      return cleaned.slice(-22);
+    }
+    // Generic long barcode fallback
     if (cleaned.length > 22) {
       return cleaned.substring(15);
     }
-    return cleaned;
+    return cleaned.toUpperCase();
   };
 
   const isLikelyTrackingBarcode = (input: string): boolean => {
-    const cleaned = stripPrefix(input).toUpperCase();
+    const cleaned = normalizeTracking(input);
     return (
       /^1Z[0-9A-Z]{16}$/.test(cleaned) ||
       /^[0-9]{12,35}$/.test(cleaned) ||
@@ -144,7 +151,7 @@ export default function Pack() {
       return 'error';
     }
 
-    const tracking = stripPrefix(rawInput).toUpperCase();
+    const tracking = normalizeTracking(rawInput);
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
     const { data: shipments, error } = await supabase
@@ -242,13 +249,14 @@ export default function Pack() {
 
     scanner.start(
       { facingMode: 'environment' },
-      {
-        fps: 10,
-        qrbox: { width: 300, height: 100 },
+      ({
+        fps: 15,
+        qrbox: { width: 600, height: 150 },
         aspectRatio: 1.333,
-      },
+        useBarCodeDetectorIfSupported: false,
+      }) as any,
       decodedText => {
-        const trackingCandidate = stripPrefix(decodedText).toUpperCase();
+        const trackingCandidate = normalizeTracking(decodedText);
         if (!isLikelyTrackingBarcode(trackingCandidate)) return;
         if (cooldownRef.current || trackingCandidate === lastTrackingRef.current) return;
 
