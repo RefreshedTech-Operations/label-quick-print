@@ -740,7 +740,7 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
 function GeneratedLabelsTab({ queryClient, initialShowDate }: { queryClient: ReturnType<typeof useQueryClient>; initialShowDate?: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>(initialShowDate);
   const [allShowsMode, setAllShowsMode] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string | undefined>();
 
