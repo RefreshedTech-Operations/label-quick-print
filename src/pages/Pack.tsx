@@ -221,11 +221,15 @@ export default function Pack() {
 
   useEffect(() => {
     if (!cameraMode) {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {}).finally(() => {
-          scannerRef.current?.clear();
-          scannerRef.current = null;
-        });
+      const prev = scannerRef.current;
+      if (prev) {
+        scannerRef.current = null;
+        const state = prev.getState?.();
+        if (state === 2 /* SCANNING */ || state === 3 /* PAUSED */) {
+          prev.stop().then(() => prev.clear()).catch(() => {});
+        } else {
+          try { prev.clear(); } catch {}
+        }
       }
       return;
     }
@@ -271,9 +275,13 @@ export default function Pack() {
     });
 
     return () => {
-      scanner.stop().catch(() => {});
-      scanner.clear();
       scannerRef.current = null;
+      const state = scanner.getState?.();
+      if (state === 2 || state === 3) {
+        scanner.stop().then(() => scanner.clear()).catch(() => {});
+      } else {
+        try { scanner.clear(); } catch {}
+      }
     };
   }, [cameraMode, processTracking]);
 
