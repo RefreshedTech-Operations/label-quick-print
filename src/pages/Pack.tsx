@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Package2, ScanLine, Camera, Keyboard, ChevronDown } from 'lucide-react';
+import { Package2, ScanLine, Camera, Keyboard, ChevronDown, Flashlight, FlashlightOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useIsMobile } from '@/hooks/use-mobile';
