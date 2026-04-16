@@ -249,12 +249,12 @@ export default function Pack() {
 
     scanner.start(
       { facingMode: 'environment' },
-      {
+      ({
         fps: 15,
         qrbox: { width: 600, height: 150 },
         aspectRatio: 1.333,
-        useBarCodeDetectorIfSupported: false as any,
-      },
+        useBarCodeDetectorIfSupported: false,
+      }) as any,
       decodedText => {
         const trackingCandidate = normalizeTracking(decodedText);
         if (!isLikelyTrackingBarcode(trackingCandidate)) return;
