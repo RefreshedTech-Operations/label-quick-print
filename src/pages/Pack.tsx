@@ -43,6 +43,8 @@ export default function Pack() {
   const [cooldownActive, setCooldownActive] = useState(false);
   const [lastScannedTracking, setLastScannedTracking] = useState<string | null>(null);
   const [showStationPicker, setShowStationPicker] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
