@@ -1,40 +1,34 @@
 
-Fix USPS camera scanning
 
-What I found
-- Manual/text lookup already works, so the database query and 15-character USPS extraction are not the main blocker now.
-- The remaining problem is camera-specific. In `src/pages/Pack.tsx`, the scanner uses a very small fixed scan box (`qrbox: { width: 300, height: 100 }`) plus the library’s default detector behavior. That combination is often weak for long, dense USPS GS1-128 / Code 128 labels.
-- The camera path also assumes the decoded value is already clean. USPS camera reads can include extra GS1/AIM prefixes like `]C1`, so valid scans may still be rejected or trimmed incorrectly.
-- I also found the tracking memory note is out of sync and still mentions the older 12-character rule.
+## TikTok Sheet Prep — Implementation Plan
 
-Implementation plan
-1. Harden normalization in `src/pages/Pack.tsx`
-   - Replace the current `stripPrefix` helper with one shared normalizer for both camera and text input.
-   - Strip whitespace/control chars and GS1/AIM prefixes like `]C1` first.
-   - Keep UPS `1Z...` values unchanged.
-   - For long USPS numeric scans starting with `420`, extract the actual tracking value robustly by keeping the trailing 22 digits, which matches your required result: `9336220762600012328842`.
+I cannot read .xlsx contents in plan mode (parser returned empty), so step 1 of implementation will be inspecting both your sample files via script before coding the mappings.
 
-2. Improve camera decoding reliability
-   - Remove or significantly widen the fixed `qrbox` so long USPS barcodes are not clipped.
-   - Configure `html5-qrcode` to use the library decoder path instead of relying on the browser detector, which should improve GS1-128 / Code 128 scanning consistency.
-   - Keep the scanner limited to 1D barcodes to preserve the current warehouse workflow.
+### Step 1 — Inspect both sample files
+Run a one-off script to print sheet names, columns, and 2-3 sample rows from:
+- `To_Ship_order-2026-04-16-08_01.xlsx` (raw TikTok seller-center export)
+- `TikTok_LabelApp_2026-04-16.xlsx` (your manually-prepped output)
 
-3. Tighten the scan callback
-   - Normalize first, then validate.
-   - Use the normalized value consistently for duplicate protection, cooldown, lookup, and recent-pack display.
-   - Keep the current cooldown behavior and avoid adding heavy UI work in the scan loop.
+This locks the exact source columns, target columns, header row offset, and any dropped/renamed/derived fields.
 
-4. Sync documentation
-   - Update the tracking-prefix memory entry so it matches the final USPS rule and no longer references the stale 12-character behavior.
+### Step 2 — Build the TikTok prep transform in `src/pages/SheetPrep.tsx`
+Replace the placeholder `applyPrepRules` for `prepType === 'tiktok'` with a transform that:
+1. **Drops cancelled/failed rows** (case-insensitive match on TikTok's cancellation status column — exact column name confirmed in Step 1).
+2. **Maps raw columns → processed columns** to exactly match the structure of `TikTok_LabelApp_2026-04-16.xlsx` (so the output is drop-in identical to what you produce by hand today).
+3. **Trims whitespace** and normalizes obvious value formatting (e.g. quantity to integer, address concatenation if needed).
+4. **De-dupes** if the prepped file shows dedupe behavior (confirmed in Step 1).
+5. Outputs in the same column order as your prepped file.
 
-Validation after implementation
-- Test camera scanning with the USPS label flow and confirm the lookup uses `9336220762600012328842`.
-- Re-test UPS camera scanning to confirm `1Z` labels still work unchanged.
-- Re-test manual USPS entry to confirm no regression.
-- Toggle Camera/Type a few times to confirm the earlier scanner cleanup error does not return.
+### Step 3 — Output options
+Keep the existing **Download CSV** button. Also add a **Download XLSX** button so the prepped output can match your current xlsx workflow, using the `xlsx` library already installed in the project (`src/lib/csv.ts` already imports it).
 
-Technical details
-- Likely weak point now: `qrbox: { width: 300, height: 100 }`
-- Likely normalization gap: no handling for camera-added GS1/AIM prefixes before USPS extraction
-- Files to update: `src/pages/Pack.tsx` and the tracking-prefix memory entry
-- No backend/database changes needed
+### Step 4 — Preview
+The existing 10-row preview table in `SheetPrep.tsx` will automatically reflect the processed columns/values — no changes needed there.
+
+### Files to change
+- `src/pages/SheetPrep.tsx` — TikTok rules + xlsx download.
+- No backend / DB / memory changes.
+
+### Validation
+- Upload `To_Ship_order-2026-04-16-08_01.xlsx`, run TikTok prep, and diff the output against `TikTok_LabelApp_2026-04-16.xlsx` (same row count after cancellations dropped, same columns, same values per row).
+
