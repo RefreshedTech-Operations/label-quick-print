@@ -458,6 +458,32 @@ export default function Upload() {
     };
   }, [processAndUpload]);
 
+  // Consume Sheet Prep handoff (CSV staged in sessionStorage)
+  useEffect(() => {
+    const HANDOFF_KEY = 'sheetPrep.handoff';
+    const raw = sessionStorage.getItem(HANDOFF_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(HANDOFF_KEY);
+    try {
+      const payload = JSON.parse(raw) as {
+        csv: string; fileName?: string; rowCount?: number; channel?: string;
+      };
+      if (!payload?.csv) return;
+      const data = parseCSVString(payload.csv);
+      if (!data || data.length === 0) {
+        toast.error('Sheet Prep handoff was empty');
+        return;
+      }
+      setParsedData(data);
+      setPreview(data.slice(0, 5));
+      if (payload.channel) setChannel(payload.channel);
+      setFile(null);
+      toast.success(`Loaded ${data.length} rows from Sheet Prep — pick a show date and Upload`);
+    } catch (err: any) {
+      toast.error('Failed to load Sheet Prep data', { description: err?.message });
+    }
+  }, []);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="space-y-2">
