@@ -331,10 +331,10 @@ export default function ShippingLabels() {
 }
 
 /* ─── Missing Labels Tab ─── */
-function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: ReturnType<typeof useQueryClient>; initialShowDate?: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
+  const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>(initialShowDate);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -737,7 +737,7 @@ function MissingLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQ
 }
 
 /* ─── Generated Labels Tab ─── */
-function GeneratedLabelsTab({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+function GeneratedLabelsTab({ queryClient, initialShowDate }: { queryClient: ReturnType<typeof useQueryClient>; initialShowDate?: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [selectedShowDate, setSelectedShowDate] = useState<string | undefined>();
