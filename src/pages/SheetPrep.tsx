@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,21 +8,23 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { parseFile } from '@/lib/csv';
+import { transformTikTokRows, TIKTOK_OUTPUT_HEADERS } from '@/lib/tiktokPrep';
 import { toast } from 'sonner';
 
 type PrepType = 'tiktok';
 
 const PREP_TYPES: { value: PrepType; label: string; description: string }[] = [
-  { value: 'tiktok', label: 'TikTok', description: 'Prepare TikTok export sheets for upload' },
+  { value: 'tiktok', label: 'TikTok', description: 'Convert raw TikTok seller-center export to upload-ready format' },
 ];
 
-function applyPrepRules(data: any[], prepType: PrepType): any[] {
-  // Placeholder — rules will be built out per prep type
+function applyPrepRules(data: any[], prepType: PrepType): { rows: any[]; columns: string[] } {
   switch (prepType) {
-    case 'tiktok':
-      return data;
+    case 'tiktok': {
+      const rows = transformTikTokRows(data);
+      return { rows, columns: [...TIKTOK_OUTPUT_HEADERS] };
+    }
     default:
-      return data;
+      return { rows: data, columns: data.length > 0 ? Object.keys(data[0]) : [] };
   }
 }
 
@@ -29,6 +32,7 @@ export default function SheetPrep() {
   const [file, setFile] = useState<File | null>(null);
   const [rawData, setRawData] = useState<any[]>([]);
   const [processedData, setProcessedData] = useState<any[] | null>(null);
+  const [processedColumns, setProcessedColumns] = useState<string[]>([]);
   const [prepType, setPrepType] = useState<PrepType>('tiktok');
   const [loading, setLoading] = useState(false);
 
@@ -37,6 +41,7 @@ export default function SheetPrep() {
     if (!selected) return;
     setFile(selected);
     setProcessedData(null);
+    setProcessedColumns([]);
     try {
       const parsed = await parseFile(selected);
       setRawData(parsed);
@@ -51,9 +56,10 @@ export default function SheetPrep() {
     if (rawData.length === 0) return;
     setLoading(true);
     try {
-      const result = applyPrepRules(rawData, prepType);
-      setProcessedData(result);
-      toast.success(`Processed ${result.length} rows`);
+      const { rows, columns } = applyPrepRules(rawData, prepType);
+      setProcessedData(rows);
+      setProcessedColumns(columns);
+      toast.success(`Processed ${rows.length} rows (from ${rawData.length} raw)`);
     } catch (err: any) {
       toast.error(err.message || 'Processing failed');
     } finally {
@@ -61,17 +67,18 @@ export default function SheetPrep() {
     }
   }, [rawData, prepType]);
 
-  const handleDownload = useCallback(() => {
+  const baseName = file?.name?.replace(/\.[^.]+$/, '') || 'output';
+
+  const handleDownloadCSV = useCallback(() => {
     if (!processedData || processedData.length === 0) return;
-    const headers = Object.keys(processedData[0]);
+    const headers = processedColumns.length ? processedColumns : Object.keys(processedData[0]);
     const csvRows = [
       headers.join(','),
       ...processedData.map(row =>
         headers.map(h => {
-          const val = String(row[h] ?? '');
-          return val.includes(',') || val.includes('"') || val.includes('\n')
-            ? `"${val.replace(/"/g, '""')}"`
-            : val;
+          const val = row[h];
+          const str = val === null || val === undefined ? '' : String(val);
+          return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
         }).join(',')
       ),
     ];
@@ -79,14 +86,25 @@ export default function SheetPrep() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const baseName = file?.name?.replace(/\.[^.]+$/, '') || 'output';
     a.download = `${baseName}_prepped.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [processedData, file]);
+  }, [processedData, processedColumns, baseName]);
+
+  const handleDownloadXLSX = useCallback(() => {
+    if (!processedData || processedData.length === 0) return;
+    const headers = processedColumns.length ? processedColumns : Object.keys(processedData[0]);
+    const aoa: any[][] = [headers, ...processedData.map(r => headers.map(h => r[h] ?? ''))];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Orders');
+    XLSX.writeFile(wb, `${baseName}_prepped.xlsx`);
+  }, [processedData, processedColumns, baseName]);
 
   const previewData = processedData || rawData;
-  const columns = previewData.length > 0 ? Object.keys(previewData[0]) : [];
+  const columns = processedData
+    ? (processedColumns.length ? processedColumns : Object.keys(processedData[0] ?? {}))
+    : (previewData.length > 0 ? Object.keys(previewData[0]) : []);
   const previewRows = previewData.slice(0, 10);
 
   return (
@@ -134,15 +152,20 @@ export default function SheetPrep() {
               ))}
             </RadioGroup>
 
-            <div className="flex gap-2 mt-4">
+            <div className="flex flex-wrap gap-2 mt-4">
               <Button onClick={handleProcess} disabled={rawData.length === 0 || loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Process
               </Button>
-              {processedData && (
-                <Button variant="outline" onClick={handleDownload}>
-                  <Download className="h-4 w-4" /> Download
-                </Button>
+              {processedData && processedData.length > 0 && (
+                <>
+                  <Button variant="outline" onClick={handleDownloadXLSX}>
+                    <Download className="h-4 w-4" /> Download XLSX
+                  </Button>
+                  <Button variant="outline" onClick={handleDownloadCSV}>
+                    <Download className="h-4 w-4" /> Download CSV
+                  </Button>
+                </>
               )}
             </div>
           </CardContent>
@@ -171,7 +194,7 @@ export default function SheetPrep() {
                   <TableRow key={i}>
                     {columns.map(col => (
                       <TableCell key={col} className="whitespace-nowrap max-w-[200px] truncate">
-                        {String(row[col] ?? '')}
+                        {row[col] === null || row[col] === undefined ? '' : String(row[col])}
                       </TableCell>
                     ))}
                   </TableRow>
