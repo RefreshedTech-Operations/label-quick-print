@@ -411,6 +411,18 @@ export default function Pack() {
         {cameraMode ? (
           <div className="relative overflow-hidden rounded-lg border border-border bg-black">
             <div id="pack-camera-reader" className="w-full" />
+            {torchSupported && (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                aria-label={torchOn ? 'Turn flashlight off' : 'Turn flashlight on'}
+                className={`absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition-colors ${
+                  torchOn ? 'bg-primary text-primary-foreground' : 'bg-black/50 text-white hover:bg-black/70'
+                }`}
+              >
+                {torchOn ? <Flashlight className="h-5 w-5" /> : <FlashlightOff className="h-5 w-5" />}
+              </button>
+            )}
             {/* Alignment overlay: guides user to position the long tracking barcode horizontally */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
               <div className="relative w-[88%] h-[28%] max-h-40">
