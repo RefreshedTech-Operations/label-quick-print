@@ -297,6 +297,8 @@ export default function Pack() {
 
     return () => {
       scannerRef.current = null;
+      setTorchSupported(false);
+      setTorchOn(false);
       const state = scanner.getState?.();
       if (state === 2 || state === 3) {
         scanner.stop().then(() => scanner.clear()).catch(() => {});
@@ -305,6 +307,21 @@ export default function Pack() {
       }
     };
   }, [cameraMode, processTracking]);
+
+  const toggleTorch = async () => {
+    try {
+      const videoEl = document.querySelector('#pack-camera-reader video') as HTMLVideoElement | null;
+      const stream = videoEl?.srcObject as MediaStream | null;
+      const track = stream?.getVideoTracks?.()[0];
+      if (!track) return;
+      const next = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: next } as any] });
+      setTorchOn(next);
+    } catch (err) {
+      console.error('Torch toggle failed:', err);
+      toast.error('Flashlight not available');
+    }
+  };
 
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
