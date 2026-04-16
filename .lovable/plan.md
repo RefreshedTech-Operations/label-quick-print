@@ -1,35 +1,24 @@
 
 
-Validation passed. Here are the highest-value next steps for Sheet Prep — pick any to implement.
+## Plan — Auto-redirect TikTok uploads to Shipping Labels
 
-## Options
+After a successful upload where `channel === 'tiktok'`, navigate the user to `/shipping-labels` with the just-uploaded show date pre-applied as the filter.
 
-### 1. "Send to Upload" shortcut (recommended)
-Add a button on Sheet Prep that pushes prepped rows directly into the Upload flow via the existing `window.__uploadCSV` programmatic API. Skips the download → re-upload round trip.
+### Investigation needed (in implementation mode)
+1. Read `src/pages/Upload.tsx` to find the post-submit success path and confirm the `showDate` variable name + format used at submit.
+2. Read `src/pages/ShippingLabels.tsx` to confirm how its show-date filter is read — either:
+   - URL search param (e.g. `?showDate=YYYY-MM-DD`), or
+   - sessionStorage / store value, or
+   - local component state seeded from a prop/param.
 
-### 2. Processing summary panel
-After Process runs, show a small stats card:
-- Raw rows in
-- Description row dropped
-- Cancelled/failed dropped
-- Final rows out
-- Rows missing tracking / address
+### Implementation
+- **`src/pages/Upload.tsx`**: After the upload completes successfully, if `channel === 'tiktok'`, call `navigate(\`/shipping-labels?showDate=${showDate}\`)` (exact param key matched to whatever ShippingLabels already supports — added if not present).
+- **`src/pages/ShippingLabels.tsx`** (only if needed): On mount, read `showDate` from `useSearchParams()` and seed the existing show-date filter state with it. No UI changes — just preselect the filter.
 
-### 3. Add more prep types
-The `applyPrepRules` switch is generic — easy to plug in:
-- Whatnot export → upload format
-- Misfits export → upload format
-- Outlet export → upload format
+### Out of scope
+- No changes for non-TikTok channels (regular/misfits/outlet stay on Upload as today).
+- No DB or memory changes.
 
-### 4. Remember last-used prep type
-Persist `prepType` in localStorage so it defaults to your most-used source.
-
-### 5. Auto-detect prep type
-Sniff source columns on file load (e.g. presence of `Buyer Username` + `Package ID` → TikTok) and preselect the matching prep type.
-
-## Files involved
-- `src/pages/SheetPrep.tsx` for UI/wiring
-- `src/lib/tiktokPrep.ts` already in place; new prep types would each get their own `src/lib/<name>Prep.ts`
-
-Tell me which one(s) to build and I'll switch to default mode and implement.
+### Validation
+Upload a TikTok CSV with show date X → on success the app lands on `/shipping-labels` with show date X already filtered and the matching shipments visible.
 
