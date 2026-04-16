@@ -360,7 +360,12 @@ export default function Upload() {
       const data = parsedData || await parseFile(file!);
       const result = await processAndUpload(data, showDate, channel, isLabelOnly, columnMap);
       if (result.success) {
-        navigate('/orders');
+        if (channel === 'tiktok') {
+          const formattedShowDate = `${showDate.getFullYear()}-${String(showDate.getMonth() + 1).padStart(2, '0')}-${String(showDate.getDate()).padStart(2, '0')}`;
+          navigate(`/shipping-labels?showDate=${formattedShowDate}&tab=missing`);
+        } else {
+          navigate('/orders');
+        }
       }
     } catch (error: any) {
       toast.error('Upload failed', {
