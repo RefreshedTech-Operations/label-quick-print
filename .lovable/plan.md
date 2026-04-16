@@ -1,26 +1,25 @@
 
 
-## Fix: Station Picker Shows Empty List
+## Fix USPS Tracking Prefix Stripping
 
-**Root cause**: `loadStations()` runs on component mount before Supabase restores the auth session from localStorage. The `pack_stations` table has an RLS policy requiring `auth.uid() IS NOT NULL`, so the query returns zero rows when auth isn't ready yet.
+**Problem**: The current `stripPrefix` function strips 12 characters, but USPS GS1-128 barcodes have a 15-character prefix (`420` + 5-digit ZIP + 7-digit service code). Scanning `4201755411320299336220762600012328842` currently yields `99336220762600012328842` (12 stripped) instead of `9336220762600012328842` (15 stripped).
 
-### Changes to `src/pages/Pack.tsx`
+### Change in `src/pages/Pack.tsx`
 
-1. **Wait for auth before loading stations**: Replace the bare `useEffect(loadStations, [])` with one that listens to `supabase.auth.onAuthStateChange`. When a `SIGNED_IN` or `INITIAL_SESSION` event fires, call `loadStations()`. This guarantees the query runs with a valid session.
+Update `stripPrefix`: change `cleaned.substring(12)` to `cleaned.substring(15)` to correctly remove the full GS1 application identifier + ZIP prefix.
 
 ```typescript
-useEffect(() => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-      loadStations();
-      loadUser();
-    }
-  });
-  return () => subscription.unsubscribe();
-}, []);
+const stripPrefix = (input: string): string => {
+  const cleaned = input.replace(/[\r\n\t\x00-\x1f\s]/g, '');
+  if (cleaned.startsWith('1Z')) return cleaned;
+  if (cleaned.length > 22) {
+    return cleaned.substring(15);  // was 12
+  }
+  return cleaned;
+};
 ```
 
-2. **Add a loading state** (optional): Show a "Loading..." placeholder in the station picker dropdown while stations array is empty and still loading, to distinguish from genuinely having no stations.
+Also update the memory file `mem://pack-page/tracking-prefix-stripping` to reflect the 15-char rule.
 
-No backend or database changes needed.
+No backend changes needed.
 
