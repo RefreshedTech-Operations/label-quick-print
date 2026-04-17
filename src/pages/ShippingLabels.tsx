@@ -501,78 +501,84 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
     const total = ids.length;
-    let succeeded = 0;
-    let failed = 0;
-    const failedIdSet = new Set<string>();
-    const BATCH_SIZE = 10;
-    const MAX_RETRIES = 2;
+    const CONCURRENCY = 10;
     const isRetryableError = (msg: string) =>
       /rate limit|429|503|server unavailable|temporarily/i.test(msg);
 
+    cancelBulkRef.current = false;
     setBulkFailedIds(new Set());
-    setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
+    const startTime = Date.now();
+    let succeeded = 0;
+    let failed = 0;
+    let current = 0;
+    let inFlight = 0;
+    const failedIdSet = new Set<string>();
+    const autoFixCounts: Record<string, number> = {};
 
-    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-      const batch = ids.slice(i, i + BATCH_SIZE);
-      const results = await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
+    setBulkProgress({ current: 0, total, succeeded: 0, failed: 0, inFlight: 0, startTime });
 
-      // Separate successes, retryable failures, and permanent failures
-      const retryQueue: string[] = [];
-      results.forEach((result, idx) => {
-        const id = batch[idx];
-        if (result.status === 'fulfilled' && result.value.success) {
-          succeeded++;
-        } else {
-          const errMsg = result.status === 'fulfilled' ? result.value.error || '' : String(result.reason);
-          if (isRetryableError(errMsg)) {
-            retryQueue.push(id);
-          } else {
-            failed++;
-            failedIdSet.add(id);
-          }
-        }
-      });
+    const updateProgress = () => {
+      setBulkProgress({ current, total, succeeded, failed, inFlight, startTime });
+    };
 
-      // Retry transient failures with exponential backoff, one at a time
-      for (const retryId of retryQueue) {
-        let retrySuccess = false;
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          const delayMs = attempt * 3000; // 3s, 6s
-          await new Promise(r => setTimeout(r, delayMs));
-          const retryResult = await handleGenerateLabel(retryId);
-          if (retryResult.success) {
-            retrySuccess = true;
-            succeeded++;
-            break;
-          }
-          // If still retryable, continue loop; if permanent error, stop
-          if (!isRetryableError(retryResult.error || '')) break;
-        }
-        if (!retrySuccess) {
-          failed++;
-          failedIdSet.add(retryId);
+    const runOne = async (id: string): Promise<void> => {
+      // Single attempt with one retry on transient errors
+      const attempt = async () => handleGenerateLabel(id);
+      let result = await attempt();
+      if (!result.success && isRetryableError(result.error || '')) {
+        await new Promise(r => setTimeout(r, 3000));
+        if (!cancelBulkRef.current) result = await attempt();
+      }
+      if (result.success) {
+        succeeded++;
+        const fixes = (result as any).autoFixes as string[] | undefined;
+        if (fixes?.length) for (const f of fixes) autoFixCounts[f] = (autoFixCounts[f] || 0) + 1;
+      } else {
+        failed++;
+        failedIdSet.add(id);
+        const errMsg = result.error || 'Unknown error';
+        // Park non-retryable failures for "Needs Review"
+        if (!isRetryableError(errMsg)) addNeedsReview(id, errMsg);
+      }
+      current++;
+    };
+
+    // Sliding-window dispatcher
+    let cursor = 0;
+    const workers: Promise<void>[] = [];
+    const launch = async () => {
+      while (cursor < ids.length && !cancelBulkRef.current) {
+        const id = ids[cursor++];
+        inFlight++;
+        updateProgress();
+        try {
+          await runOne(id);
+        } finally {
+          inFlight--;
+          updateProgress();
         }
       }
-
-      const processed = Math.min(i + batch.length, total);
-      setBulkProgress({ current: processed, total, succeeded, failed });
-
-      // If we saw any rate limits in this batch, pause before next batch
-      if (retryQueue.length > 0 && i + BATCH_SIZE < ids.length) {
-        await new Promise(r => setTimeout(r, 5000));
-      }
-    }
+    };
+    for (let i = 0; i < Math.min(CONCURRENCY, ids.length); i++) workers.push(launch());
+    await Promise.all(workers);
 
     setBulkProgress(null);
+
+    const fixSummary = Object.entries(autoFixCounts).map(([k, v]) => `${k}×${v}`).join(', ');
+    const cancelled = cancelBulkRef.current;
+
+    if (cancelled) {
+      toast.info(`Bulk run cancelled. ${succeeded} succeeded, ${failed} failed, ${total - current} not started.`);
+    }
 
     if (failedIdSet.size > 0) {
       setBulkFailedIds(failedIdSet);
       setSelectedIds(failedIdSet);
-      toast.error(`${failed} label${failed > 1 ? 's' : ''} failed. ${succeeded} succeeded. Failed labels are still selected for review.`);
-    } else {
+      toast.error(`${failed} label${failed > 1 ? 's' : ''} failed · ${succeeded} succeeded${fixSummary ? ` · auto-fixed: ${fixSummary}` : ''}. Failed labels parked in Needs Review.`);
+    } else if (!cancelled) {
       setBulkFailedIds(new Set());
       setSelectedIds(new Set());
-      toast.success(`All ${succeeded} labels generated successfully!`);
+      toast.success(`All ${succeeded} labels generated${fixSummary ? ` · auto-fixed: ${fixSummary}` : ''}!`);
     }
   }, [selectedIds, handleGenerateLabel]);
 
