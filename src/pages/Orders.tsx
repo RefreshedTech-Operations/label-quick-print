@@ -510,9 +510,15 @@ export default function Orders() {
       );
       const manifestJobId = await submitPrintJob(printnodeApiKey, manifestJob);
 
-      // If label_url exists, also print the label
+      // If label_url exists, also print the label.
+      // For 'regular' (Whatnot) channel, manifest_url IS the shipping label, so skip the
+      // Shippo label_url to avoid printing two labels per order.
       let labelJobId: number | null = null;
-      if (shipment.label_url && shipment.label_url !== shipment.manifest_url) {
+      if (
+        shipment.label_url &&
+        shipment.label_url !== shipment.manifest_url &&
+        shipment.channel !== 'regular'
+      ) {
         const labelJob = createPrintJob(
           parseInt(settings.default_printer_id),
           shipment.uid,
