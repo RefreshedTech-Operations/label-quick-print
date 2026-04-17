@@ -1868,6 +1868,34 @@ export default function Orders() {
                       {!shipment.printed_at && !shipment.group_id_printed_at && '-'}
                     </div>
                   </TableCell>
+
+                  {canSeePack && (
+                    <TableCell style={{ width: 220 }}>
+                      {shipment.packed && shipment.packed_at ? (
+                        <div className="space-y-1">
+                          <Badge variant="default" className="bg-success text-success-foreground hover:bg-success/90">
+                            Packed
+                          </Badge>
+                          <div className="text-xs space-y-0.5">
+                            {shipment.packed_by_name && (
+                              <div className="font-medium">{shipment.packed_by_name}</div>
+                            )}
+                            {shipment.pack_station_name && (
+                              <div className="text-muted-foreground">{shipment.pack_station_name}</div>
+                            )}
+                            <div
+                              className="text-muted-foreground/80"
+                              title={new Date(shipment.packed_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' EST'}
+                            >
+                              {format(new Date(shipment.packed_at), 'MMM d, HH:mm')}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not packed</span>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
