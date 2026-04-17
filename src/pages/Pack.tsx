@@ -151,6 +151,13 @@ export default function Pack() {
       return 'error';
     }
 
+    const name = (localStorage.getItem('pack-packer-name') || '').trim();
+    if (!name) {
+      toast.error('Enter your name first');
+      flashStatus('error');
+      return 'error';
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
