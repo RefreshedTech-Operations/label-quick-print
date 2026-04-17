@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Package2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Package2, Plus, RefreshCw, Trash2, Pencil } from 'lucide-react';
 
 interface PackStation {
   id: string;
@@ -30,6 +30,9 @@ export function PackStationsTab() {
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<PackStation | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     loadStations();
@@ -140,6 +143,47 @@ export function PackStationsTab() {
     }
   };
 
+  const openRename = (station: PackStation) => {
+    if (!isAdmin) {
+      toast.error('Admin access required');
+      return;
+    }
+    setRenameTarget(station);
+    setRenameValue(station.name);
+  };
+
+  const handleRename = async () => {
+    if (!renameTarget) return;
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast.error('Please enter a station name');
+      return;
+    }
+    if (newName === renameTarget.name) {
+      setRenameTarget(null);
+      return;
+    }
+    setRenaming(true);
+    try {
+      const { error } = await supabase
+        .from('pack_stations')
+        .update({ name: newName })
+        .eq('id', renameTarget.id);
+      if (error) {
+        if (error.code === '23505') toast.error('Station name already exists');
+        else throw error;
+        return;
+      }
+      toast.success(`Renamed to "${newName}"`);
+      setRenameTarget(null);
+      loadStations();
+    } catch (error: any) {
+      toast.error('Failed to rename station', { description: error.message });
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const activeStations = stations.filter(s => s.is_active);
 
   return (
@@ -204,7 +248,7 @@ export function PackStationsTab() {
                   {isAdmin && <TableHead className="w-10"></TableHead>}
                   <TableHead>Station Name</TableHead>
                   <TableHead className="w-24">Active</TableHead>
-                  {isAdmin && <TableHead className="w-24">Actions</TableHead>}
+                  {isAdmin && <TableHead className="w-32">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -240,14 +284,25 @@ export function PackStationsTab() {
                     </TableCell>
                     {isAdmin && (
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteStation(station.id, station.name)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openRename(station)}
+                            title="Rename"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteStation(station.id, station.name)}
+                            className="text-destructive hover:text-destructive"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -257,6 +312,36 @@ export function PackStationsTab() {
           </div>
         )}
       </CardContent>
+
+      {/* Rename Station Dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Pack Station</DialogTitle>
+            <DialogDescription>
+              Update the name for "{renameTarget?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rename-station-name">Station Name</Label>
+              <Input
+                id="rename-station-name"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>Cancel</Button>
+            <Button onClick={handleRename} disabled={renaming}>
+              {renaming ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Station Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
