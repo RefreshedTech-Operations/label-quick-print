@@ -829,6 +829,16 @@ export type Database = {
           total_print_jobs: number
         }[]
       }
+      get_analytics_overview: {
+        Args: {
+          p_end_ts: string
+          p_prev_end_ts: string
+          p_prev_start_ts: string
+          p_start_ts: string
+          p_user_id?: string
+        }
+        Returns: Json
+      }
       get_archive_stats: {
         Args: never
         Returns: {

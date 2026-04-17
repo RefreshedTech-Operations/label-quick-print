@@ -1,35 +1,20 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
-import { DateRange } from 'react-day-picker';
-import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAnalyticsData } from '@/hooks/useAnalyticsData';
-import { KPICard } from '@/components/analytics/KPICard';
-import { DateRangeFilter } from '@/components/analytics/DateRangeFilter';
-import { DailyActivityChart } from '@/components/analytics/DailyActivityChart';
-import { StatusStackedBarChart } from '@/components/analytics/StatusStackedBarChart';
-import { PrintStatusPieChart } from '@/components/analytics/PrintStatusPieChart';
-import { PrinterPerformanceChart } from '@/components/analytics/PrinterPerformanceChart';
-import { HourlyPrintRateChart } from '@/components/analytics/HourlyPrintRateChart';
+import { useAnalyticsOverview, type AnalyticsPeriod } from '@/hooks/useAnalyticsOverview';
+import { KPIStatCard } from '@/components/analytics/KPIStatCard';
+import { HourlyDualChart } from '@/components/analytics/HourlyDualChart';
+import { EmployeeLeaderboardTable } from '@/components/analytics/EmployeeLeaderboardTable';
+import { WorkflowFunnel } from '@/components/analytics/WorkflowFunnel';
+import { ExceptionsPanel } from '@/components/analytics/ExceptionsPanel';
 
 export default function Analytics() {
-  const [mode, setMode] = useState<'single' | 'range'>('single');
-  const [singleDate, setSingleDate] = useState<Date>(new Date());
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: new Date(),
-  });
+  const [period, setPeriod] = useState<AnalyticsPeriod>('today');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-  // Fetch employees (profiles)
   const { data: employees } = useQuery({
     queryKey: ['profiles-list'],
     queryFn: async () => {
@@ -43,120 +28,135 @@ export default function Analytics() {
     },
   });
 
-  const effectiveDateRange: DateRange | undefined = mode === 'single'
-    ? { from: singleDate, to: singleDate }
-    : dateRange;
+  const { data, isLoading } = useAnalyticsOverview(period, selectedUserId);
 
-  const { isLoading, kpis, dailyData, printerData, printStatusData, hourlyData } =
-    useAnalyticsData(effectiveDateRange, selectedUserId);
+  const peakHour = useMemo(() => {
+    if (!data?.hourly?.length) return null;
+    const peak = [...data.hourly].sort((a, b) => (b.printed + b.packed) - (a.printed + a.packed))[0];
+    if (!peak || (peak.printed + peak.packed) === 0) return null;
+    const h = peak.hour;
+    const display = `${h === 0 ? 12 : h > 12 ? h - 12 : h}${h < 12 ? 'AM' : 'PM'}`;
+    return { display, total: peak.printed + peak.packed };
+  }, [data]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-        <p className="text-muted-foreground">Detailed reporting and KPI breakdown</p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
+          <p className="text-muted-foreground">Operations health & employee productivity</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Tabs value={period} onValueChange={(v) => setPeriod(v as AnalyticsPeriod)}>
+            <TabsList>
+              <TabsTrigger value="today">Today</TabsTrigger>
+              <TabsTrigger value="last7">Last 7 Days</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Select
+            value={selectedUserId || 'all'}
+            onValueChange={(v) => setSelectedUserId(v === 'all' ? null : v)}
+          >
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="All Employees" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Employees</SelectItem>
+              {employees?.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {emp.email?.split('@')[0] || emp.email || 'Unknown'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as 'single' | 'range')}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="single">Single Day</TabsTrigger>
-              <TabsTrigger value="range">Date Range</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="single">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    {format(singleDate, 'PPP')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={singleDate}
-                    onSelect={(date) => date && setSingleDate(date)}
-                    disabled={(date) => date > new Date()}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </TabsContent>
-
-            <TabsContent value="range">
-              <DateRangeFilter dateRange={dateRange} setDateRange={setDateRange} />
-            </TabsContent>
-          </Tabs>
-
-          {/* Employee Filter */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-muted-foreground">Employee:</span>
-            <Select
-              value={selectedUserId || 'all'}
-              onValueChange={(v) => setSelectedUserId(v === 'all' ? null : v)}
-            >
-              <SelectTrigger className="w-[250px]">
-                <SelectValue placeholder="All Employees" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
-                {employees?.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.email?.split('@')[0] || emp.email || 'Unknown'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* KPI Cards */}
-      {isLoading ? (
+      {isLoading || !data ? (
         <div className="text-center py-12 text-muted-foreground">Loading analytics...</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            <KPICard title="Total Orders" value={kpis.totalOrders} />
-            <KPICard title="Printed" value={kpis.printedOrders} description={`${kpis.printedPercentage}%`} />
-            <KPICard title="Unprinted" value={kpis.unprintedOrders} />
-            <KPICard title="Bundles" value={kpis.bundleOrders} description={`${kpis.bundlePercentage}%`} />
-            <KPICard title="Cancelled" value={kpis.cancelledOrders} description={`${kpis.cancelledPercentage}%`} />
-            <KPICard title="Print Jobs" value={kpis.totalPrintJobs} />
-            <KPICard title="Success Rate" value={`${kpis.printSuccessRate}%`} />
+          {/* Section 1: Operations Health */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPIStatCard
+              title="Labels Printed"
+              value={data.kpis.printed}
+              prevValue={data.kpis.printed_prev}
+            />
+            <KPIStatCard
+              title="Orders Packed"
+              value={data.kpis.packed}
+              prevValue={data.kpis.packed_prev}
+            />
+            <KPIStatCard
+              title="Pack Backlog"
+              value={data.kpis.backlog}
+              showDelta={false}
+              hint="Printed but not packed (live)"
+            />
+            <KPIStatCard
+              title="Avg Throughput"
+              value={data.kpis.throughput_per_hr}
+              suffix="labels/hr"
+              showDelta={false}
+              hint="Across selected period"
+            />
           </div>
 
-          {/* Charts */}
+          {/* Section 2: Today at a Glance */}
+          {period === 'today' && (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <CardTitle>Today by the Hour</CardTitle>
+                  {peakHour && (
+                    <div className="text-sm text-muted-foreground">
+                      Peak: <span className="font-medium text-foreground">{peakHour.display}</span> ({peakHour.total} events)
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <HourlyDualChart data={data.hourly} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Section 3: Employee Productivity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader><CardTitle>Daily Activity</CardTitle></CardHeader>
-              <CardContent><DailyActivityChart dailyData={dailyData} /></CardContent>
+              <CardHeader><CardTitle>Top Printers</CardTitle></CardHeader>
+              <CardContent>
+                <EmployeeLeaderboardTable
+                  entries={data.printer_leaderboard}
+                  countLabel="Labels"
+                />
+              </CardContent>
             </Card>
-
             <Card>
-              <CardHeader><CardTitle>Status Breakdown</CardTitle></CardHeader>
-              <CardContent><StatusStackedBarChart dailyData={dailyData} /></CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Print Status</CardTitle></CardHeader>
-              <CardContent><PrintStatusPieChart printStatusData={printStatusData} /></CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Printer Performance</CardTitle></CardHeader>
-              <CardContent><PrinterPerformanceChart printerData={printerData} /></CardContent>
-            </Card>
-
-            <Card className="lg:col-span-2">
-              <CardHeader><CardTitle>Hourly Print Rate</CardTitle></CardHeader>
-              <CardContent><HourlyPrintRateChart hourlyData={hourlyData} /></CardContent>
+              <CardHeader><CardTitle>Top Packers</CardTitle></CardHeader>
+              <CardContent>
+                <EmployeeLeaderboardTable
+                  entries={data.packer_leaderboard}
+                  countLabel="Packed"
+                  showStations
+                />
+              </CardContent>
             </Card>
           </div>
+
+          {/* Section 4: Workflow Funnel */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Workflow Funnel</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <WorkflowFunnel funnel={data.funnel} />
+            </CardContent>
+          </Card>
+
+          {/* Section 5: Exceptions */}
+          <ExceptionsPanel exceptions={data.exceptions} />
         </>
       )}
     </div>
