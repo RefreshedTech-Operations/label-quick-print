@@ -525,6 +525,7 @@ Deno.serve(async (req) => {
       shipengine_label_id: shipEngineLabelId,
       ...(validationWarnings.length > 0 ? { validation_warnings: validationWarnings } : {}),
       ...(isPOBox ? { po_box_fallback: true } : {}),
+      ...(autoFixesApplied.length > 0 ? { auto_fixes_applied: autoFixesApplied } : {}),
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (err) {
