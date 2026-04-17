@@ -341,8 +341,9 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
   const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [serviceOverrides, setServiceOverrides] = useState<Record<string, { carrier_id: string; service_code: string }>>({});
   const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
-  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; succeeded: number; failed: number } | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; succeeded: number; failed: number; inFlight: number; startTime: number } | null>(null);
   const [bulkFailedIds, setBulkFailedIds] = useState<Set<string>>(new Set());
+  const cancelBulkRef = useRef(false);
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
