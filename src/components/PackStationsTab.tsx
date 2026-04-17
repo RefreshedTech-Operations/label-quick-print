@@ -184,6 +184,8 @@ export function PackStationsTab() {
     }
   };
 
+  const activeStations = stations.filter(s => s.is_active);
+
   return (
     <Card>
       <CardHeader>
