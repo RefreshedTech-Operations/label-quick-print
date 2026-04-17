@@ -34,8 +34,9 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download, Link } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download, Link, AlertCircle, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { addNeedsReview, removeNeedsReview, getNeedsReview, subscribeNeedsReview, type NeedsReviewEntry } from '@/lib/needsReview';
 
 const PAGE_SIZE = 25;
 
