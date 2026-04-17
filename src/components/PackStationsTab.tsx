@@ -143,7 +143,46 @@ export function PackStationsTab() {
     }
   };
 
-  const activeStations = stations.filter(s => s.is_active);
+  const openRename = (station: PackStation) => {
+    if (!isAdmin) {
+      toast.error('Admin access required');
+      return;
+    }
+    setRenameTarget(station);
+    setRenameValue(station.name);
+  };
+
+  const handleRename = async () => {
+    if (!renameTarget) return;
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast.error('Please enter a station name');
+      return;
+    }
+    if (newName === renameTarget.name) {
+      setRenameTarget(null);
+      return;
+    }
+    setRenaming(true);
+    try {
+      const { error } = await supabase
+        .from('pack_stations')
+        .update({ name: newName })
+        .eq('id', renameTarget.id);
+      if (error) {
+        if (error.code === '23505') toast.error('Station name already exists');
+        else throw error;
+        return;
+      }
+      toast.success(`Renamed to "${newName}"`);
+      setRenameTarget(null);
+      loadStations();
+    } catch (error: any) {
+      toast.error('Failed to rename station', { description: error.message });
+    } finally {
+      setRenaming(false);
+    }
+  };
 
   return (
     <Card>
