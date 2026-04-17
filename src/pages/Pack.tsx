@@ -35,6 +35,9 @@ export default function Pack() {
   const [selectedStation, setSelectedStation] = useState<string>(() => {
     return localStorage.getItem('pack-station-id') || '';
   });
+  const [packerName, setPackerName] = useState<string>(() => {
+    return localStorage.getItem('pack-packer-name') || '';
+  });
   const [scanInput, setScanInput] = useState('');
   const [recentPacks, setRecentPacks] = useState<RecentPack[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
@@ -69,6 +72,10 @@ export default function Pack() {
       setShowStationPicker(false);
     }
   }, [selectedStation]);
+
+  useEffect(() => {
+    localStorage.setItem('pack-packer-name', packerName);
+  }, [packerName]);
 
   useEffect(() => {
     if (cameraMode || showStationPicker || isMobile) return;
@@ -144,6 +151,13 @@ export default function Pack() {
       return 'error';
     }
 
+    const name = (localStorage.getItem('pack-packer-name') || '').trim();
+    if (!name) {
+      toast.error('Enter your name first');
+      flashStatus('error');
+      return 'error';
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -201,6 +215,7 @@ export default function Pack() {
         packed: true,
         packed_at: now,
         packed_by_user_id: user.id,
+        packed_by_name: name,
         pack_station_id: stationId,
       })
       .eq('id', shipment.id);
@@ -390,6 +405,20 @@ export default function Pack() {
             </div>
           )}
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="pack-packer-name" className="mb-1.5 block text-sm text-muted-foreground">
+          Your Name
+        </label>
+        <Input
+          id="pack-packer-name"
+          value={packerName}
+          onChange={e => setPackerName(e.target.value)}
+          placeholder="Enter your name"
+          autoComplete="off"
+          className="h-10"
+        />
       </div>
 
       <div>

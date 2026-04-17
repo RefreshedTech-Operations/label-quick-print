@@ -321,6 +321,7 @@ export type Database = {
           pack_station_id: string | null
           packed: boolean | null
           packed_at: string | null
+          packed_by_name: string | null
           packed_by_user_id: string | null
           price: string | null
           printed: boolean | null
@@ -366,6 +367,7 @@ export type Database = {
           pack_station_id?: string | null
           packed?: boolean | null
           packed_at?: string | null
+          packed_by_name?: string | null
           packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
@@ -411,6 +413,7 @@ export type Database = {
           pack_station_id?: string | null
           packed?: boolean | null
           packed_at?: string | null
+          packed_by_name?: string | null
           packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
@@ -475,6 +478,7 @@ export type Database = {
           pack_station_id: string | null
           packed: boolean | null
           packed_at: string | null
+          packed_by_name: string | null
           packed_by_user_id: string | null
           price: string | null
           printed: boolean | null
@@ -520,6 +524,7 @@ export type Database = {
           pack_station_id?: string | null
           packed?: boolean | null
           packed_at?: string | null
+          packed_by_name?: string | null
           packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
@@ -565,6 +570,7 @@ export type Database = {
           pack_station_id?: string | null
           packed?: boolean | null
           packed_at?: string | null
+          packed_by_name?: string | null
           packed_by_user_id?: string | null
           price?: string | null
           printed?: boolean | null
@@ -784,6 +790,7 @@ export type Database = {
           pack_station_id: string | null
           packed: boolean | null
           packed_at: string | null
+          packed_by_name: string | null
           packed_by_user_id: string | null
           price: string | null
           printed: boolean | null
