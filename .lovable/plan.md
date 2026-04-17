@@ -1,38 +1,38 @@
 
 
-## Plan — Speed up TV Dashboard load
+## Plan — Show pack info on All Orders (admin/manager only)
 
 ### Investigation
 
-The dashboard calls a single RPC `get_tv_dashboard_stats(target_date)` from `useTVDashboardData`. The query returns instantly when there's no data, so the slowness is almost certainly the RPC scanning `shipments` without good index support for today's filters (printed_at range, unprinted count, hourly bucketing, leaderboard group-by).
+Pack data already lives on `shipments`: `packed`, `packed_at`, `packed_by_name`, `pack_station_id`, plus `packed_by_user_id`. Need to surface these on the Orders page row, gated to admin/manager roles.
 
-I need to confirm in implementation mode by:
-1. Reading the RPC source (`supabase--read_query` on `pg_proc`) to see the exact SQL.
-2. `EXPLAIN ANALYZE` it for today's date to see which scans are slow.
-3. Checking existing indexes on `shipments(printed, printed_at, printed_by_user_id, channel)`.
+The `search_all_shipments` RPC currently doesn't return pack columns or the station name — needs to be extended (or fetched separately). Cleanest is to extend the RPC to include `packed`, `packed_at`, `packed_by_name`, and join `pack_stations.name` as `pack_station_name`.
 
-### Likely fixes (apply the ones the EXPLAIN confirms)
+### Changes
 
-1. **Add partial / composite indexes** on `shipments`:
-   - `(printed_at) WHERE printed = true` — powers total, hourly, last-hour, leaderboard.
-   - `(printed) WHERE printed = false` — powers unprinted count.
-   - `(printed_by_user_id, printed_at) WHERE printed = true` — powers leaderboard group-by.
-2. **Rewrite the RPC** to compute all aggregates in a single pass over today's printed rows (CTE → `filter` clauses) instead of multiple separate scans.
-3. **Cap leaderboard** to top 20 in SQL (not in JS) to avoid a full sort.
-4. **Frontend cache**: add `staleTime: 25_000` to the query so the 30s refetch interval doesn't show "Loading…" between polls — keep showing previous data while refetching (`placeholderData: keepPreviousData`).
-5. **Skeleton instead of full-screen "Loading Dashboard…"** so first paint feels instant on subsequent visits.
+**1. DB migration**
+- Replace `search_all_shipments` to additionally return: `packed boolean`, `packed_at timestamptz`, `packed_by_name text`, `pack_station_name text` (LEFT JOIN `pack_stations`). Same for both `shipments` + `shipments_archive` branches of the UNION. No other logic changes.
 
-### Out of scope
-- No queue/worker architecture — the RPC should comfortably return in <500ms once indexed; queueing is overkill here.
-- No schema changes to `shipments` columns.
+**2. `src/types/index.ts`**
+- Add to `Shipment`: `packed?`, `packed_at?`, `packed_by_name?`, `pack_station_name?`.
+
+**3. `src/pages/Orders.tsx`**
+- Use `useUserPermissions`/role check to determine if current user is `admin` or `manager`.
+- Add a new "Pack" column (only rendered for admin/manager) showing:
+  - If `packed`: green badge with packer name + station name + relative time, tooltip with full timestamp (EST per project standard).
+  - If not packed: muted "—" or "Not packed" text.
+- Include the new column in the existing column resize/visibility system if Orders uses one (will mirror existing column patterns).
+- Make column sortable/filterable only if trivial; otherwise read-only display this round.
+
+**4. Optional (small)**: add a "Packed" filter chip (Packed / Unpacked / All) — only if Orders already has a filter row pattern that fits cleanly. Will confirm during implementation; if it adds scope, skip.
 
 ### Files to change
-- New migration: indexes + rewritten `get_tv_dashboard_stats` function.
-- `src/hooks/useTVDashboardData.ts` — add `staleTime` and `placeholderData`.
-- `src/pages/TVDashboard.tsx` — only show "Loading…" when there's no cached data; otherwise render with prior data while refetching.
+- New migration replacing `search_all_shipments`.
+- `src/types/index.ts`
+- `src/pages/Orders.tsx`
 
 ### Validation
-- Reload `/tv-dashboard` cold → first paint < 1s.
-- Subsequent 30s refetches don't flash "Loading…".
-- `EXPLAIN ANALYZE` of the RPC shows index scans, total time < 200ms.
+- Admin sees Pack column with name/station/timestamp on packed rows; non-admin/manager doesn't see the column.
+- Unpacked rows show placeholder.
+- Archived rows also show pack info if present.
 
