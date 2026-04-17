@@ -907,6 +907,10 @@ export type Database = {
         }[]
       }
       get_next_available_location: { Args: never; Returns: string }
+      get_pack_tv_dashboard_stats: {
+        Args: { target_date?: string }
+        Returns: Json
+      }
       get_print_status_breakdown: {
         Args: { end_date: string; p_user_id?: string; start_date: string }
         Returns: {
