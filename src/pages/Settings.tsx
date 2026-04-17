@@ -508,29 +508,7 @@ export default function Settings() {
     setPreviewUids([]);
   };
 
-  const handleDateRangeChange = (newRange: DateRange | undefined) => {
-    if (!newRange?.from || !newRange?.to) {
-      setDateRange(newRange || { from: subDays(new Date(), 30), to: new Date() });
-      return;
-    }
 
-    const daysDiff = differenceInDays(newRange.to, newRange.from);
-    
-    if (daysDiff > 90) {
-      toast.error('Date range too large', {
-        description: 'Please select a date range of 90 days or less for optimal performance.',
-      });
-      return;
-    }
-
-    setDateRange(newRange);
-  };
-
-  const { isLoading, kpis, dailyData, printerData, printStatusData, hourlyData } = useAnalyticsData(dateRange);
-
-  const handleExport = () => {
-    exportSummaryReport(kpis, dateRange);
-  };
 
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });
