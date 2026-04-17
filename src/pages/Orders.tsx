@@ -1544,6 +1544,11 @@ export default function Orders() {
                   onMouseDown={(e) => handleResizeStart('printHistory', e.clientX)}
                 />
               </TableHead>
+              {canSeePack && (
+                <TableHead style={{ width: 220 }}>
+                  <span>Pack</span>
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
