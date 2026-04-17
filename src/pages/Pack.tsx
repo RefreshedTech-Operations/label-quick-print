@@ -408,6 +408,20 @@ export default function Pack() {
       </div>
 
       <div>
+        <label htmlFor="pack-packer-name" className="mb-1.5 block text-sm text-muted-foreground">
+          Your Name
+        </label>
+        <Input
+          id="pack-packer-name"
+          value={packerName}
+          onChange={e => setPackerName(e.target.value)}
+          placeholder="Enter your name"
+          autoComplete="off"
+          className="h-10"
+        />
+      </div>
+
+      <div>
         <div className="mb-1.5 flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <ScanLine className="h-4 w-4" />
