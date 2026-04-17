@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
@@ -61,6 +61,8 @@ export function useTVDashboardData(targetDate?: Date, refreshInterval = 30000) {
     },
     refetchInterval: refreshInterval > 0 ? refreshInterval : false,
     refetchOnWindowFocus: true,
+    staleTime: 25_000,
+    placeholderData: keepPreviousData,
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });

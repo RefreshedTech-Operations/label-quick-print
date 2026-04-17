@@ -8,12 +8,20 @@ import { PrinterLeaderboard } from '@/components/tv-dashboard/PrinterLeaderboard
 
 export default function TVDashboard() {
   const navigate = useNavigate();
-  const { data, isLoading } = useTVDashboardData(new Date(), 30000);
+  const { data } = useTVDashboardData(new Date(), 30000);
 
-  if (isLoading || !data) {
+  if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-4xl font-bold text-muted-foreground">Loading Dashboard...</div>
+      <div className="min-h-screen bg-background p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="h-12 w-96 bg-muted animate-pulse rounded" />
+          <div className="h-10 w-24 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="grid gap-6 mb-4 grid-cols-2">
+          <div className="h-48 bg-muted animate-pulse rounded-lg border-2" />
+          <div className="h-48 bg-muted animate-pulse rounded-lg border-2" />
+        </div>
+        <div className="h-96 bg-muted animate-pulse rounded-lg border-2" />
       </div>
     );
   }
