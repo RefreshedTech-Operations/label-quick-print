@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { title: 'Shipping Labels', url: '/shipping-labels', icon: Truck, group: 'Operations' },
   { title: 'Sheet Prep', url: '/sheet-prep', icon: FileSpreadsheet, group: 'Operations' },
   { title: 'TV Dashboard', url: '/tv-dashboard', icon: Monitor, group: 'Monitoring' },
+  { title: 'Pack TV Dashboard', url: '/pack-tv-dashboard', icon: Package2, group: 'Monitoring' },
   { title: 'Analytics', url: '/analytics', icon: BarChart3, group: 'Monitoring' },
   { title: 'Messages', url: '/messages', icon: MessageSquare, group: 'Communication' },
   { title: 'Customers', url: '/customers', icon: Users, group: 'Communication' },
