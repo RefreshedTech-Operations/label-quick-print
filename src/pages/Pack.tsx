@@ -74,6 +74,10 @@ export default function Pack() {
   }, [selectedStation]);
 
   useEffect(() => {
+    localStorage.setItem('pack-packer-name', packerName);
+  }, [packerName]);
+
+  useEffect(() => {
     if (cameraMode || showStationPicker || isMobile) return;
     const interval = setInterval(() => {
       if (inputRef.current && document.activeElement !== inputRef.current) {
