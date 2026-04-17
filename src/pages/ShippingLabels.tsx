@@ -1422,3 +1422,172 @@ function LabelLookupTab() {
     </>
   );
 }
+
+/* ─── Needs Review Badge & Tab ─── */
+function NeedsReviewBadge() {
+  const [count, setCount] = useState(getNeedsReview().length);
+  useEffect(() => subscribeNeedsReview(() => setCount(getNeedsReview().length)), []);
+  if (count === 0) return null;
+  return <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{count}</Badge>;
+}
+
+function NeedsReviewTab({
+  queryClient,
+  onSwitchToMissing,
+}: {
+  queryClient: ReturnType<typeof useQueryClient>;
+  onSwitchToMissing: () => void;
+}) {
+  const [entries, setEntries] = useState<NeedsReviewEntry[]>(getNeedsReview());
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
+  const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
+
+  useEffect(() => subscribeNeedsReview(() => setEntries(getNeedsReview())), []);
+
+  const ids = entries.map(e => e.shipment_id);
+  const { data: shipments = [] } = useQuery({
+    queryKey: ['needs-review-shipments', ids.join(',')],
+    queryFn: async () => {
+      if (ids.length === 0) return [] as any[];
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('id, order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url')
+        .in('id', ids);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: ids.length > 0,
+  });
+
+  const shipmentMap = new Map(shipments.map((s: any) => [s.id, s]));
+
+  const retryOne = useCallback(async (id: string) => {
+    setRetryingIds(prev => new Set(prev).add(id));
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error('No active session.');
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({ shipment_id: id }),
+      });
+      const payload = await response.json().catch(() => ({} as any));
+      if (!response.ok || payload?.error) {
+        const msg = payload?.error || `Retry failed (${response.status})`;
+        addNeedsReview(id, msg);
+        toast.error(msg);
+        return;
+      }
+      const fixes: string[] = Array.isArray(payload?.auto_fixes_applied) ? payload.auto_fixes_applied : [];
+      removeNeedsReview(id);
+      toast.success(fixes.length ? `Label generated (auto-fixed: ${fixes.join(', ')})` : 'Label generated');
+      queryClient.invalidateQueries({ queryKey: ['shipping-labels-missing'] });
+      queryClient.invalidateQueries({ queryKey: ['shipping-labels-generated'] });
+    } catch (err: any) {
+      toast.error(err?.message || 'Retry failed');
+    } finally {
+      setRetryingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }, [queryClient]);
+
+  const retryAll = useCallback(async () => {
+    for (const e of entries) {
+      // eslint-disable-next-line no-await-in-loop
+      await retryOne(e.shipment_id);
+    }
+  }, [entries, retryOne]);
+
+  if (entries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-40" />
+          <p className="font-medium">No labels need review</p>
+          <p className="text-xs mt-1">Failed bulk-generation labels will appear here for triage.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <Badge variant="destructive" className="text-lg px-3 py-1">{entries.length} need review</Badge>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={retryAll}>
+            <Loader2 className={`h-4 w-4 mr-1 ${retryingIds.size > 0 ? 'animate-spin' : 'hidden'}`} />
+            Retry All
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => { entries.forEach(e => removeNeedsReview(e.shipment_id)); }}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            Clear All
+          </Button>
+        </div>
+      </div>
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="table-fixed w-full">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[14%]">Order</TableHead>
+                <TableHead className="w-[12%]">Buyer</TableHead>
+                <TableHead className="w-[20%]">Address</TableHead>
+                <TableHead className="w-[34%]">Last Error</TableHead>
+                <TableHead className="w-[10%]">When</TableHead>
+                <TableHead className="w-[10%] text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map(e => {
+                const s: any = shipmentMap.get(e.shipment_id);
+                const ageMin = Math.round((Date.now() - e.timestamp) / 60000);
+                const ageLabel = ageMin < 1 ? 'just now' : ageMin < 60 ? `${ageMin}m ago` : `${Math.round(ageMin / 60)}h ago`;
+                return (
+                  <TableRow key={e.shipment_id}>
+                    <TableCell className="font-mono text-xs">
+                      <div className="break-all">{s?.order_id || '—'}</div>
+                      {s?.uid && <div className="text-muted-foreground truncate">{s.uid}</div>}
+                    </TableCell>
+                    <TableCell className="text-xs truncate">{s?.buyer || '—'}</TableCell>
+                    <TableCell>
+                      <button
+                        className="text-left text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors flex items-center gap-1 group w-full"
+                        onClick={() => s && setEditingAddress({ id: s.id, address_full: s.address_full, buyer: s.buyer })}
+                        disabled={!s}
+                      >
+                        <span className="truncate">{s?.address_full || '—'}</span>
+                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-xs text-destructive break-words">{e.error}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{ageLabel}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button size="sm" variant="outline" onClick={() => retryOne(e.shipment_id)} disabled={retryingIds.has(e.shipment_id)} className="gap-1">
+                          {retryingIds.has(e.shipment_id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+                          Retry
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => removeNeedsReview(e.shipment_id)}>
+                          <XCircle className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      {editingAddress && (
+        <AddressEditDialog
+          open={!!editingAddress}
+          onOpenChange={(o) => { if (!o) setEditingAddress(null); }}
+          shipment={editingAddress}
+          onSave={() => queryClient.invalidateQueries({ queryKey: ['needs-review-shipments'] })}
+        />
+      )}
+    </>
+  );
+}
