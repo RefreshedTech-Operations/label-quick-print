@@ -35,6 +35,9 @@ export default function Pack() {
   const [selectedStation, setSelectedStation] = useState<string>(() => {
     return localStorage.getItem('pack-station-id') || '';
   });
+  const [packerName, setPackerName] = useState<string>(() => {
+    return localStorage.getItem('pack-packer-name') || '';
+  });
   const [scanInput, setScanInput] = useState('');
   const [recentPacks, setRecentPacks] = useState<RecentPack[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
