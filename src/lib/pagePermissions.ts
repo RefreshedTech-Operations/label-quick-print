@@ -8,7 +8,7 @@ export const ALL_PAGES = [
   { path: '/pack', label: 'Pack', group: 'Operations' },
   { path: '/shipping-labels', label: 'Shipping Labels', group: 'Operations' },
   { path: '/sheet-prep', label: 'Sheet Prep', group: 'Operations' },
-  { path: '/tv-dashboard', label: 'TV Dashboard', group: 'Monitoring' },
+  { path: '/tv-dashboard', label: 'Label TV Dashboard', group: 'Monitoring' },
   { path: '/pack-tv-dashboard', label: 'Pack TV Dashboard', group: 'Monitoring' },
   { path: '/analytics', label: 'Analytics', group: 'Monitoring' },
   { path: '/messages', label: 'Messages', group: 'Communication' },
