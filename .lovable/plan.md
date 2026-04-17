@@ -1,61 +1,77 @@
 
 
-## Plan — Pack TV Dashboard
+## Plan — Analytics Rebuild: Operations + Productivity
 
 ### Goal
-A second TV-style dashboard mirroring the print TV Dashboard, but focused on **packing** activity (uses `shipments.packed`, `packed_at`, `packed_by_name`, `pack_station_id`).
+Replace the current Analytics page with a focused, action-oriented dashboard for **operations health** and **employee productivity**, covering both **printing and packing**. Default view: **Today** with quick toggle to **Last 7 Days**.
 
-### Investigation notes
-- Print dashboard: `/tv-dashboard` → `TVDashboard.tsx` → `useTVDashboardData` → RPC `get_tv_dashboard_stats`.
-- Pack columns exist on both `shipments` and `shipments_archive`. `pack_stations.name` joins via `pack_station_id`.
-- Packer identity: `packed_by_name` (free-text from Pack page) — use this directly for leaderboard (not `profiles`, since pack name is independent of auth user).
-- EST timezone standard applies (per memory).
+### What's worth knowing (and what we're cutting)
 
-### Changes
+**Cutting** (low signal): pie charts, generic "total orders" stack chart, raw print-status pie, bundle donut, daily activity bar of just print job counts.
 
-**1. DB migration — new RPC `get_pack_tv_dashboard_stats(target_date date)`**
-Returns JSONB with:
-- `total_packed` — count where `packed=true` and `packed_at` in EST day
-- `daily_goal` — from `app_config` key `daily_pack_goal` (fallback 1000)
-- `goal_percentage`
-- `unpacked_count` — shipments with `printed=true AND (packed=false OR null)` (i.e. printed-but-not-packed backlog)
-- `last_hour_count`, `last_pack_time`, `avg_per_hour`, `peak_hour`
-- `hourly_breakdown` — 0–23 hourly counts
-- `packer_leaderboard` — top 20 by `packed_by_name` with count
-- `station_leaderboard` — top 10 by `pack_stations.name` with count (join via `pack_station_id`)
+**Keeping/upgrading**: hourly rate concept (now dual: print + pack), per-employee leaderboards.
 
-Mirrors structure of `get_tv_dashboard_stats` so frontend pattern is identical.
+### New layout
 
-**2. New hook `src/hooks/usePackTVDashboardData.ts`**
-Mirror of `useTVDashboardData`, calls new RPC, returns typed data including `packer_leaderboard` and `station_leaderboard`.
+**Header**
+- Title + period toggle: `Today` | `Last 7 Days` | custom range
+- Optional employee filter (preserved from current)
 
-**3. New page `src/pages/PackTVDashboard.tsx`**
-Mirror of `TVDashboard.tsx` styling:
-- Header: "Packing Dashboard" + Exit button
-- KPI row 1 (2 cards): "Packed Today" (with last-hour activity) | "Daily Pack Goal" (with projected)
-- "Unpacked Backlog" small KPI inline in first card
-- Two leaderboards side-by-side below: **Top Packers** and **Top Stations**
+**Section 1 — Operations Health (top row, 4 KPIs with trend deltas vs prior period)**
+1. **Labels Printed** — count + Δ vs prior period
+2. **Orders Packed** — count + Δ
+3. **Pack Backlog** — printed but not packed (live count, not period-bound)
+4. **Avg Throughput** — labels/hr during active hours (8a–8p EST)
 
-**4. New component `src/components/tv-dashboard/PackerLeaderboard.tsx` + `StationLeaderboard.tsx`**
-Or reuse `PrinterLeaderboard` pattern with a generic prop. Cleanest: create one generic `LeaderboardCard` taking `title` + entries `{label, count}[]`, used by both new dashboards.
+**Section 2 — Today at a Glance (only when period = Today)**
+- Hourly dual-bar chart: prints vs packs side-by-side per hour (replaces single hourly chart)
+- Small inline stats: peak hour, last print, last pack, hours since last activity
 
-**5. Routing — `src/App.tsx`**
-Add `/pack-tv-dashboard` route.
+**Section 3 — Employee Productivity**
+- Two side-by-side leaderboard tables:
+  - **Top Printers** — name, labels printed, % of total, prints/active-hr
+  - **Top Packers** — name, packed count, % of total, station(s) used
+- Sortable columns; top 10 each
 
-**6. Navigation entry**
-Add link in `Layout.tsx` sidebar (gated by same permission pattern as existing TV Dashboard) and a new `page_path` row in `role_page_defaults` for relevant roles (admin, manager).
+**Section 4 — Workflow Funnel (single horizontal bar)**
+- Uploaded → Printed → Packed → Shipped(tracking present), with conversion %s. Surfaces drop-offs (e.g. printed but never packed).
 
-### Files
-- Migration: new `get_pack_tv_dashboard_stats` + insert default `daily_pack_goal` config row + insert role_page_defaults rows
-- `src/hooks/usePackTVDashboardData.ts` (new)
-- `src/pages/PackTVDashboard.tsx` (new)
-- `src/components/tv-dashboard/LeaderboardCard.tsx` (new generic — refactor `PrinterLeaderboard` to use it, optional)
-- `src/App.tsx` (route)
-- `src/components/Layout.tsx` (nav link)
-- `src/lib/pagePermissions.ts` (register page path if needed)
+**Section 5 — Exceptions (small table, only shows if count > 0)**
+- Open issues (`has_issue = true`)
+- Cancelled in period
+- Stale orders (printed >48h ago, not packed)
+
+### Backend
+
+**New RPC `get_analytics_overview(start_ts, end_ts, prev_start_ts, prev_end_ts, p_user_id)`** returning JSONB:
+```
+{
+  kpis: { printed, printed_prev, packed, packed_prev, backlog, throughput_per_hr },
+  hourly: [{ hour, printed, packed }],  // 0-23, EST
+  printer_leaderboard: [{ name, count }],
+  packer_leaderboard: [{ name, count, stations: [..] }],
+  funnel: { uploaded, printed, packed, shipped },
+  exceptions: { open_issues, cancelled, stale_unpacked }
+}
+```
+Uses `shipments` + `shipments_archive` UNION, joins `profiles` for printer name and `pack_stations` for station name. EST-aware via `AT TIME ZONE 'America/New_York'`.
+
+### Frontend
+
+**Files**
+- New: `src/hooks/useAnalyticsOverview.ts` (replaces `useAnalyticsData`)
+- New components in `src/components/analytics/`:
+  - `KPIStatCard.tsx` — value + delta arrow + sparkline-free, period-aware
+  - `HourlyDualChart.tsx` — print vs pack bars
+  - `EmployeeLeaderboardTable.tsx` — generic, used for both printers & packers
+  - `WorkflowFunnel.tsx` — horizontal stacked bar with conversion labels
+  - `ExceptionsPanel.tsx` — conditional table
+- Rewrite: `src/pages/Analytics.tsx`
+- Delete (no longer used): `DailyActivityChart`, `OrdersTimelineChart`, `BundleBreakdownChart`, `PrintStatusPieChart`, `StatusStackedBarChart`, `PrinterPerformanceChart`, `HourlyPrintRateChart`, old `useAnalyticsData.ts`
 
 ### Validation
-- Open `/pack-tv-dashboard` → today's packed count, goal %, hourly chart, top packers (by name), top stations all populate.
-- Auto-refreshes every 30s like the print dashboard.
-- Numbers reconcile with Pack page activity for today.
+- Today view shows current ops snapshot; Last 7 Days shows trend deltas
+- Numbers reconcile with TV dashboards (label + pack)
+- Backlog matches Pack TV Dashboard's "unpacked" count
+- Employee filter still narrows leaderboards & KPIs
 
