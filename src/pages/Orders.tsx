@@ -134,21 +134,22 @@ export default function Orders() {
     gcTime: 30 * 60 * 1000,
   });
 
-  // Check if current user is admin
-  const { data: isAdminData } = useQuery({
-    queryKey: ['is-admin', authUser?.id],
+  // Check if current user is admin or manager
+  const { data: roleData } = useQuery({
+    queryKey: ['user-roles-orders', authUser?.id],
     queryFn: async () => {
-      if (!authUser) return false;
-      const { data } = await supabase.rpc('has_role', { 
-        _user_id: authUser.id, 
-        _role: 'admin' 
-      });
-      return data === true;
+      if (!authUser) return { isAdmin: false, isManager: false };
+      const [{ data: adminData }, { data: managerData }] = await Promise.all([
+        supabase.rpc('has_role', { _user_id: authUser.id, _role: 'admin' }),
+        supabase.rpc('has_role', { _user_id: authUser.id, _role: 'manager' }),
+      ]);
+      return { isAdmin: adminData === true, isManager: managerData === true };
     },
     enabled: !!authUser,
     staleTime: 10 * 60 * 1000,
   });
-  const isAdmin = isAdminData ?? false;
+  const isAdmin = roleData?.isAdmin ?? false;
+  const canSeePack = (roleData?.isAdmin || roleData?.isManager) ?? false;
 
   // Reset "All Shows" mode when a specific date is selected
   useEffect(() => {
@@ -1543,6 +1544,11 @@ export default function Orders() {
                   onMouseDown={(e) => handleResizeStart('printHistory', e.clientX)}
                 />
               </TableHead>
+              {canSeePack && (
+                <TableHead style={{ width: 220 }}>
+                  <span>Pack</span>
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1602,12 +1608,17 @@ export default function Orders() {
                         <Skeleton className="h-3 w-24" />
                       </div>
                     </TableCell>
+                    {canSeePack && (
+                      <TableCell style={{ width: 220 }}>
+                        <Skeleton className="h-3 w-24" />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </>
             ) : paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canSeePack ? 11 : 10} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
@@ -1857,6 +1868,34 @@ export default function Orders() {
                       {!shipment.printed_at && !shipment.group_id_printed_at && '-'}
                     </div>
                   </TableCell>
+
+                  {canSeePack && (
+                    <TableCell style={{ width: 220 }}>
+                      {shipment.packed && shipment.packed_at ? (
+                        <div className="space-y-1">
+                          <Badge variant="default" className="bg-success text-success-foreground hover:bg-success/90">
+                            Packed
+                          </Badge>
+                          <div className="text-xs space-y-0.5">
+                            {shipment.packed_by_name && (
+                              <div className="font-medium">{shipment.packed_by_name}</div>
+                            )}
+                            {shipment.pack_station_name && (
+                              <div className="text-muted-foreground">{shipment.pack_station_name}</div>
+                            )}
+                            <div
+                              className="text-muted-foreground/80"
+                              title={new Date(shipment.packed_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' EST'}
+                            >
+                              {format(new Date(shipment.packed_at), 'MMM d, HH:mm')}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not packed</span>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}

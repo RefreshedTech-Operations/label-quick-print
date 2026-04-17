@@ -46,6 +46,10 @@ export interface Shipment {
   group_id_printed_by_email?: string;
   show_date?: string;
   unit_id?: string;
+  packed?: boolean;
+  packed_at?: string;
+  packed_by_name?: string;
+  pack_station_name?: string;
   created_at: string;
 }
 
