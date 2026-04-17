@@ -485,10 +485,16 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
       if (raw) { try { payload = JSON.parse(raw); } catch { payload = { error: raw }; } }
       if (!response.ok) throw new Error(formatFunctionError(payload, `Label generation failed (${response.status})`));
       if (payload?.error) throw new Error(formatFunctionError(payload, payload.error));
-      toast.success('Shipping label generated successfully');
+      const autoFixes: string[] = Array.isArray(payload?.auto_fixes_applied) ? payload.auto_fixes_applied : [];
+      if (autoFixes.length > 0) {
+        toast.success(`Label generated (auto-fixed: ${autoFixes.join(', ')})`);
+      } else {
+        toast.success('Shipping label generated successfully');
+      }
+      removeNeedsReview(shipmentId);
       queryClient.invalidateQueries({ queryKey: ['shipping-labels-missing'] });
       queryClient.invalidateQueries({ queryKey: ['shipping-labels-generated'] });
-      return { success: true as const };
+      return { success: true as const, autoFixes };
     } catch (err: any) {
       const msg = err?.message || 'Failed to generate label';
       setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
