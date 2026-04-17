@@ -215,6 +215,7 @@ export default function Pack() {
         packed: true,
         packed_at: now,
         packed_by_user_id: user.id,
+        packed_by_name: name,
         pack_station_id: stationId,
       })
       .eq('id', shipment.id);
