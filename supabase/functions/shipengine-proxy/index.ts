@@ -382,17 +382,98 @@ Deno.serve(async (req) => {
     // Log the full payload for debugging
     console.log('ShipEngine request payload:', JSON.stringify({ shipment: shipmentPayload }, null, 2))
 
-    // Call ShipEngine to create a label
-    const seResponse = await fetch('https://api.shipengine.com/v1/labels', {
-      method: 'POST',
-      headers: {
-        'API-Key': SHIPENGINE_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ shipment: shipmentPayload }),
-    })
+    // Auto-fix retry loop: try the label call, and if it fails with a known
+    // pattern, mutate shipmentPayload and retry once per fix.
+    const autoFixesApplied: string[] = []
+    const callShipEngine = async () => {
+      const r = await fetch('https://api.shipengine.com/v1/labels', {
+        method: 'POST',
+        headers: { 'API-Key': SHIPENGINE_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipment: shipmentPayload }),
+      })
+      const d = await r.json()
+      return { r, d }
+    }
 
-    const seData = await seResponse.json()
+    let { r: seResponse, d: seData } = await callShipEngine()
+
+    const extractErrorText = (data: any) => {
+      const errs = data?.errors || []
+      return errs.map((e: any) => `${e.message || ''} ${e.field_name || ''} ${e.error_code || ''}`).join(' | ').toLowerCase()
+    }
+
+    const MAX_AUTOFIX_ATTEMPTS = 4
+    let attempts = 0
+    while (!seResponse.ok && attempts < MAX_AUTOFIX_ATTEMPTS) {
+      attempts++
+      const errText = extractErrorText(seData)
+      const shipTo = shipmentPayload.ship_to as Record<string, any>
+      let mutated = false
+
+      // 1) PO Box rejected by carrier — switch to USPS
+      if (
+        !autoFixesApplied.includes('po_box→usps') &&
+        /p\.?\s*o\.?\s*box|post\s*office\s*box/i.test(errText) &&
+        ((shipmentPayload.carrier_id as string) || '').length > 0
+      ) {
+        delete (shipmentPayload as any).carrier_id
+        shipmentPayload.service_code = 'usps_ground_advantage'
+        autoFixesApplied.push('po_box→usps')
+        mutated = true
+      }
+
+      // 2) ZIP+4 → ZIP-5
+      if (
+        !mutated && !autoFixesApplied.includes('zip+4→zip5') &&
+        /postal[_ ]?code|zip/i.test(errText) &&
+        typeof shipTo.postal_code === 'string' && shipTo.postal_code.includes('-')
+      ) {
+        shipTo.postal_code = String(shipTo.postal_code).split('-')[0]
+        autoFixesApplied.push('zip+4→zip5')
+        mutated = true
+      }
+
+      // 3) State name vs code mismatch — re-normalize
+      if (
+        !mutated && !autoFixesApplied.includes('state→code') &&
+        /state|province/i.test(errText) &&
+        typeof shipTo.state_province === 'string' && shipTo.state_province.length > 2 &&
+        shipTo.country_code === 'US'
+      ) {
+        const mapped = US_STATE_MAP[String(shipTo.state_province).toLowerCase()]
+        if (mapped) {
+          shipTo.state_province = mapped
+          autoFixesApplied.push('state→code')
+          mutated = true
+        }
+      }
+
+      // 4) Country fallback to US
+      if (
+        !mutated && !autoFixesApplied.includes('country→US') &&
+        /country/i.test(errText) && shipTo.country_code !== 'US'
+      ) {
+        shipTo.country_code = 'US'
+        autoFixesApplied.push('country→US')
+        mutated = true
+      }
+
+      // 5) Phone too short / invalid — drop phone
+      if (
+        !mutated && !autoFixesApplied.includes('drop_phone') &&
+        /phone/i.test(errText) && shipTo.phone
+      ) {
+        delete shipTo.phone
+        autoFixesApplied.push('drop_phone')
+        mutated = true
+      }
+
+      if (!mutated) break
+      console.log(`Auto-fix retry [${autoFixesApplied[autoFixesApplied.length - 1]}]`)
+      const next = await callShipEngine()
+      seResponse = next.r
+      seData = next.d
+    }
 
     if (!seResponse.ok) {
       console.error('ShipEngine error:', JSON.stringify(seData))
@@ -408,6 +489,7 @@ Deno.serve(async (req) => {
             code: e.error_code,
             type: e.error_type,
           })),
+          ...(autoFixesApplied.length > 0 ? { auto_fixes_attempted: autoFixesApplied } : {}),
         }),
         { status: 502, headers: corsHeaders }
       )
