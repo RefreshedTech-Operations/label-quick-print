@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,8 +34,9 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download, Link } from 'lucide-react';
+import { Search, Truck, Tag, Loader2, ExternalLink, AlertTriangle, Package, XCircle, FileText, Pencil, Download, Link, AlertCircle, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { addNeedsReview, removeNeedsReview, getNeedsReview, subscribeNeedsReview, type NeedsReviewEntry } from '@/lib/needsReview';
 
 const PAGE_SIZE = 25;
 
@@ -314,6 +315,7 @@ export default function ShippingLabels() {
         <TabsList>
           <TabsTrigger value="missing" className="gap-2"><Tag className="h-4 w-4" />Missing Labels</TabsTrigger>
           <TabsTrigger value="generated" className="gap-2"><FileText className="h-4 w-4" />Generated Labels</TabsTrigger>
+          <TabsTrigger value="review" className="gap-2"><AlertCircle className="h-4 w-4" />Needs Review<NeedsReviewBadge /></TabsTrigger>
           <TabsTrigger value="lookup" className="gap-2"><Search className="h-4 w-4" />Label Lookup</TabsTrigger>
         </TabsList>
         <TabsContent value="missing" className="space-y-4 mt-4">
@@ -321,6 +323,9 @@ export default function ShippingLabels() {
         </TabsContent>
         <TabsContent value="generated" className="space-y-4 mt-4">
           <GeneratedLabelsTab queryClient={queryClient} initialShowDate={initialShowDate} />
+        </TabsContent>
+        <TabsContent value="review" className="space-y-4 mt-4">
+          <NeedsReviewTab queryClient={queryClient} onSwitchToMissing={() => setActiveTab('missing')} />
         </TabsContent>
         <TabsContent value="lookup" className="space-y-4 mt-4">
           <LabelLookupTab />
@@ -341,8 +346,9 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
   const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [serviceOverrides, setServiceOverrides] = useState<Record<string, { carrier_id: string; service_code: string }>>({});
   const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
-  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; succeeded: number; failed: number } | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; succeeded: number; failed: number; inFlight: number; startTime: number } | null>(null);
   const [bulkFailedIds, setBulkFailedIds] = useState<Set<string>>(new Set());
+  const cancelBulkRef = useRef(false);
 
   const debouncedSearch = useAdaptiveDebounce(search, 600);
 
@@ -483,10 +489,16 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
       if (raw) { try { payload = JSON.parse(raw); } catch { payload = { error: raw }; } }
       if (!response.ok) throw new Error(formatFunctionError(payload, `Label generation failed (${response.status})`));
       if (payload?.error) throw new Error(formatFunctionError(payload, payload.error));
-      toast.success('Shipping label generated successfully');
+      const autoFixes: string[] = Array.isArray(payload?.auto_fixes_applied) ? payload.auto_fixes_applied : [];
+      if (autoFixes.length > 0) {
+        toast.success(`Label generated (auto-fixed: ${autoFixes.join(', ')})`);
+      } else {
+        toast.success('Shipping label generated successfully');
+      }
+      removeNeedsReview(shipmentId);
       queryClient.invalidateQueries({ queryKey: ['shipping-labels-missing'] });
       queryClient.invalidateQueries({ queryKey: ['shipping-labels-generated'] });
-      return { success: true as const };
+      return { success: true as const, autoFixes };
     } catch (err: any) {
       const msg = err?.message || 'Failed to generate label';
       setRowErrors(prev => ({ ...prev, [shipmentId]: msg }));
@@ -500,78 +512,84 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
     const total = ids.length;
-    let succeeded = 0;
-    let failed = 0;
-    const failedIdSet = new Set<string>();
-    const BATCH_SIZE = 10;
-    const MAX_RETRIES = 2;
+    const CONCURRENCY = 10;
     const isRetryableError = (msg: string) =>
       /rate limit|429|503|server unavailable|temporarily/i.test(msg);
 
+    cancelBulkRef.current = false;
     setBulkFailedIds(new Set());
-    setBulkProgress({ current: 0, total, succeeded: 0, failed: 0 });
+    const startTime = Date.now();
+    let succeeded = 0;
+    let failed = 0;
+    let current = 0;
+    let inFlight = 0;
+    const failedIdSet = new Set<string>();
+    const autoFixCounts: Record<string, number> = {};
 
-    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-      const batch = ids.slice(i, i + BATCH_SIZE);
-      const results = await Promise.allSettled(batch.map(id => handleGenerateLabel(id)));
+    setBulkProgress({ current: 0, total, succeeded: 0, failed: 0, inFlight: 0, startTime });
 
-      // Separate successes, retryable failures, and permanent failures
-      const retryQueue: string[] = [];
-      results.forEach((result, idx) => {
-        const id = batch[idx];
-        if (result.status === 'fulfilled' && result.value.success) {
-          succeeded++;
-        } else {
-          const errMsg = result.status === 'fulfilled' ? result.value.error || '' : String(result.reason);
-          if (isRetryableError(errMsg)) {
-            retryQueue.push(id);
-          } else {
-            failed++;
-            failedIdSet.add(id);
-          }
-        }
-      });
+    const updateProgress = () => {
+      setBulkProgress({ current, total, succeeded, failed, inFlight, startTime });
+    };
 
-      // Retry transient failures with exponential backoff, one at a time
-      for (const retryId of retryQueue) {
-        let retrySuccess = false;
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          const delayMs = attempt * 3000; // 3s, 6s
-          await new Promise(r => setTimeout(r, delayMs));
-          const retryResult = await handleGenerateLabel(retryId);
-          if (retryResult.success) {
-            retrySuccess = true;
-            succeeded++;
-            break;
-          }
-          // If still retryable, continue loop; if permanent error, stop
-          if (!isRetryableError(retryResult.error || '')) break;
-        }
-        if (!retrySuccess) {
-          failed++;
-          failedIdSet.add(retryId);
+    const runOne = async (id: string): Promise<void> => {
+      // Single attempt with one retry on transient errors
+      const attempt = async () => handleGenerateLabel(id);
+      let result = await attempt();
+      if (!result.success && isRetryableError(result.error || '')) {
+        await new Promise(r => setTimeout(r, 3000));
+        if (!cancelBulkRef.current) result = await attempt();
+      }
+      if (result.success) {
+        succeeded++;
+        const fixes = (result as any).autoFixes as string[] | undefined;
+        if (fixes?.length) for (const f of fixes) autoFixCounts[f] = (autoFixCounts[f] || 0) + 1;
+      } else {
+        failed++;
+        failedIdSet.add(id);
+        const errMsg = result.error || 'Unknown error';
+        // Park non-retryable failures for "Needs Review"
+        if (!isRetryableError(errMsg)) addNeedsReview(id, errMsg);
+      }
+      current++;
+    };
+
+    // Sliding-window dispatcher
+    let cursor = 0;
+    const workers: Promise<void>[] = [];
+    const launch = async () => {
+      while (cursor < ids.length && !cancelBulkRef.current) {
+        const id = ids[cursor++];
+        inFlight++;
+        updateProgress();
+        try {
+          await runOne(id);
+        } finally {
+          inFlight--;
+          updateProgress();
         }
       }
-
-      const processed = Math.min(i + batch.length, total);
-      setBulkProgress({ current: processed, total, succeeded, failed });
-
-      // If we saw any rate limits in this batch, pause before next batch
-      if (retryQueue.length > 0 && i + BATCH_SIZE < ids.length) {
-        await new Promise(r => setTimeout(r, 5000));
-      }
-    }
+    };
+    for (let i = 0; i < Math.min(CONCURRENCY, ids.length); i++) workers.push(launch());
+    await Promise.all(workers);
 
     setBulkProgress(null);
+
+    const fixSummary = Object.entries(autoFixCounts).map(([k, v]) => `${k}×${v}`).join(', ');
+    const cancelled = cancelBulkRef.current;
+
+    if (cancelled) {
+      toast.info(`Bulk run cancelled. ${succeeded} succeeded, ${failed} failed, ${total - current} not started.`);
+    }
 
     if (failedIdSet.size > 0) {
       setBulkFailedIds(failedIdSet);
       setSelectedIds(failedIdSet);
-      toast.error(`${failed} label${failed > 1 ? 's' : ''} failed. ${succeeded} succeeded. Failed labels are still selected for review.`);
-    } else {
+      toast.error(`${failed} label${failed > 1 ? 's' : ''} failed · ${succeeded} succeeded${fixSummary ? ` · auto-fixed: ${fixSummary}` : ''}. Failed labels parked in Needs Review.`);
+    } else if (!cancelled) {
       setBulkFailedIds(new Set());
       setSelectedIds(new Set());
-      toast.success(`All ${succeeded} labels generated successfully!`);
+      toast.success(`All ${succeeded} labels generated${fixSummary ? ` · auto-fixed: ${fixSummary}` : ''}!`);
     }
   }, [selectedIds, handleGenerateLabel]);
 
@@ -629,21 +647,39 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
                 </div>
               </div>
             )}
-            {bulkProgress && (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span className="font-medium">Generating labels...</span>
+            {bulkProgress && (() => {
+              const elapsed = (Date.now() - bulkProgress.startTime) / 1000;
+              const rate = bulkProgress.current > 0 ? bulkProgress.current / elapsed : 0;
+              const remaining = bulkProgress.total - bulkProgress.current;
+              const etaSec = rate > 0 ? Math.round(remaining / rate) : 0;
+              const perMin = rate > 0 ? Math.round(rate * 60) : 0;
+              const etaLabel = etaSec > 60 ? `~${Math.ceil(etaSec / 60)}m remaining` : etaSec > 0 ? `~${etaSec}s remaining` : 'starting…';
+              return (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="font-medium">Generating labels...</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        {bulkProgress.inFlight} in flight
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted-foreground">
+                        {bulkProgress.current} / {bulkProgress.total}
+                        {bulkProgress.failed > 0 && <span className="text-destructive ml-2">({bulkProgress.failed} failed)</span>}
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={() => { cancelBulkRef.current = true; }}>Cancel</Button>
+                    </div>
                   </div>
-                  <span className="text-muted-foreground">
-                    {bulkProgress.current} / {bulkProgress.total}
-                    {bulkProgress.failed > 0 && <span className="text-destructive ml-2">({bulkProgress.failed} failed)</span>}
-                  </span>
+                  <Progress value={(bulkProgress.current / bulkProgress.total) * 100} className="h-2" />
+                  <div className="text-xs text-muted-foreground">
+                    {etaLabel}{perMin > 0 ? ` · ~${perMin} labels/min` : ''}
+                  </div>
                 </div>
-                <Progress value={(bulkProgress.current / bulkProgress.total) * 100} className="h-2" />
-              </div>
-            )}
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -1383,6 +1419,175 @@ function LabelLookupTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+/* ─── Needs Review Badge & Tab ─── */
+function NeedsReviewBadge() {
+  const [count, setCount] = useState(getNeedsReview().length);
+  useEffect(() => subscribeNeedsReview(() => setCount(getNeedsReview().length)), []);
+  if (count === 0) return null;
+  return <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{count}</Badge>;
+}
+
+function NeedsReviewTab({
+  queryClient,
+  onSwitchToMissing,
+}: {
+  queryClient: ReturnType<typeof useQueryClient>;
+  onSwitchToMissing: () => void;
+}) {
+  const [entries, setEntries] = useState<NeedsReviewEntry[]>(getNeedsReview());
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
+  const [editingAddress, setEditingAddress] = useState<{ id: string; address_full: string | null; buyer: string | null } | null>(null);
+
+  useEffect(() => subscribeNeedsReview(() => setEntries(getNeedsReview())), []);
+
+  const ids = entries.map(e => e.shipment_id);
+  const { data: shipments = [] } = useQuery({
+    queryKey: ['needs-review-shipments', ids.join(',')],
+    queryFn: async () => {
+      if (ids.length === 0) return [] as any[];
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('id, order_id, uid, buyer, product_name, address_full, tracking, show_date, label_url')
+        .in('id', ids);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: ids.length > 0,
+  });
+
+  const shipmentMap = new Map(shipments.map((s: any) => [s.id, s]));
+
+  const retryOne = useCallback(async (id: string) => {
+    setRetryingIds(prev => new Set(prev).add(id));
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error('No active session.');
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipengine-proxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({ shipment_id: id }),
+      });
+      const payload = await response.json().catch(() => ({} as any));
+      if (!response.ok || payload?.error) {
+        const msg = payload?.error || `Retry failed (${response.status})`;
+        addNeedsReview(id, msg);
+        toast.error(msg);
+        return;
+      }
+      const fixes: string[] = Array.isArray(payload?.auto_fixes_applied) ? payload.auto_fixes_applied : [];
+      removeNeedsReview(id);
+      toast.success(fixes.length ? `Label generated (auto-fixed: ${fixes.join(', ')})` : 'Label generated');
+      queryClient.invalidateQueries({ queryKey: ['shipping-labels-missing'] });
+      queryClient.invalidateQueries({ queryKey: ['shipping-labels-generated'] });
+    } catch (err: any) {
+      toast.error(err?.message || 'Retry failed');
+    } finally {
+      setRetryingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }, [queryClient]);
+
+  const retryAll = useCallback(async () => {
+    for (const e of entries) {
+      // eslint-disable-next-line no-await-in-loop
+      await retryOne(e.shipment_id);
+    }
+  }, [entries, retryOne]);
+
+  if (entries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-40" />
+          <p className="font-medium">No labels need review</p>
+          <p className="text-xs mt-1">Failed bulk-generation labels will appear here for triage.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <Badge variant="destructive" className="text-lg px-3 py-1">{entries.length} need review</Badge>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={retryAll}>
+            <Loader2 className={`h-4 w-4 mr-1 ${retryingIds.size > 0 ? 'animate-spin' : 'hidden'}`} />
+            Retry All
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => { entries.forEach(e => removeNeedsReview(e.shipment_id)); }}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            Clear All
+          </Button>
+        </div>
+      </div>
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="table-fixed w-full">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[14%]">Order</TableHead>
+                <TableHead className="w-[12%]">Buyer</TableHead>
+                <TableHead className="w-[20%]">Address</TableHead>
+                <TableHead className="w-[34%]">Last Error</TableHead>
+                <TableHead className="w-[10%]">When</TableHead>
+                <TableHead className="w-[10%] text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map(e => {
+                const s: any = shipmentMap.get(e.shipment_id);
+                const ageMin = Math.round((Date.now() - e.timestamp) / 60000);
+                const ageLabel = ageMin < 1 ? 'just now' : ageMin < 60 ? `${ageMin}m ago` : `${Math.round(ageMin / 60)}h ago`;
+                return (
+                  <TableRow key={e.shipment_id}>
+                    <TableCell className="font-mono text-xs">
+                      <div className="break-all">{s?.order_id || '—'}</div>
+                      {s?.uid && <div className="text-muted-foreground truncate">{s.uid}</div>}
+                    </TableCell>
+                    <TableCell className="text-xs truncate">{s?.buyer || '—'}</TableCell>
+                    <TableCell>
+                      <button
+                        className="text-left text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors flex items-center gap-1 group w-full"
+                        onClick={() => s && setEditingAddress({ id: s.id, address_full: s.address_full, buyer: s.buyer })}
+                        disabled={!s}
+                      >
+                        <span className="truncate">{s?.address_full || '—'}</span>
+                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-xs text-destructive break-words">{e.error}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{ageLabel}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button size="sm" variant="outline" onClick={() => retryOne(e.shipment_id)} disabled={retryingIds.has(e.shipment_id)} className="gap-1">
+                          {retryingIds.has(e.shipment_id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+                          Retry
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => removeNeedsReview(e.shipment_id)}>
+                          <XCircle className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      {editingAddress && (
+        <AddressEditDialog
+          open={!!editingAddress}
+          onOpenChange={(o) => { if (!o) setEditingAddress(null); }}
+          shipment={editingAddress}
+          onSave={() => queryClient.invalidateQueries({ queryKey: ['needs-review-shipments'] })}
+        />
+      )}
     </>
   );
 }
