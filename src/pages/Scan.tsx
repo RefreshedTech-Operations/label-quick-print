@@ -773,13 +773,14 @@ export default function Scan() {
       }
 
       // If label_url exists, also print the label.
-      // For 'regular' (Whatnot) channel, manifest_url IS the shipping label, so skip the
-      // Shippo label_url to avoid printing two labels per order.
+      // For 'regular' (Whatnot), 'misfits', and 'outlet' channels, manifest_url IS the
+      // shipping label, so skip the Shippo label_url to avoid printing two labels per order.
+      const skipDuplicateLabel = ['regular', 'misfits', 'outlet'].includes(shipment.channel || '');
       let labelJobId: number | null = null;
       if (
         shipment.label_url &&
         shipment.label_url !== shipment.manifest_url &&
-        shipment.channel !== 'regular'
+        !skipDuplicateLabel
       ) {
         const labelJob = createPrintJob(
           parseInt(printerId),
