@@ -1608,12 +1608,17 @@ export default function Orders() {
                         <Skeleton className="h-3 w-24" />
                       </div>
                     </TableCell>
+                    {canSeePack && (
+                      <TableCell style={{ width: 220 }}>
+                        <Skeleton className="h-3 w-24" />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </>
             ) : paginatedShipments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={canSeePack ? 11 : 10} className="text-center text-muted-foreground py-8">
                   No shipments found
                 </TableCell>
               </TableRow>
