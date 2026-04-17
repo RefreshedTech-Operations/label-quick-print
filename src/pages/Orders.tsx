@@ -134,21 +134,22 @@ export default function Orders() {
     gcTime: 30 * 60 * 1000,
   });
 
-  // Check if current user is admin
-  const { data: isAdminData } = useQuery({
-    queryKey: ['is-admin', authUser?.id],
+  // Check if current user is admin or manager
+  const { data: roleData } = useQuery({
+    queryKey: ['user-roles-orders', authUser?.id],
     queryFn: async () => {
-      if (!authUser) return false;
-      const { data } = await supabase.rpc('has_role', { 
-        _user_id: authUser.id, 
-        _role: 'admin' 
-      });
-      return data === true;
+      if (!authUser) return { isAdmin: false, isManager: false };
+      const [{ data: adminData }, { data: managerData }] = await Promise.all([
+        supabase.rpc('has_role', { _user_id: authUser.id, _role: 'admin' }),
+        supabase.rpc('has_role', { _user_id: authUser.id, _role: 'manager' }),
+      ]);
+      return { isAdmin: adminData === true, isManager: managerData === true };
     },
     enabled: !!authUser,
     staleTime: 10 * 60 * 1000,
   });
-  const isAdmin = isAdminData ?? false;
+  const isAdmin = roleData?.isAdmin ?? false;
+  const canSeePack = (roleData?.isAdmin || roleData?.isManager) ?? false;
 
   // Reset "All Shows" mode when a specific date is selected
   useEffect(() => {
