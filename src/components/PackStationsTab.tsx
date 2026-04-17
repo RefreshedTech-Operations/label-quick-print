@@ -313,6 +313,36 @@ export function PackStationsTab() {
         )}
       </CardContent>
 
+      {/* Rename Station Dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Pack Station</DialogTitle>
+            <DialogDescription>
+              Update the name for "{renameTarget?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rename-station-name">Station Name</Label>
+              <Input
+                id="rename-station-name"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>Cancel</Button>
+            <Button onClick={handleRename} disabled={renaming}>
+              {renaming ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add Station Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>
