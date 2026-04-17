@@ -643,21 +643,39 @@ function MissingLabelsTab({ queryClient, initialShowDate }: { queryClient: Retur
                 </div>
               </div>
             )}
-            {bulkProgress && (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span className="font-medium">Generating labels...</span>
+            {bulkProgress && (() => {
+              const elapsed = (Date.now() - bulkProgress.startTime) / 1000;
+              const rate = bulkProgress.current > 0 ? bulkProgress.current / elapsed : 0;
+              const remaining = bulkProgress.total - bulkProgress.current;
+              const etaSec = rate > 0 ? Math.round(remaining / rate) : 0;
+              const perMin = rate > 0 ? Math.round(rate * 60) : 0;
+              const etaLabel = etaSec > 60 ? `~${Math.ceil(etaSec / 60)}m remaining` : etaSec > 0 ? `~${etaSec}s remaining` : 'starting…';
+              return (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="font-medium">Generating labels...</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        {bulkProgress.inFlight} in flight
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted-foreground">
+                        {bulkProgress.current} / {bulkProgress.total}
+                        {bulkProgress.failed > 0 && <span className="text-destructive ml-2">({bulkProgress.failed} failed)</span>}
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={() => { cancelBulkRef.current = true; }}>Cancel</Button>
+                    </div>
                   </div>
-                  <span className="text-muted-foreground">
-                    {bulkProgress.current} / {bulkProgress.total}
-                    {bulkProgress.failed > 0 && <span className="text-destructive ml-2">({bulkProgress.failed} failed)</span>}
-                  </span>
+                  <Progress value={(bulkProgress.current / bulkProgress.total) * 100} className="h-2" />
+                  <div className="text-xs text-muted-foreground">
+                    {etaLabel}{perMin > 0 ? ` · ~${perMin} labels/min` : ''}
+                  </div>
                 </div>
-                <Progress value={(bulkProgress.current / bulkProgress.total) * 100} className="h-2" />
-              </div>
-            )}
+              );
+            })()}
           </CardContent>
         </Card>
 
