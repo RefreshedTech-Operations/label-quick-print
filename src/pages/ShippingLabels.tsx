@@ -315,6 +315,7 @@ export default function ShippingLabels() {
         <TabsList>
           <TabsTrigger value="missing" className="gap-2"><Tag className="h-4 w-4" />Missing Labels</TabsTrigger>
           <TabsTrigger value="generated" className="gap-2"><FileText className="h-4 w-4" />Generated Labels</TabsTrigger>
+          <TabsTrigger value="review" className="gap-2"><AlertCircle className="h-4 w-4" />Needs Review<NeedsReviewBadge /></TabsTrigger>
           <TabsTrigger value="lookup" className="gap-2"><Search className="h-4 w-4" />Label Lookup</TabsTrigger>
         </TabsList>
         <TabsContent value="missing" className="space-y-4 mt-4">
@@ -322,6 +323,9 @@ export default function ShippingLabels() {
         </TabsContent>
         <TabsContent value="generated" className="space-y-4 mt-4">
           <GeneratedLabelsTab queryClient={queryClient} initialShowDate={initialShowDate} />
+        </TabsContent>
+        <TabsContent value="review" className="space-y-4 mt-4">
+          <NeedsReviewTab queryClient={queryClient} onSwitchToMissing={() => setActiveTab('missing')} />
         </TabsContent>
         <TabsContent value="lookup" className="space-y-4 mt-4">
           <LabelLookupTab />
