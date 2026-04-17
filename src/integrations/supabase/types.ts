@@ -1042,6 +1042,10 @@ export type Database = {
           manifest_url: string
           order_group_id: string
           order_id: string
+          pack_station_name: string
+          packed: boolean
+          packed_at: string
+          packed_by_name: string
           price: string
           printed: boolean
           printed_at: string
