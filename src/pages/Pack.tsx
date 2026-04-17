@@ -80,7 +80,12 @@ export default function Pack() {
   useEffect(() => {
     if (cameraMode || showStationPicker || isMobile) return;
     const interval = setInterval(() => {
-      if (inputRef.current && document.activeElement !== inputRef.current) {
+      const active = document.activeElement as HTMLElement | null;
+      // Don't steal focus from other inputs/textareas (e.g. the name field)
+      if (active && active !== inputRef.current && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+        return;
+      }
+      if (inputRef.current && active !== inputRef.current) {
         inputRef.current.focus();
       }
     }, 500);
